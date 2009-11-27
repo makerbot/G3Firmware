@@ -35,9 +35,18 @@
  * Is there a heated build platform?
  ****************************************************************************************/
  
-#define HAS_HEATED_BUILD_PLATFORM 1
+#define HAS_HEATED_BUILD_PLATFORM 0
 // Define the default temperature for the heated build platform
 #define DEFAULT_PLATFORM_TEMPERATURE 0
+
+/****************************************************************************************
+ * Is there a LC-Display?
+ * If yes, we have to save space. Thus if HAS_I2C_LCD==1, EEPROM and SERVO handling are
+ * automatically disabled
+ ****************************************************************************************/
+ 
+#define HAS_I2C_LCD 0
+#define TEMP_LCD_UPDATE_INTERVAL 1500
 
 /****************************************************************************************
  * Define the PID behavior for the heater

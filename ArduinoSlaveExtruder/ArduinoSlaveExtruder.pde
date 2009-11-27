@@ -20,14 +20,21 @@
 #error Oops!  Make sure you have 'Arduino' selected from the boards menu.
 #endif
 
+#include "Configuration.h"
+
 //include some basic libraries.
 #include <WProgram.h>
-#include <Servo.h>
 #include <stdint.h>
-#include <EEPROM.h>
 #include <SimplePacket.h>
 
-#include "Configuration.h"
+#if HAS_I2C_LCD
+    #include <Wire.h>
+    #include "I2cLCD.h"
+#else // ...we have to save memory, so no EEPROM and Servo in case of I2C_LCD
+    #include <EEPROM.h>
+    #include <Servo.h>
+#endif
+
 #include "Datatypes.h"
 #include "Variables.h"
 #include "PacketProcessor.h"
@@ -44,9 +51,13 @@ void setup()
   init_serial(); //dont want to re-initialize serial!
   initialize();
 
+#if HAS_I2C_LCD
+  lcd.initialize();
+#endif
+
   //this is a simple text string that identifies us.
-  //Serial.print("R3G Slave v");
-  //Serial.println(FIRMWARE_VERSION, DEC);
+ // Serial.print("R3G Slave v");
+ // Serial.println(FIRMWARE_VERSION, DEC);
 }
 
 //this function takes us back to our default state.
@@ -81,8 +92,12 @@ void loop()
   {
     extruder_heater.manage_temperature();
     
-#ifdef HAS_HEATED_BUILD_PLATFORM
+#if HAS_HEATED_BUILD_PLATFORM
     platform_heater.manage_temperature();
+#endif
+
+#if HAS_I2C_LCD
+    lcd.updateTempDisplay();
 #endif
 
   }

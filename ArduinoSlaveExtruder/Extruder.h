@@ -19,7 +19,7 @@ void disable_motor_2();
 void enable_fan();
 void disable_fan();
 
-#ifndef HAS_HEATED_BUILD_PLATFORM
+#if !HAS_HEATED_BUILD_PLATFORM
 void open_valve();
 void close_valve();
 #endif

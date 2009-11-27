@@ -12,6 +12,7 @@ UPLOAD_RATE = 19200
 AVRDUDE_PROGRAMMER = stk500v1
 
 SRCS=	Extruder.cpp \
+	I2cLCD.cpp \
 	Heater.cpp \
 	PacketProcessor.cpp \
 	Timer1.cpp \

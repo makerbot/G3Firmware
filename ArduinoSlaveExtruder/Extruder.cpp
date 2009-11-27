@@ -6,6 +6,10 @@
 #include "PacketProcessor.h"
 #include "ThermistorTable.h"
 
+#if HAS_I2C_LCD
+    #include "I2cLCD.h"
+#endif
+
 // Yep, this is actually -*- c++ -*-
 void init_extruder()
 {
@@ -23,9 +27,11 @@ void init_extruder()
   motor2_target_rpm = 0;
   motor2_current_rpm = 0;
 	
-  //free up 9/10
+#if !HAS_I2C_LCD // We have to save memory in case of HAS_I2C_LCD
+//  //free up 9/10
   servo1.detach();
   servo2.detach();
+#endif
 
   //init our PID stuff.
   speed_error = 0;
@@ -41,7 +47,7 @@ void init_extruder()
   extruder_heater.init(EXTRUDER_THERMISTOR_PIN, EXTRUDER_HEATER_PIN, false);
 #endif
 
-#ifdef HAS_HEATED_BUILD_PLATFORM
+#if HAS_HEATED_BUILD_PLATFORM
   #ifdef PLATFORM_THERMOCOUPLER_PIN
     platform_heater.init(PLATFORM_THERMOCOUPLER_PIN, PLATFORM_HEATER_PIN, true);
   #else
@@ -75,7 +81,7 @@ void init_extruder()
   //setup our various accessory pins.
   pinMode(EXTRUDER_HEATER_PIN, OUTPUT);
   pinMode(FAN_PIN, OUTPUT);
-#ifdef HAS_HEATED_BUILD_PLATFORM
+#if HAS_HEATED_BUILD_PLATFORM
   pinMode(PLATFORM_HEATER_PIN, OUTPUT);
 #else
   pinMode(VALVE_PIN, OUTPUT);  
@@ -84,7 +90,7 @@ void init_extruder()
   //turn them all off
   digitalWrite(EXTRUDER_HEATER_PIN, LOW);
   digitalWrite(FAN_PIN, LOW);
-#ifdef HAS_HEATED_BUILD_PLATFORM
+#if HAS_HEATED_BUILD_PLATFORM
   digitalWrite(PLATFORM_HEATER_PIN, LOW);
 #else
   digitalWrite(VALVE_PIN, LOW);
@@ -97,8 +103,8 @@ void init_extruder()
   //default to zero.
   extruder_heater.set_target_temperature(0);
 
-#ifdef HAS_HEATED_BUILD_PLATFORM
-  //default build platform to 60 C
+#if HAS_HEATED_BUILD_PLATFORM
+  //default build platform to default value
   platform_heater.set_target_temperature(DEFAULT_PLATFORM_TEMPERATURE);
 #endif
 
@@ -129,6 +135,9 @@ else
 
 void enable_motor_1()
 {
+#if HAS_I2C_LCD
+  lcd.updateStatus("Extruding...");
+#endif
   if (motor1_control == MC_PWM)
   {
     //nuke any previous reversals.
@@ -157,6 +166,9 @@ void enable_motor_1()
 
 void disable_motor_1()
 {
+#if HAS_I2C_LCD
+    lcd.updateStatus("Idle");
+#endif
   if (motor1_control == MC_PWM)
   {
     analogWrite(MOTOR_1_SPEED_PIN, 0);
@@ -282,7 +294,7 @@ void disable_fan()
   digitalWrite(FAN_PIN, LOW);
 }
 
-#ifndef HAS_HEATED_BUILD_PLATFORM
+#if !HAS_HEATED_BUILD_PLATFORM
 void open_valve()
 {
   digitalWrite(VALVE_PIN, HIGH);

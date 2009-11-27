@@ -9,7 +9,7 @@ class Heater
     bool usesThermocoupler;
     int inputPin;
     int outputPin;
-    
+        
     int current_temperature;
     int target_temperature;
     int max_temperature;
@@ -38,7 +38,10 @@ class Heater
     void init(int inPin, int outPin, bool isThermocoupler);
     
     int get_current_temperature(); 
+
     void set_target_temperature(int temp);
+    int get_target_temperature(); 
+
     bool hasReachedTargetTemperature();
 
     void manage_temperature();

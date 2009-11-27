@@ -1,4 +1,7 @@
-#include <EEPROM.h>
+#if !HAS_I2C_LCD // We have to save memory in case of HAS_I2C_LCD
+    #include <EEPROM.h>
+#endif
+
 #include <SimplePacket.h>
 #include "RS485.h"
 #include "Variables.h"
@@ -27,8 +30,10 @@ SimplePacket masterPacket(rs485_tx);
 #define SLAVE_CMD_TOGGLE_MOTOR_2        11
 #define SLAVE_CMD_TOGGLE_FAN            12
 #define SLAVE_CMD_TOGGLE_VALVE          13
-#define SLAVE_CMD_SET_SERVO_1_POS       14
-#define SLAVE_CMD_SET_SERVO_2_POS       15
+#if !HAS_I2C_LCD // We have to save memory in case of HAS_I2C_LCD
+    #define SLAVE_CMD_SET_SERVO_1_POS       14
+    #define SLAVE_CMD_SET_SERVO_2_POS       15
+#endif
 #define SLAVE_CMD_FILAMENT_STATUS       16
 #define SLAVE_CMD_GET_MOTOR_1_PWM       17
 #define SLAVE_CMD_GET_MOTOR_2_PWM       18
@@ -38,8 +43,10 @@ SimplePacket masterPacket(rs485_tx);
 #define SLAVE_CMD_IS_TOOL_READY         22
 #define SLAVE_CMD_PAUSE_UNPAUSE         23
 #define SLAVE_CMD_ABORT                 24
-#define SLAVE_CMD_READ_FROM_EEPROM      25
-#define SLAVE_CMD_WRITE_TO_EEPROM       26
+#if !HAS_I2C_LCD // We have to save memory in case of HAS_I2C_LCD
+    #define SLAVE_CMD_READ_FROM_EEPROM      25
+    #define SLAVE_CMD_WRITE_TO_EEPROM       26
+#endif
 
 #define SLAVE_CMD_GET_PLATFORM_TEMP     30
 #define SLAVE_CMD_SET_PLATFORM_TEMP     31
@@ -160,7 +167,7 @@ void handle_query()
     extruder_heater.set_target_temperature(masterPacket.get_16(2));
     break;
 
-#ifdef HAS_HEATED_BUILD_PLATFORM
+#if HAS_HEATED_BUILD_PLATFORM
   //WORKING
   case SLAVE_CMD_GET_PLATFORM_TEMP:
     masterPacket.add_16(platform_heater.get_current_temperature());
@@ -263,7 +270,7 @@ void handle_query()
       disable_fan();
     break;
 
-#ifndef HAS_HEATED_BUILD_PLATFORM
+#if !HAS_HEATED_BUILD_PLATFORM
 //WORKING
   case SLAVE_CMD_TOGGLE_VALVE:
     temp = masterPacket.get_8(2);
@@ -274,7 +281,8 @@ void handle_query()
     break;
 #endif
 
-  //WORKING
+#if !HAS_I2C_LCD // We have to save memory in case of HAS_I2C_LCD
+//WORKING
   case SLAVE_CMD_SET_SERVO_1_POS:
     servo1.attach(9);
     servo1.write(masterPacket.get_8(2));
@@ -285,6 +293,7 @@ void handle_query()
     servo2.attach(10);
     servo2.write(masterPacket.get_8(2));
     break;
+#endif
 
   //WORKING
   case SLAVE_CMD_FILAMENT_STATUS:
@@ -325,6 +334,7 @@ void handle_query()
   case SLAVE_CMD_ABORT:
     initialize();
     break;
+#if !HAS_I2C_LCD // We have to save memory in case of HAS_I2C_LCD
   case SLAVE_CMD_READ_FROM_EEPROM:
     {
       const uint16_t offset = masterPacket.get_16(2);
@@ -352,5 +362,6 @@ void handle_query()
       }
     }
     break;
+#endif
   }
 }

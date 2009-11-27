@@ -31,6 +31,11 @@ void Heater::set_target_temperature(int temp)
   max_temperature = (int)((float)temp * 1.1);
 }
 
+int Heater::get_target_temperature()
+{
+    return target_temperature;
+}
+
 bool Heater::hasReachedTargetTemperature()
 {
   return (current_temperature > (int)(target_temperature * 0.95));

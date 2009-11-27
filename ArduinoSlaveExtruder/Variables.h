@@ -3,9 +3,14 @@
 
 #include "Configuration.h"
 #include "Datatypes.h"
-#include <Servo.h>
 #include "WProgram.h"
 #include "Heater.h"
+
+#if HAS_I2C_LCD 
+    #include "I2cLCD.h"
+#else // We have to save memory in case of HAS_I2C_LCD
+    #include <Servo.h>
+#endif
 
 //this is the version of our host software
 extern unsigned int master_version;
@@ -15,7 +20,7 @@ extern bool is_tool_paused;
 
 // Two Temp Zones
 extern Heater extruder_heater;
-#ifdef HAS_HEATED_BUILD_PLATFORM
+#if HAS_HEATED_BUILD_PLATFORM
 extern Heater platform_heater;
 #endif
 
@@ -36,8 +41,12 @@ extern byte motor2_pwm;
 extern long motor2_target_rpm;
 extern long motor2_current_rpm;
 
+#if HAS_I2C_LCD
+extern I2cLCD lcd;
+#else // We have to save memory in case of HAS_I2C_LCD
 extern Servo servo1;
 extern Servo servo2;
+#endif
 
 //these are for the extruder PID
 extern volatile int speed_error;        // extruder position / error variable.
