@@ -282,7 +282,7 @@ void disable_fan()
   digitalWrite(FAN_PIN, LOW);
 }
 
-#if HAS_HEATED_BUILD_PLATFORM
+#if HAS_HEATED_BUILD_PLATFORM == 0
 void open_valve()
 {
   digitalWrite(VALVE_PIN, HIGH);

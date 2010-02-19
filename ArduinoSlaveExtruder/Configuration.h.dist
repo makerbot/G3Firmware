@@ -35,9 +35,9 @@
  * Is there a heated build platform?
  ****************************************************************************************/
  
-#define HAS_HEATED_BUILD_PLATFORM 0
+#define HAS_HEATED_BUILD_PLATFORM 1
 // Define the default temperature for the heated build platform
-// #define DEFAULT_PLATFORM_TEMPERATURE 0
+#define DEFAULT_PLATFORM_TEMPERATURE 0
 
 /****************************************************************************************
  * Define the PID behavior for the heater
