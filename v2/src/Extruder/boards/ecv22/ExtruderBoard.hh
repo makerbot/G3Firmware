@@ -43,6 +43,7 @@ public:
 	Heater& getExtruderHeater() { return extruder_heater; }
 	Heater& getPlatformHeater() { return platform_heater; }
 	void setMotorSpeed(int16_t speed);
+	void setFan(bool on);
 	UART& getHostUART() { return UART::getHostUART(); }
 	static ExtruderBoard& getBoard() { return extruderBoard; }
 	/// Get the number of microseconds that have passed since
@@ -51,6 +52,8 @@ public:
 	micros_t getCurrentMicros();
 	/// Perform the timer interrupt routine.
 	void doInterrupt();
+	/// Indicate an error by manipulating the debug LED.
+	void indicateError(int errorCode);
 private:
 	Thermistor extruder_thermistor;
 	Thermistor platform_thermistor;

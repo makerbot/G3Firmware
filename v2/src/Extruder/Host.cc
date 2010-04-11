@@ -20,13 +20,13 @@
 #include "Timeout.hh"
 #include <util/atomic.h>
 #include <avr/eeprom.h>
-#include "DebugPin.hh"
 #include "DebugPacketProcessor.hh"
 #include "Configuration.hh"
 #include "ExtruderBoard.hh"
 #include "Commands.hh"
 #include "Version.hh"
 #include "MotorController.hh"
+#include "Main.hh"
 
 Timeout packet_in_timeout;
 
@@ -109,6 +109,10 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			motor.setOn((from_host.read8(2) & 0x01) != 0);
 			to_host.append8(RC_OK);
 			return true;
+		case SLAVE_CMD_TOGGLE_FAN:
+			board.setFan((from_host.read8(2) & 0x01) != 0);
+			to_host.append8(RC_OK);
+			return true;
 		case SLAVE_CMD_IS_TOOL_READY:
 			to_host.append8(RC_OK);
 			to_host.append8(board.getExtruderHeater().hasReachedTargetTemperature()?1:0);
@@ -136,7 +140,7 @@ void runHostSlice() {
 	}
 	if (do_host_reset) {
 		do_host_reset = false;
-		ExtruderBoard::getBoard().reset();
+		reset();
 	}
 	if (in.isStarted() && !in.isFinished()) {
 		if (!packet_in_timeout.isActive()) {
