@@ -29,11 +29,15 @@ extern bool capturing;
 // True if the motherboard is currently playing back a build from a 
 // file on the SD card.
 extern bool playing;
+// True if motherboard is currently playing back a gcode file from the SD card.
+extern bool playing_gcode;
 
 // True if we're capturing buffered commands to a file, false otherwise
 inline bool is_capturing() { return capturing; }
 // True if we're playing back buffered commands from a file, false otherwise
 inline bool is_playing() { return playing; }
+// True if the file we are playing back is a gcode file.
+inline bool is_playing_gcode() { return playing_gcode; }
 
 /**************************/
 /** Build Capture         */
@@ -64,6 +68,10 @@ void playback_rewind(uint8_t bytes);
 // Halt playback.  Should be called at the end of playback, or on manual
 // halt; frees up resources.
 void finish_playback();
+
+int8_t playback_percent_done();
+int16_t playback_seconds_elapsed();
+const char* get_playback_filename();
 
 void sd_reset();
 

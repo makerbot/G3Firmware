@@ -19,7 +19,12 @@ SRCS=	EEPROMUtils.cpp \
 	Steppers.cpp \
 	Tools.cpp \
 	Utils.cpp \
-	Variables.cpp
+	Variables.cpp \
+	AsyncTwi.cpp \
+	GCode.cpp \
+	LCD.cpp \
+	ModtronixLCD2S.cpp \
+	Screens.cpp
 
 # ARDUINO_HOME should be the top-level path to the Arduino install use
 # to do the build.

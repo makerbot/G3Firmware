@@ -32,6 +32,8 @@
 #include "Version.h"
 #include "PSU.h"
 #include "PacketProcessor.h"
+#include "AsyncTwi.h"
+#include "LCD.h"
 
 #ifdef USE_SD_CARD
 #include <RepRapSDCard.h>
@@ -42,18 +44,6 @@ void initialize();
 #ifdef BUZZER_PIN
 void init_buzzer();
 #endif
-
-//set up our firmware for actual usage.
-void setup()
-{
-  //setup our firmware to a default state.
-  init_serial();
-  initialize();
-
-  //this is a simple text string that identifies us.
-  Serial.print("R3G Master v");
-  Serial.println(FIRMWARE_VERSION, DEC);
-}
 
 //this function takes us back to our default state.
 void initialize()
@@ -85,6 +75,23 @@ void init_serial()
 
   Serial.begin(HOST_SERIAL_SPEED);
   Serial1.begin(SLAVE_SERIAL_SPEED);
+  twi_init();
+}
+
+//set up our firmware for actual usage.
+void setup()
+{
+  //setup our firmware to a default state.
+  init_serial();
+  initialize();
+
+  //this is a simple text string that identifies us.
+  Serial.print("R3G Master v");
+  Serial.println(FIRMWARE_VERSION, DEC);
+
+#ifdef LCD_I2C_ADDRESS
+  lcd_init();
+#endif
 }
 
 //handle various things we're required to do.
@@ -104,6 +111,10 @@ void loop()
       commandMode = COMMAND_MODE_IDLE;
     }
   }
+
+#ifdef LCD_I2C_ADDRESS
+  lcd_update();
+#endif
 }
 
 // prototype of fn defined in Tools.pde
@@ -115,6 +126,12 @@ void abort_print()
   //turn off all of our tools.
   abort_current_tool();
 
+  // abort any current playback or capture.
+  sd_reset();
+
+  // abort any commands remaining in the command queue.
+  clear_command_buffer();
+
   //turn off steppers too.
   pause_stepping();
 
@@ -125,9 +142,9 @@ void abort_print()
 #ifdef BUZZER_PIN
 void init_buzzer()
 {
-	pinMode(BUZZER_PIN, OUTPUT);
-	
-	//buzz for a bit.
+  pinMode(BUZZER_PIN, OUTPUT);
+  
+  //buzz for a bit.
   for (int i=0; i<500; i++)
   {
     digitalWrite(BUZZER_PIN, HIGH);
@@ -137,3 +154,6 @@ void init_buzzer()
   }
 }
 #endif
+
+// vim: set sw=2 syntax=cpp autoindent nowrap expandtab: settings
+

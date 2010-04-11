@@ -39,5 +39,7 @@ const LongPoint get_range();
 
 void resume_stepping();
 void pause_stepping();
+uint16_t point_buffer_size();
+void point_buffer_clear();
  
 #endif // _STEPPERS_H

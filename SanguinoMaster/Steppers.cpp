@@ -198,6 +198,9 @@ StepperAxis axes[AXIS_COUNT] = {
 //initialize our stepper drivers
 void init_steppers()
 {
+  //no dda interrupts while we set the data.
+  disableTimer1Interrupt();
+
   //clear our point buffer
   pointBuffer.clear();
 
@@ -284,6 +287,19 @@ void seek_dir(bool seek[], bool positive, unsigned long step_delay, unsigned int
 
   //turn on point seeking agian.
   enableTimer1Interrupt();
+}
+
+
+uint16_t point_buffer_size()
+{
+  return pointBuffer.size();
+}
+
+
+void point_buffer_clear()
+{
+  disableTimer1Interrupt();
+  pointBuffer.clear();
 }
 
 
@@ -452,34 +468,54 @@ bool point_buffer_has_room(uint8_t size)
 
 void set_position(const LongPoint& pos)
 {
+  //no dda interrupts while we set the data.
+  disableTimer1Interrupt();
+
   axes[0].targetSteps = axes[0].currentSteps = pos.x;
   axes[1].targetSteps = axes[1].currentSteps = pos.y;
   axes[2].targetSteps = axes[2].currentSteps = pos.z;
+
+  enableTimer1Interrupt();
 }
 
 const LongPoint get_position()
 {
+  //no dda interrupts while we set the data.
+  disableTimer1Interrupt();
+
   LongPoint p;
   p.x = axes[0].currentSteps;
   p.y = axes[1].currentSteps;
   p.z = axes[2].currentSteps;
+
+  enableTimer1Interrupt();
   return p;
 }
 
 
 void set_range(const LongPoint& range)
 {
+  //no dda interrupts while we set the data.
+  disableTimer1Interrupt();
+
   axes[0].rangeSteps = range.x;
   axes[1].rangeSteps = range.y;
   axes[2].rangeSteps = range.z;
+
+  enableTimer1Interrupt();
 }
 
 const LongPoint get_range()
 {
+  //no dda interrupts while we set the data.
+  disableTimer1Interrupt();
+
   LongPoint p;
   p.x = axes[0].rangeSteps;
   p.y = axes[1].rangeSteps;
   p.z = axes[2].rangeSteps;
+
+  enableTimer1Interrupt();
   return p;
 }
 

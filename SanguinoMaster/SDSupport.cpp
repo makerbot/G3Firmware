@@ -1,10 +1,24 @@
+#include "Configuration.h"
 #include "SDSupport.h"
+#include "Utils.h"
 #include <RepRapSDCard.h>
 #include <stddef.h>
+#include <string.h>
 
 bool capturing = false;
 bool playing = false;
 uint32_t capturedBytes = 0L;
+
+bool playing_gcode = false;
+int32_t playback_file_length;
+int32_t playback_file_position;
+uint32_t playback_start_millis;
+char playback_filename[MAX_FILENAME_SIZE];
+
+extern "C" {
+  uint32_t millis();
+}
+
 
 RepRapSDCard sdcard;
 
@@ -120,6 +134,10 @@ uint8_t playback_next() {
   return rv;
 }
 
+const char* get_playback_filename() {
+  return playback_filename;
+}
+
 uint8_t start_playback(char* filename) {
   sd_reset();
   uint8_t result = init_sd_card();
@@ -133,6 +151,23 @@ uint8_t start_playback(char* filename) {
   if (rc == 0 || file == NULL) {
     return SD_ERR_FILE_NOT_FOUND;
   }
+
+  playback_file_length = 0;
+  playback_file_position = 0;
+  sdcard.seek_file(file, &playback_file_length, FAT_SEEK_END);
+  int32_t dummy = 0;
+  sdcard.seek_file(file, &dummy, FAT_SEEK_SET);
+
+  strncpy(playback_filename,filename,sizeof(playback_filename));
+  playback_filename[sizeof(playback_filename)-1] = '\0';
+
+  if (strendswith_P(filename, PSTR(".gcode"))) {
+    playing_gcode = true;
+  } else {
+    playing_gcode = false;
+  }
+
+  playback_start_millis = millis();
 
   playing = true;
   fetch_next_byte();
@@ -150,6 +185,23 @@ void finish_playback() {
   sdcard.reset();
   file = NULL;
 }
+
+
+int8_t playback_percent_done() {
+  if (!playing) {
+    return -1;
+  }
+  return playback_file_position * 100 / playback_file_length;
+}
+
+
+int16_t playback_seconds_elapsed() {
+  if (!playing) {
+    return -1;
+  }
+  return (millis() - playback_start_millis)/1000L;
+}
+
 
 void sd_reset() {
   if (playing) finish_playback();

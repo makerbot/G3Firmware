@@ -13,6 +13,12 @@ uint8_t currentToolIndex = 0;
 unsigned long toolNextPing = 0;
 unsigned long toolTimeoutEnd = 0;
 
+uint16_t last_head_temp;
+uint16_t last_platform_temp;
+uint16_t targ_head_temp;
+uint16_t targ_platform_temp;
+int8_t targ_extruder_dir;
+
 extern uint8_t commandMode;
 
 //initialize our tools
@@ -33,6 +39,15 @@ void init_tools()
   }
 #endif
 */
+  last_head_temp = 0;
+  last_platform_temp = 0;
+  targ_head_temp = 0;
+  targ_platform_temp = 0;
+  targ_extruder_dir = 0;
+
+  // Initialize at startup to using tool 0 as a sane start.
+  init_tool(0);
+  select_tool(0);
 }
 
 //ask a tool if its there.
@@ -142,6 +157,75 @@ bool is_tool_ready(uint8_t tool)
   return false;
 }
 
+
+void poll_current_tool_temps()
+{
+  slavePacket.init();
+  slavePacket.add_8(currentToolIndex);
+  slavePacket.add_8(SLAVE_CMD_GET_TEMP);
+  if (send_packet()) {
+    last_head_temp = slavePacket.get_16(1);
+  }
+
+  slavePacket.init();
+  slavePacket.add_8(0);  // Always assume platform is heated by Tool 0?
+  slavePacket.add_8(SLAVE_CMD_GET_PLATFORM_TEMP);
+  if (send_packet()) {
+    last_platform_temp = slavePacket.get_16(1);
+  }
+}
+
+
+uint16_t get_last_head_temp()
+{
+  return last_head_temp;
+}
+
+
+uint16_t get_last_platform_temp()
+{
+  return last_platform_temp;
+}
+
+
+uint16_t get_target_head_temp()
+{
+  return targ_head_temp;
+}
+
+
+uint16_t get_target_platform_temp()
+{
+  return targ_platform_temp;
+}
+
+
+int8_t get_extruder_dir()
+{
+  return targ_extruder_dir;
+}
+
+
+static void tool_command_sniff(uint8_t tool, uint8_t command, uint8_t len, uint8_t *data)
+{
+  switch(command) {
+    case SLAVE_CMD_SET_TEMP:
+	targ_head_temp = (((uint16_t)data[1])<<8) + data[0];
+        break;
+    case SLAVE_CMD_SET_PLATFORM_TEMP:
+	targ_platform_temp = (((uint16_t)data[1])<<8) + data[0];
+        break;
+    case SLAVE_CMD_TOGGLE_MOTOR_1:
+	if (data[0] & 0x1) {
+	  targ_extruder_dir = (data[0] & 0x2)? 1 : -1;
+	} else {
+	  targ_extruder_dir = 0;
+	}
+        break;
+  }
+}
+
+
 void send_tool_query(SimplePacket& hostPacket)
 {
   //zero out our packet
@@ -165,14 +249,21 @@ void send_tool_command(CircularBuffer::Cursor& cursor)
   //zero out our packet
   slavePacket.init();
 
+  uint8_t tool = cursor.read_8();
+  uint8_t tcmd = cursor.read_8();
+  uint8_t len  = cursor.read_8();
+
   //add in our tool id and command.
-  slavePacket.add_8(cursor.read_8());
-  slavePacket.add_8(cursor.read_8());
+  slavePacket.add_8(tool);
+  slavePacket.add_8(tcmd);
 
   //load up our packet.
-  uint8_t len = cursor.read_8();
+  uint8_t buf[len];
   for (uint8_t i=0; i<len; i++)
-    slavePacket.add_8(cursor.read_8());
+    slavePacket.add_8(buf[i] = cursor.read_8());
+
+  //sniff it for any interesting commands.
+  tool_command_sniff(tool, tcmd, len, buf);
 
   //send it and then get our response
   send_packet();
@@ -185,6 +276,32 @@ void send_tool_simple_command(uint8_t tool, uint8_t command)
   slavePacket.add_8(command);
   send_packet();
 }
+
+
+void send_tool_simple_command_with_byte(uint8_t tool, uint8_t command, uint8_t byt)
+{
+  tool_command_sniff(tool, command, 1, &byt);
+  slavePacket.init();
+  slavePacket.add_8(tool);
+  slavePacket.add_8(command);
+  slavePacket.add_8(byt);
+  send_packet();
+}
+
+
+void send_tool_simple_command_with_word(uint8_t tool, uint8_t command, uint16_t wrd)
+{
+  uint8_t buf[2];
+  buf[0] = wrd&0xff;
+  buf[1] = wrd>>8;
+  tool_command_sniff(tool, command, 2, buf);
+  slavePacket.init();
+  slavePacket.add_8(tool);
+  slavePacket.add_8(command);
+  slavePacket.add_16(wrd);
+  send_packet();
+}
+
 
 void abort_current_tool()
 {

@@ -93,4 +93,7 @@
 #define SLAVE_CMD_PAUSE_UNPAUSE         23
 #define SLAVE_CMD_ABORT                 24
 
+#define SLAVE_CMD_GET_PLATFORM_TEMP     30
+#define SLAVE_CMD_SET_PLATFORM_TEMP     31
+
 #endif // _COMMANDS_H_

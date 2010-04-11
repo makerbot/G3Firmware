@@ -9,6 +9,8 @@
 #include "Variables.h"
 #include "Version.h"
 #include "Steppers.h"
+#include "Utils.h"
+#include "GCode.h"
 
 // Hack until we completely kill PDEs: prototypes for methods in SanguinoMaster.pde
 void initialize();
@@ -333,6 +335,9 @@ void handle_commands()
 {
   byte flags = 0;
   
+  static long prevx;
+  static long prevy;
+  static long prevz;
   long x;
   long y;
   long z;
@@ -340,8 +345,14 @@ void handle_commands()
   byte cmd;
 
   if (is_playing()) {
-    while (commandBuffer.remainingCapacity() > 0 && playback_has_next()) {
-      commandBuffer.append(playback_next());
+    if (is_playing_gcode()) {
+      // Playing a .gcode file.
+      process_gcode_byte();
+    } else {
+      // Playing a standard .s3g file.
+      while (commandBuffer.remainingCapacity() > 0 && playback_has_next()) {
+	commandBuffer.append(playback_next());
+      }
     }
   } else {
     digitalWrite(DEBUG_PIN,LOW);
@@ -372,15 +383,26 @@ void handle_commands()
         step_delay = (unsigned long)cursor.read_32();
           
         queue_absolute_point(x, y, z, step_delay);
+	prevx = x;
+	prevy = y;
+	prevz = z;
       
         break;
 
       case HOST_CMD_SET_POSITION:
-	// Belay until we're at a good location.
-	if (!is_point_buffer_empty()) { return; }
-	cli();
-	set_position(LongPoint((long)cursor.read_32(),(long)cursor.read_32(),(long)cursor.read_32()));
-	sei();
+        x = (long)cursor.read_32();
+        y = (long)cursor.read_32();
+        z = (long)cursor.read_32();
+	if (x != prevx || y != prevy || z != prevz) {
+	  // Belay until we're at a good location.
+	  if (!is_point_buffer_empty()) { return; }
+	  cli();
+	  set_position(LongPoint(x,y,z));
+	  sei();
+	  prevx = x;
+	  prevy = y;
+	  prevz = z;
+	}
         break;
 
       case HOST_CMD_FIND_AXES_MINIMUM:
