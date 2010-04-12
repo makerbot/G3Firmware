@@ -121,6 +121,7 @@ bool has_more;
 
 void fetch_next_byte() {
   int16_t read = fat_read_file(file, &next_byte, 1);
+  playback_file_position += read;
   has_more = read > 0;
 }
 
