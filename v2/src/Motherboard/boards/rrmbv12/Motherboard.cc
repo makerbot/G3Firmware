@@ -51,6 +51,7 @@ Motherboard::Motherboard() {
 /// This only resets the board, and does not send a reset
 /// to any attached toolheads.
 void Motherboard::reset() {
+	indicateError(0); // turn off blinker
 	// Init and turn on power supply
 	getPSU().init();
 	getPSU().turnOn(true);
@@ -113,9 +114,15 @@ enum {
 } blink_state = BLINK_NONE;
 
 /// Write an error code to the debug pin.
-void Motherboard::indicateError(int errorCode) {
-	blink_count = errorCode;
-	blink_state = BLINK_OFF;
+void Motherboard::indicateError(int error_code) {
+	if (error_code == 0) {
+		blink_state = BLINK_NONE;
+		DEBUG_PIN.setValue(false);
+	}
+	else if (blink_count != error_code) {
+		blink_state = BLINK_OFF;
+	}
+	blink_count = error_code;
 }
 
 /// Get the current error code.
@@ -146,7 +153,7 @@ ISR(TIMER2_OVF_vect) {
 			blink_ovfs_remaining = OVFS_OFF;
 			DEBUG_PIN.setValue(false);
 		} else if (blink_state == BLINK_OFF) {
-			if (blinked_so_far == blink_count) {
+			if (blinked_so_far >= blink_count) {
 				blink_state = BLINK_PAUSE;
 				blink_ovfs_remaining = OVFS_PAUSE;
 			} else {
