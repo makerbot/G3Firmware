@@ -120,8 +120,11 @@ ISR(TIMER1_COMPA_vect) {
 }
 
 void ExtruderHeatingElement::setHeatingElement(uint8_t value) {
-	if (value > 128) value = 255;
-	if (value > 0) value = 128;
+	if (value > 128) {
+		value = 255;
+	} else if (value > 0) {
+		value = 128;
+	}
 	if (value == 0 || value == 255) {
 		pwmBOn(false);
 		channel_b.setValue(value == 255);
@@ -134,6 +137,17 @@ void ExtruderHeatingElement::setHeatingElement(uint8_t value) {
 
 
 void BuildPlatformHeatingElement::setHeatingElement(uint8_t value) {
+	// This is a bit of a hack to get the temperatures right until we fix our
+	// PWM'd PID implementation.  We reduce the MV to one bit, essentially.
+	// It works relatively well.
+	pwmAOn(false);
+	channel_a.setValue(value != 0);
+	/*
+	if (value > 128) {
+		value = 255;
+	} else if (value > 0) {
+		value = 128;
+	}
 	if (value == 0 || value == 255) {
 		pwmAOn(false);
 		channel_a.setValue(value == 255);
@@ -141,6 +155,7 @@ void BuildPlatformHeatingElement::setHeatingElement(uint8_t value) {
 		OCR2B = value;
 		pwmAOn(true);
 	}
+	*/
 }
 
 ISR(TIMER2_OVF_vect) {
