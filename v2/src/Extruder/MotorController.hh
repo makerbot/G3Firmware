@@ -27,14 +27,18 @@ public:
 	void setSpeed(int speed);
 	void setDir(bool dir);
 	void setOn(bool on);
-	void loadBackoffParameters();
+	void pause();
 	static MotorController& getController() { return motor_controller; }
 	static void runMotorSlice() { getController().update(); }
+	// Reset to board-on state
+	void reset();
 private:
 	MotorController();
+	void loadBackoffParameters();
 	bool direction;
 	bool on;
 	int speed;
+	bool paused;
 	// Backoff instrumentation
 	bool backoff_enabled;
 	enum {

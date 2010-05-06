@@ -30,8 +30,8 @@
 
 Timeout packet_in_timeout;
 
-#define HOST_PACKET_TIMEOUT_MS 20
-#define HOST_PACKET_TIMEOUT_MICROS (1000*HOST_PACKET_TIMEOUT_MS)
+#define HOST_PACKET_TIMEOUT_MS 20L
+#define HOST_PACKET_TIMEOUT_MICROS (1000L*HOST_PACKET_TIMEOUT_MS)
 inline void handleReadEeprom(const InPacket& from_host, OutPacket& to_host) {
 	const uint16_t offset = from_host.read16(2);
 	const uint8_t count = from_host.read8(4);
@@ -62,6 +62,11 @@ inline void handleWriteEeprom(const InPacket& from_host, OutPacket& to_host) {
 		to_host.append8(RC_OK);
 		to_host.append8(count);
 	}
+}
+
+inline void handlePause(const InPacket& from_host, OutPacket& to_host) {
+	MotorController::getController().pause();
+	to_host.append8(RC_OK);
 }
 
 bool do_host_reset = false;
@@ -96,6 +101,9 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 		case SLAVE_CMD_WRITE_TO_EEPROM:
 			handleWriteEeprom(from_host, to_host);
 			return true;
+		case SLAVE_CMD_PAUSE_UNPAUSE:
+			handlePause(from_host, to_host);
+			return true;
 		case SLAVE_CMD_SET_MOTOR_1_PWM:
 			motor.setSpeed(from_host.read8(2));
 			to_host.append8(RC_OK);
@@ -113,6 +121,8 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			board.setFan((from_host.read8(2) & 0x01) != 0);
 			to_host.append8(RC_OK);
 			return true;
+		case SLAVE_CMD_TOGGLE_VALVE:
+			board.setValve((from_host.read8(2) & 0x01) != 0);
 		case SLAVE_CMD_IS_TOOL_READY:
 			to_host.append8(RC_OK);
 			to_host.append8(board.getExtruderHeater().hasReachedTargetTemperature()?1:0);
@@ -122,13 +132,24 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			to_host.append16(board.getPlatformHeater().get_current_temperature());
 			return true;
 		case SLAVE_CMD_SET_PLATFORM_TEMP:
+			board.setUsingPlatform(true);
 			board.getPlatformHeater().set_target_temperature(from_host.read16(2));
 			to_host.append8(RC_OK);
+			return true;
+		case SLAVE_CMD_GET_SP:
+			to_host.append8(RC_OK);
+			to_host.append16(board.getExtruderHeater().get_set_temperature());
+			return true;
+		case SLAVE_CMD_GET_PLATFORM_SP:
+			to_host.append8(RC_OK);
+			to_host.append16(board.getPlatformHeater().get_set_temperature());
 			return true;
 		}
 	}
 	return false;
 }
+
+extern int cycles;
 
 void runHostSlice() {
 	UART& uart = ExtruderBoard::getBoard().getHostUART();

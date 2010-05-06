@@ -18,6 +18,7 @@
 #include "ExtruderBoard.hh"
 #include "HeatingElement.hh"
 #include "ExtruderMotor.hh"
+#include "MotorController.hh"
 #include "Configuration.hh"
 #include <avr/interrupt.h>
 #include <util/atomic.h>
@@ -35,7 +36,8 @@ ExtruderBoard::ExtruderBoard() :
 		extruder_thermistor(THERMISTOR_PIN,0),
 		platform_thermistor(PLATFORM_PIN,1),
 		extruder_heater(extruder_thermistor,extruder_element),
-		platform_heater(platform_thermistor,platform_element)
+		platform_heater(platform_thermistor,platform_element),
+		using_platform(true)
 {
 }
 
@@ -66,6 +68,7 @@ void ExtruderBoard::reset() {
 	TCCR1C = 0x00;
 	OCR1A = INTERVAL_IN_MICROSECONDS * 16;
 	TIMSK1 = 0x02; // turn on OCR1A match interrupt
+	TIMSK2 = 0x00; // turn off channel A PWM by default
 	// TIMER2 is used to PWM mosfet channel B on OC2A, and channel A on
 	// PC1 (using the OC2B register).
 	DEBUG_LED.setDirection(true);
@@ -83,8 +86,9 @@ void ExtruderBoard::reset() {
 	TIMSK2 = 0b00000101;
 	extruder_thermistor.init();
 	platform_thermistor.init();
-	extruder_heater.set_target_temperature(0);
-	platform_heater.set_target_temperature(0);
+	extruder_heater.reset();
+	platform_heater.reset();
+	setMotorSpeed(0);
 	getHostUART().enable(true);
 	getHostUART().in.reset();
 }
@@ -110,8 +114,20 @@ void ExtruderBoard::setFan(bool on) {
 	channel_c.setValue(on);
 }
 
+void ExtruderBoard::setValve(bool on) {
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+		setUsingPlatform(false);
+		pwmAOn(false);
+		channel_a.setValue(on);
+	}
+}
+
 void ExtruderBoard::indicateError(int errorCode) {
 	DEBUG_LED.setValue(errorCode != 0);
+}
+
+void ExtruderBoard::setUsingPlatform(bool is_using) {
+	using_platform = is_using;
 }
 
 /// Timer one comparator match interrupt
@@ -120,28 +136,30 @@ ISR(TIMER1_COMPA_vect) {
 }
 
 void ExtruderHeatingElement::setHeatingElement(uint8_t value) {
-	if (value > 128) {
-		value = 255;
-	} else if (value > 0) {
-		value = 128;
-	}
-	if (value == 0 || value == 255) {
-		pwmBOn(false);
-		channel_b.setValue(value == 255);
-	} else {
-		OCR2A = value;
-		pwmBOn(true);
+//	if (value > 128) {
+//		value = 255;
+//	} else if (value > 0) {
+//		value = 128;
+//	}
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+		if (value == 0 || value == 255) {
+			pwmBOn(false);
+			channel_b.setValue(value == 255);
+		} else {
+			OCR2A = value;
+			pwmBOn(true);
+		}
 	}
 }
-
-
 
 void BuildPlatformHeatingElement::setHeatingElement(uint8_t value) {
 	// This is a bit of a hack to get the temperatures right until we fix our
 	// PWM'd PID implementation.  We reduce the MV to one bit, essentially.
 	// It works relatively well.
-	pwmAOn(false);
-	channel_a.setValue(value != 0);
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+		pwmAOn(false);
+		channel_a.setValue(value != 0);
+	}
 	/*
 	if (value > 128) {
 		value = 255;

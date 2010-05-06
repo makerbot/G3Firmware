@@ -21,9 +21,16 @@
 
 MotorController MotorController::motor_controller;
 
-MotorController::MotorController() :
-	direction(true), on(false), speed(0), backoff_state(BO_INACTIVE)
-{
+MotorController::MotorController() {
+	reset();
+}
+
+void MotorController::reset() {
+	direction = true;
+	paused = false;
+	on = false;
+	speed = 0;
+	backoff_state = BO_INACTIVE;
 	loadBackoffParameters();
 }
 
@@ -68,13 +75,19 @@ void MotorController::update() {
 			}
 		}
 	} else {
-		int new_speed = on?(direction?speed:-speed):0;
+		int new_speed = (!paused&&on)?(direction?speed:-speed):0;
 		board.setMotorSpeed(new_speed);
 	}
 }
 
 void MotorController::setSpeed(int speed_in) {
 	speed = speed_in;
+}
+
+void MotorController::pause() {
+	paused = !paused;
+	//ExtruderBoard::getBoard().indicateError(paused?1:0);
+
 }
 
 void MotorController::setDir(bool dir_in) {
@@ -89,7 +102,7 @@ void MotorController::setOn(bool on_in) {
 		current_operation_timeout.start(halt_ms*1000L);
 	} else if (on_in) {
 		if (!on && direction) {
-			forward_trigger_timeout.start(trigger_ms);
+			forward_trigger_timeout.start(trigger_ms*1000L);
 		}
 		backoff_state = BO_INACTIVE;
 	}
