@@ -214,6 +214,15 @@ void runCommandSlice() {
 							flags,
 							feedrate);
 				}
+			} else if (command == HOST_CMD_FIRST_AUTO_RAFT) { //Super beta testing phase! Please pardon our dust!
+					//Command pop only removes the first in the queue. pop multiple times to erase something big. pop also returns the value of the thing. Use command_buffer[something] if you want to read without poping. pop afterward please! Other code lives here too!
+					command_buffer.pop(); //pop!
+					int32_t x = int32_t(100); //just set all axis to 100 as a test. Must find out how to move....
+					int32_t y = int32_t(100); //Note: this sets the position in STEPS! NOT MM!!
+					int32_t z = int32_t(100); 
+					steppers::definePosition(Point(x,y,z));
+
+
 			} else if (command == HOST_CMD_WAIT_FOR_TOOL) {
 				if (command_buffer.getLength() >= 6) {
 					mode = WAIT_ON_TOOL;
