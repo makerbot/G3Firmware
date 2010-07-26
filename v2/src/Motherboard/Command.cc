@@ -216,11 +216,34 @@ void runCommandSlice() {
 				}
 			} else if (command == HOST_CMD_FIRST_AUTO_RAFT) { //Super beta testing phase! Please pardon our dust!
 					//Command pop only removes the first in the queue. pop multiple times to erase something big. pop also returns the value of the thing. Use command_buffer[something] if you want to read without poping. pop afterward please! Other code lives here too!
-					command_buffer.pop(); //pop!
-					int32_t x = int32_t(100); //just set all axis to 100 as a test. Must find out how to move....
-					int32_t y = int32_t(100); //Note: this sets the position in STEPS! NOT MM!!
-					int32_t z = int32_t(100); 
-					steppers::definePosition(Point(x,y,z));
+					//command_buffer.pop(); //pop!
+					//int32_t x = int32_t(100); //just set all axis to 100 as a test. Must find out how to move....
+					//int32_t y = int32_t(100); //Note: this sets the position in STEPS! NOT MM!!
+					//int32_t z = int32_t(100); 
+					//steppers::definePosition(Point(x,y,z));if (command_buffer.getLength() >= 8) {
+					
+					/*uint8_t flags = 0x00; //what does this mean? It means the axis. 00 is no axis.
+					uint32_t feedrate = 1250; // feedrate in us per step. Ripped from a ReplicatorG debug (maybe should be (int) ?)
+					uint16_t timeout_s = 40; //timeout in seconds? default is 20.
+					bool direction = false; //home downwards? True is upwards?
+					mode = HOMING;
+					homing_timeout.start(timeout_s * 1000L * 1000L);
+					steppers::startHoming(direction,
+							flags,
+							feedrate);*/
+				if (command_buffer.getLength() >= 8) {
+					command_buffer.pop(); // remove the command
+					uint8_t flags = pop8(); //get the axis
+					uint32_t feedrate = pop32(); // feedrate in us per step
+					uint16_t timeout_s = pop16(); //The time to home for before giving up.
+					bool direction = false;
+					mode = HOMING;
+					homing_timeout.start(timeout_s * 1000L * 1000L);
+					steppers::startHoming(direction,
+							flags,
+							feedrate);
+				}
+				
 
 
 			} else if (command == HOST_CMD_WAIT_FOR_TOOL) {
