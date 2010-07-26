@@ -257,7 +257,12 @@ void runCommandSlice() {
 						//}
 						eeprom_write_block(data, (void*) offset, length); //save it in slot 0x100,101 and 102!
 						//next move back up the same amount (aka build platform height)
-						
+						mode = MOVING;
+						int32_t x = 0;
+						int32_t y = 0;
+						int32_t z = 0;
+						int32_t dda = 1250; // max feedrate for Z stage
+						steppers::setTarget(Point(x,y,z),dda);
 						
 								}// end of stepper is running if
 								} //end of homing while
