@@ -24,6 +24,7 @@
 #include "CircularBuffer.hh"
 #include <util/atomic.h>
 #include "SDCard.hh"
+#include <avr/eeprom.h>
 
 namespace command {
 
@@ -216,33 +217,52 @@ void runCommandSlice() {
 				}
 			} else if (command == HOST_CMD_FIRST_AUTO_RAFT) { //Super beta testing phase! Please pardon our dust!
 					//Command pop only removes the first in the queue. pop multiple times to erase something big. pop also returns the value of the thing. Use command_buffer[something] if you want to read without poping. pop afterward please! Other code lives here too!
-					//command_buffer.pop(); //pop!
-					//int32_t x = int32_t(100); //just set all axis to 100 as a test. Must find out how to move....
-					//int32_t y = int32_t(100); //Note: this sets the position in STEPS! NOT MM!!
-					//int32_t z = int32_t(100); 
-					//steppers::definePosition(Point(x,y,z));if (command_buffer.getLength() >= 8) {
-					
-					/*uint8_t flags = 0x00; //what does this mean? It means the axis. 00 is no axis.
-					uint32_t feedrate = 1250; // feedrate in us per step. Ripped from a ReplicatorG debug (maybe should be (int) ?)
-					uint16_t timeout_s = 40; //timeout in seconds? default is 20.
-					bool direction = false; //home downwards? True is upwards?
-					mode = HOMING;
-					homing_timeout.start(timeout_s * 1000L * 1000L);
-					steppers::startHoming(direction,
-							flags,
-							feedrate);*/
 				if (command_buffer.getLength() >= 8) {
+					//first we need to zero our position (We are at 0,0,0. AKA the center of the build platform and at the right hight.)
+					int32_t x = 0; //set x
+					int32_t y = 0; //set y
+					int32_t z = 0; //set z
+					steppers::definePosition(Point(x,y,z)); //set the position in steps
 					command_buffer.pop(); // remove the command
 					uint8_t flags = pop8(); //get the axis
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
 					bool direction = false;
 					mode = HOMING;
-					homing_timeout.start(timeout_s * 1000L * 1000L);
+					homing_timeout.start(timeout_s * 1000L * 1000L); 
 					steppers::startHoming(direction,
 							flags,
 							feedrate);
-				}
+					//now need to wait 'till done homing and save the distance traveled.
+					while (mode == HOMING) {
+						if (!steppers::isRunning()) { //wait 'till done homing
+						mode = READY; //ok!
+						const Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
+						/*int32_t currentX = currentPosition[0]; //set x to current pos
+						int32_t currentY = currentPosition[1]; //set y to current pos
+						int32_t currentZ = currentPosition[2]; //set z to current pos (I think) */
+
+						//save it in EEPROM!
+						
+						
+						uint8_t data[3]; //data to write to eeprom
+						data[0] = currentPosition[0]; //x
+						data[1] = currentPosition[1]; //y
+						data[2] = currentPosition[2]; //z
+						uint16_t offset = 0x100 ;
+						uint8_t length = 0x3 ;
+						//eeprom_read_block(data, (const void*) offset, length);
+						//for (int i = 0; i < length; i++) {
+							//data[i] = from_host.read8(i + 4);
+						//}
+						eeprom_write_block(data, (void*) offset, length); //save it in slot 0x100,101 and 102!
+						//next move back up the same amount (aka build platform height)
+						
+						
+								}// end of stepper is running if
+								} //end of homing while
+								}//end of command buffer if 
+				
 				
 
 
