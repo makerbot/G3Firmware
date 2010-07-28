@@ -259,7 +259,7 @@ void runCommandSlice() {
 						//}
 						int32_t dataa = -currentPosition[2]; //need to write this to eeprom, but it doesn't let me!
 						autocal = dataa;
-						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
+						eeprom_write_block((const void*)&dataa, (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
 						//next move back up the same amount (aka build platform height)
 						mode = MOVING;
 						int32_t x = 0;
@@ -305,15 +305,15 @@ void runCommandSlice() {
 						//move back up the amount saved in EEPROM.
 						
 						
-						uint32_t data; //data to read
+						int32_t data; //data to read
 						uint16_t offset = 0x100 ;
 						uint8_t length = 0x4 ;
-						//eeprom_read_block((void*)&data, (const void*)&offset, 4); //save it in slot 0x100,101 and 102!
+						eeprom_read_block((void*)&data, (const void*)&offset, 4); //save it in slot 0x100,101 and 102!
 						//next move back up the same amount (aka build platform height)
 						mode = MOVING;
 						int32_t x = 0;
 						int32_t y = 0;
-						int32_t z = autocal;
+						int32_t z = data;
 						int32_t dda = 1250; // max feedrate for Z stage
 						steppers::setTarget(Point(x,y,z),dda);
 						
