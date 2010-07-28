@@ -26,6 +26,8 @@
 #include "SDCard.hh"
 #include <avr/eeprom.h>
 
+int32_t autocal = 0;
+
 namespace command {
 
 #define COMMAND_BUFFER_SIZE 256
@@ -237,7 +239,7 @@ void runCommandSlice() {
 					while (mode == HOMING) {
 						if (!steppers::isRunning()) { //wait 'till done homing
 						mode = READY; //ok!
-						const Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
+						Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
 						/*int32_t currentX = currentPosition[0]; //set x to current pos
 						int32_t currentY = currentPosition[1]; //set y to current pos
 						int32_t currentZ = currentPosition[2]; //set z to current pos (I think) */
@@ -245,18 +247,19 @@ void runCommandSlice() {
 						//save it in EEPROM!
 						
 						
-						uint8_t data[3]; //data to write to eeprom
-						data[0] = currentPosition[0]; //x
-						data[1] = currentPosition[1]; //y
-						data[2] = currentPosition[2]; //z
+						//uint8_t data[3]; //data to write to eeprom
+						//data[0] = currentPosition[0]; //x
+						//data[1] = currentPosition[1]; //y
+						//data[2] = currentPosition[2]; //z
 						uint16_t offset = 0x100;
 						uint8_t length = 0x4; //32 is four bytes
 						//eeprom_read_block(data, (const void*) offset, length);
 						//for (int i = 0; i < length; i++) {
 							//data[i] = from_host.read8(i + 4);
 						//}
-						uint32_t dataa = currentPosition[2]; //need to write this to eeprom, but it doesn't let me!
-						eeprom_write_block(data, (void*) offset, length); //save it in slot 0x100,101 and 102!
+						int32_t dataa = -currentPosition[2]; //need to write this to eeprom, but it doesn't let me!
+						autocal = dataa;
+						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
 						//next move back up the same amount (aka build platform height)
 						mode = MOVING;
 						int32_t x = 0;
@@ -294,30 +297,23 @@ void runCommandSlice() {
 					while (mode == HOMING) {
 						if (!steppers::isRunning()) { //wait 'till done homing
 						mode = READY; //ok!
-						//const Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
-						/*int32_t currentX = currentPosition[0]; //set x to current pos
-						int32_t currentY = currentPosition[1]; //set y to current pos
-						int32_t currentZ = currentPosition[2]; //set z to current pos (I think) */
+						x = 0; //set x at zero (we are at endstop
+						y = 0; //set y
+						z = 0; //set z
+						steppers::definePosition(Point(x,y,z)); //set the position in steps
 
 						//move back up the amount saved in EEPROM.
 						
 						
-						uint8_t data[3]; //data to write to eeprom
-						//data[0] = currentPosition[0]; //x
-						//data[1] = currentPosition[1]; //y
-						//data[2] = currentPosition[2]; //z
+						uint32_t data; //data to read
 						uint16_t offset = 0x100 ;
 						uint8_t length = 0x4 ;
-						//eeprom_read_block(data, (const void*) offset, length);
-						//for (int i = 0; i < length; i++) {
-							//data[i] = from_host.read8(i + 4);
-						//}
-						eeprom_write_block(data, (void*) offset, length); //save it in slot 0x100,101 and 102!
+						//eeprom_read_block((void*)&data, (const void*)&offset, 4); //save it in slot 0x100,101 and 102!
 						//next move back up the same amount (aka build platform height)
 						mode = MOVING;
 						int32_t x = 0;
 						int32_t y = 0;
-						int32_t z = 0;
+						int32_t z = autocal;
 						int32_t dda = 1250; // max feedrate for Z stage
 						steppers::setTarget(Point(x,y,z),dda);
 						
