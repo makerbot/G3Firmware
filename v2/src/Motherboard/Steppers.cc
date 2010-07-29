@@ -210,7 +210,7 @@ void startHoming(const bool maximums, const uint8_t axes_enabled, const uint32_t
 //home XY first (To get the BP out of the way) then home Z downwards. (because maximums == false).
 //must change flags to 3 instead of 7. 7 is all. 3 is xy (X =1, Y =2, Z=4).
 const uint8_t axes_enabled_minus_z = axes_enabled - 4;
-for (int i = 0; i < AXIS_COUNT; i++) {
+for (int i = 0; i < AXIS_COUNT; i++) { //set x y to home
 		axes[i].counter = negative_half_interval;
 		if ((axes_enabled_minus_z & (1<<i)) != 0) {
 			axes[i].setHoming(maximums);
@@ -218,7 +218,15 @@ for (int i = 0; i < AXIS_COUNT; i++) {
 			axes[i].delta = 0;
 		}
 	}
-is_homing = true;
+is_homing = true; //home
+while (isRunning() == true) { }
+ //wait 'till done homing
+//mode = READY; //ok!
+axes[2].counter = negative_half_interval;
+axes[2].setHoming(maximums);
+is_homing = true; //home
+			
+
 }
 }
 
