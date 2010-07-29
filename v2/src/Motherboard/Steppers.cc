@@ -195,6 +195,7 @@ void startHoming(const bool maximums, const uint8_t axes_enabled, const uint32_t
 	intervals_remaining = INT32_MAX;
 	intervals = us_per_step / INTERVAL_IN_MICROSECONDS;
 	const int32_t negative_half_interval = -intervals / 2;
+	if (axes_enabled != 7 || maximums == true) { //if axis enabled does not equal XYZ (aka home all axis) or if the homing direction is positive.
 	for (int i = 0; i < AXIS_COUNT; i++) {
 		axes[i].counter = negative_half_interval;
 		if ((axes_enabled & (1<<i)) != 0) {
@@ -204,6 +205,21 @@ void startHoming(const bool maximums, const uint8_t axes_enabled, const uint32_t
 		}
 	}
 	is_homing = true;
+} else {
+
+//home XY first (To get the BP out of the way) then home Z downwards. (because maximums == false).
+//must change flags to 3 instead of 7. 7 is all. 3 is xy (X =1, Y =2, Z=4).
+const uint8_t axes_enabled_minus_z = axes_enabled - 4;
+for (int i = 0; i < AXIS_COUNT; i++) {
+		axes[i].counter = negative_half_interval;
+		if ((axes_enabled_minus_z & (1<<i)) != 0) {
+			axes[i].setHoming(maximums);
+		} else {
+			axes[i].delta = 0;
+		}
+	}
+is_homing = true;
+}
 }
 
 /// Enable/disable the given axis.
