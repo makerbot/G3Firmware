@@ -195,22 +195,20 @@ void startHoming(const bool maximums, const uint8_t axes_enabled, const uint32_t
 	intervals_remaining = INT32_MAX;
 	intervals = us_per_step / INTERVAL_IN_MICROSECONDS;
 	const int32_t negative_half_interval = -intervals / 2;
-	if (axes_enabled != 7 || maximums == true) { //if axis enabled does not equal XYZ (aka home all axis) or if the homing direction is positive.
+	if (axes_enabled <= 4 || maximums == true) { //if axis enabled does not equal XYZ (aka home all axis) or if the homing direction is positive. just wanted to give a shout out here my fellow comrade intern Mike for helping me make this line sane. Always sanity check with a buddy!
 	for (int i = 0; i < AXIS_COUNT; i++) {
 		axes[i].counter = negative_half_interval;
-		if ((axes_enabled & (1<<i)) != 0) {
+		if ((axes_enabled & (1<<i)) != 0) { //Genius! He compared the binarys of the flag to see if that axis is enabled!
 			axes[i].setHoming(maximums);
 		} else {
 			axes[i].delta = 0;
 		}
 	}
 	is_homing = true;
-} else {
-
-//home XY first (To get the BP out of the way) then home Z downwards. (because maximums == false).
+} else { //if Axis enabled equals XYZ and direction is negative, we must take extra care not to smash the Z axis nozzle into the XY axis BP. Therefore we must home the XY axis out of the way before we home the Z axis downwards.
 //must change flags to 3 instead of 7. 7 is all. 3 is xy (X =1, Y =2, Z=4).
-const uint8_t axes_enabled_minus_z = axes_enabled - 4;
-for (int i = 0; i < AXIS_COUNT; i++) { //set x y to home
+const uint8_t axes_enabled_minus_z = axes_enabled - 4; //don't home the z axis
+for (int i = 0; i < AXIS_COUNT; i++) { //start homing all of the other axis
 		axes[i].counter = negative_half_interval;
 		if ((axes_enabled_minus_z & (1<<i)) != 0) {
 			axes[i].setHoming(maximums);
@@ -218,15 +216,11 @@ for (int i = 0; i < AXIS_COUNT; i++) { //set x y to home
 			axes[i].delta = 0;
 		}
 	}
-is_homing = true; //home
-while (isRunning() == true) { }
- //wait 'till done homing
-//mode = READY; //ok!
-axes[2].counter = negative_half_interval;
-axes[2].setHoming(maximums);
-is_homing = true; //home
-			
-
+is_homing = true; //home!
+while (isRunning() == true) { } //wait 'till done homing
+axes[2].counter = negative_half_interval; //set speed?
+axes[2].setHoming(maximums); //set direction and start homing the Z axis
+is_homing = true; //home baby home!
 }
 }
 
