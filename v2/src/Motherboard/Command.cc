@@ -237,8 +237,9 @@ void runCommandSlice() {
 							feedrate);
 					//now need to wait 'till done homing and save the distance traveled.
 					while (mode == HOMING) {
-						if (steppers::isRunning() == false || homing_timeout.hasElapsed()) {
+						if (steppers::isRunning() == false && steppers::is_running_homing_script() == true || homing_timeout.hasElapsed()) {
 						steppers::abort();
+						//steppers::is_running_homing_script() = false;
 						mode = READY;   //wait 'till done homing
 						Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
 
@@ -253,16 +254,16 @@ void runCommandSlice() {
 						offsetOffset = 100 + i*4;
 						offset = offset + offsetOffset;
 						//autocal = dataa;
-						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
+						eeprom_write_block((const void*)&dataa, (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
 						}
 						//int32_t dataa = -currentPosition[2]; //need to write this to eeprom, but it doesn't let me!
 						//autocal = dataa;
 						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
 						//next move back up the same amount (aka build platform height)
 						mode = MOVING;
-						int32_t x = 0;
-						int32_t y = 0;
-						int32_t z = 0;
+						x = 0;
+						y = 0;
+						z = 0;
 						int32_t dda = 1250; // max feedrate for Z stage
 						steppers::setTarget(Point(x,y,z),dda);
 						
@@ -317,9 +318,9 @@ void runCommandSlice() {
 						//eeprom_read_block((void*)&data, (const void*)&offset, 4); //save it in slot 0x100,101 and 102!
 						//next move back up the same amount (aka build platform height)
 						mode = MOVING;
-						int32_t x = data[0];
-						int32_t y = data[1];
-						int32_t z = data[2];
+						x = data[0];
+						y = data[1];
+						z = data[2];
 						int32_t dda = 1250; // max feedrate for Z stage
 						steppers::setTarget(Point(x,y,z),dda);
 						
