@@ -138,9 +138,10 @@ int32_t intervals;
 volatile int32_t intervals_remaining;
 Axis axes[STEPPER_COUNT];
 volatile bool is_homing;
+volatile bool is_running_homing_script; //new boolean object that says if the machine is running a homing script. (We have to script the homing because we home the Z stage last to prevent nozzle crashing into BP problems.)
 
 bool isRunning() {
-	return is_running || is_homing;
+	return is_running || is_homing || is_running_homing_script;
 }
 
 //public:
@@ -154,6 +155,7 @@ void init(Motherboard& motherboard) {
 void abort() {
 	is_running = false;
 	is_homing = false;
+	is_running_homing_script = false;
 }
 
 /// Define current position as given point
@@ -192,6 +194,7 @@ void setTarget(const Point& target, int32_t dda_interval) {
 
 /// Start homing
 void startHoming(const bool maximums, const uint8_t axes_enabled, const uint32_t us_per_step) {
+is_running_homing_script = true;
 	intervals_remaining = INT32_MAX;
 	intervals = us_per_step / INTERVAL_IN_MICROSECONDS;
 	const int32_t negative_half_interval = -intervals / 2;
@@ -217,11 +220,12 @@ for (int i = 0; i < AXIS_COUNT; i++) { //start homing all of the other axis
 		}
 	}
 is_homing = true; //home!
-while (isRunning() == true) { } //wait 'till done homing
+while (is_homing == true) { } //wait 'till done homing
 axes[2].counter = negative_half_interval; //set speed?
 axes[2].setHoming(maximums); //set direction and start homing the Z axis
 is_homing = true; //home baby home!
 }
+is_running_homing_script = false;
 }
 
 /// Enable/disable the given axis.
