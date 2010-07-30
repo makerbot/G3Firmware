@@ -237,29 +237,27 @@ void runCommandSlice() {
 							feedrate);
 					//now need to wait 'till done homing and save the distance traveled.
 					while (mode == HOMING) {
-						if (!steppers::isRunning()) { //wait 'till done homing
-						mode = READY; //ok!
+						if (steppers::isRunning() == false || homing_timeout.hasElapsed()) {
+						steppers::abort();
+						mode = READY;   //wait 'till done homing
 						Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
-						/*int32_t currentX = currentPosition[0]; //set x to current pos
-						int32_t currentY = currentPosition[1]; //set y to current pos
-						int32_t currentZ = currentPosition[2]; //set z to current pos (I think) */
 
 						//save it in EEPROM!
 						
-						
-						//uint8_t data[3]; //data to write to eeprom
-						//data[0] = currentPosition[0]; //x
-						//data[1] = currentPosition[1]; //y
-						//data[2] = currentPosition[2]; //z
 						uint16_t offset = 0x100;
-						uint8_t length = 0x4; //32 is four bytes
-						//eeprom_read_block(data, (const void*) offset, length);
-						//for (int i = 0; i < length; i++) {
-							//data[i] = from_host.read8(i + 4);
-						//}
-						int32_t dataa = -currentPosition[2]; //need to write this to eeprom, but it doesn't let me!
-						autocal = dataa;
-						eeprom_write_block((const void*)&dataa, (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
+						uint16_t offsetOffset = 0x0;
+						int32_t dataa;
+						for (int i = 0; i < 3; i++) {
+						dataa = currentPosition[i] * -1; //Grab individual current position from current position X,Y,Z.
+						//Augment beginning byte
+						offsetOffset = 100 + i*4;
+						offset = offset + offsetOffset;
+						//autocal = dataa;
+						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
+						}
+						//int32_t dataa = -currentPosition[2]; //need to write this to eeprom, but it doesn't let me!
+						//autocal = dataa;
+						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
 						//next move back up the same amount (aka build platform height)
 						mode = MOVING;
 						int32_t x = 0;
@@ -269,7 +267,7 @@ void runCommandSlice() {
 						steppers::setTarget(Point(x,y,z),dda);
 						
 								}// end of stepper is running if
-								} //end of homing while
+								}//end of homing while
 								}//end of command buffer if 
 				
 				
@@ -297,23 +295,31 @@ void runCommandSlice() {
 					while (mode == HOMING) {
 						if (!steppers::isRunning()) { //wait 'till done homing
 						mode = READY; //ok!
-						x = 0; //set x at zero (we are at endstop
+						x = 0; //set x at zero (we are at endstop)
 						y = 0; //set y
 						z = 0; //set z
 						steppers::definePosition(Point(x,y,z)); //set the position in steps
 
+						
+						
 						//move back up the amount saved in EEPROM.
-						
-						
-						int32_t data; //data to read
+						int32_t data[3]; //data to be read
 						uint16_t offset = 0x100 ;
-						uint8_t length = 0x4 ;
-						eeprom_read_block((void*)&data, (const void*)&offset, 4); //save it in slot 0x100,101 and 102!
+						uint16_t offsetOffset = 0x0;
+						for (int i = 0; i < 3; i++) {
+						//data = -currentPosition[i]; //Grab individual current position from current position X,Y,Z.
+						//Augment beginning byte
+						offsetOffset = 100 + i*4;
+						offset = offset + offsetOffset;
+						eeprom_read_block((void*)&data[i], (const void*)&offset, 4); //save it in slot 0x100,101 and 102!
+						}
+
+						//eeprom_read_block((void*)&data, (const void*)&offset, 4); //save it in slot 0x100,101 and 102!
 						//next move back up the same amount (aka build platform height)
 						mode = MOVING;
-						int32_t x = 0;
-						int32_t y = 0;
-						int32_t z = data;
+						int32_t x = data[0];
+						int32_t y = data[1];
+						int32_t z = data[2];
 						int32_t dda = 1250; // max feedrate for Z stage
 						steppers::setTarget(Point(x,y,z),dda);
 						

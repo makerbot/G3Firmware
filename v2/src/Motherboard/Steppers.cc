@@ -141,7 +141,10 @@ volatile bool is_homing;
 volatile bool is_running_homing_script; //new boolean object that says if the machine is running a homing script. (We have to script the homing because we home the Z stage last to prevent nozzle crashing into BP problems.)
 
 bool isRunning() {
-	return is_running || is_homing || is_running_homing_script;
+	bool answer;
+	answer = is_running || is_homing;
+	answer = answer || is_running_homing_script;
+	return answer;
 }
 
 //public:
@@ -212,18 +215,23 @@ is_running_homing_script = true;
 //must change flags to 3 instead of 7. 7 is all. 3 is xy (X =1, Y =2, Z=4).
 const uint8_t axes_enabled_minus_z = axes_enabled - 4; //don't home the z axis
 for (int i = 0; i < AXIS_COUNT; i++) { //start homing all of the other axis
-		axes[i].counter = negative_half_interval;
+		//axes[i].counter = negative_half_interval;
 		if ((axes_enabled_minus_z & (1<<i)) != 0) {
+			axes[i].counter = negative_half_interval;
 			axes[i].setHoming(maximums);
 		} else {
 			axes[i].delta = 0;
 		}
 	}
 is_homing = true; //home!
-while (is_homing == true) { } //wait 'till done homing
+while (is_running_homing_script == true) {  //wait 'till done homing
+if (is_homing == false) {
 axes[2].counter = negative_half_interval; //set speed?
 axes[2].setHoming(maximums); //set direction and start homing the Z axis
 is_homing = true; //home baby home!
+is_running_homing_script = false; //why won't this run?
+}
+}
 }
 is_running_homing_script = false;
 }
@@ -249,6 +257,7 @@ bool doInterrupt() {
 			bool still_homing = axes[i].doHoming(intervals);
 			is_homing = still_homing || is_homing;
 		}
+		//if (is_homing == false) {is_running_homing_script = false;}
 		return is_homing;
 	}
 	return false;
