@@ -26,7 +26,10 @@
 #include "SDCard.hh"
 #include <avr/eeprom.h>
 
-int32_t autocal = 0;
+//int32_t autocal[3] = 0;
+//int32_t autocal = new int32_t[3];
+Point autocal;
+
 
 namespace command {
 
@@ -109,6 +112,9 @@ void reset() {
 	command_buffer.reset();
 	mode = READY;
 }
+
+//int16_t offset = 0x100;
+//int16_t offset __attribute__ ((section (".eeprom"))); 
 
 // A fast slice for processing commands and refilling the stepper queue, etc.
 void runCommandSlice() {
@@ -237,25 +243,35 @@ void runCommandSlice() {
 							feedrate);
 					//now need to wait 'till done homing and save the distance traveled.
 					while (mode == HOMING) {
-						if (steppers::isRunning() == false && steppers::is_running_homing_script() == true || homing_timeout.hasElapsed()) {
-						steppers::abort();
+						if (steppers::isRunning() == false) {
+						//steppers::abort();
 						//steppers::is_running_homing_script() = false;
 						mode = READY;   //wait 'till done homing
 						Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
 
 						//save it in EEPROM!
 						
-						uint16_t offset = 0x100;
-						uint16_t offsetOffset = 0x0;
+						//uint16_t offsetOffset = 0x0;
 						int32_t dataa;
-						for (int i = 0; i < 3; i++) {
-						dataa = currentPosition[i] * -1; //Grab individual current position from current position X,Y,Z.
-						//Augment beginning byte
-						offsetOffset = 100 + i*4;
-						offset = offset + offsetOffset;
+						//int16_t offset = 0x100;
+						dataa = currentPosition[0] * -1; //Grab individual current position from current position X,Y,Z.
+						autocal[0] = dataa;
+						//while (!eeprom_is_ready()) {} //wait for eeprom
+						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4);
+						//offset = 0x104;
+						dataa = currentPosition[1] * -1;
+						autocal[1] = dataa;
+						//while (!eeprom_is_ready()) {} //wait for eeprom
+						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4);
+						//offset = 0x108;
+						dataa = currentPosition[2] * -1;
+						autocal[2] = dataa;
+						//while (!eeprom_is_ready()) {} //wait for eeprom
+						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4);
 						//autocal = dataa;
-						eeprom_write_block((const void*)&dataa, (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
-						}
+						//currentPosition[i] = currentPosition[i]*1;
+						//eeprom_write_block((const void*)&currentPosition[i], (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
+						
 						//int32_t dataa = -currentPosition[2]; //need to write this to eeprom, but it doesn't let me!
 						//autocal = dataa;
 						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
@@ -305,25 +321,51 @@ void runCommandSlice() {
 						
 						//move back up the amount saved in EEPROM.
 						int32_t data[3]; //data to be read
-						uint16_t offset = 0x100 ;
-						uint16_t offsetOffset = 0x0;
-						for (int i = 0; i < 3; i++) {
+						//int32_t dataa;
+						//uint16_t offset = 0x100 ;
+						//uint16_t offsetOffset = 0x0;
+						int32_t dataa;
+						//int16_t offset = 0x100;
+						//int8_t eepromStatusBuffer[20] __attribute__ ((section (".eeprom"))); 
+						//while (!eeprom_is_ready()) {} //wait for eeprom
+						//eeprom_read_block((void*)&dataa, (const void*) &offset, 4);
+						//data[0] = dataa;
+						//offset = 0x104;
+						//while (!eeprom_is_ready()) {} //wait for eeprom
+						//eeprom_read_block((void*)&dataa, (const void*) &offset, 4);
+						//data[1] = dataa;
+						//offset = 0x108;
+						//while (!eeprom_is_ready()) {} //wait for eeprom
+						//eeprom_read_block((void*)&dataa, (const void*) &offset, 4);
+						//data[2] = dataa;
+					
+					
 						//data = -currentPosition[i]; //Grab individual current position from current position X,Y,Z.
 						//Augment beginning byte
-						offsetOffset = 100 + i*4;
-						offset = offset + offsetOffset;
-						eeprom_read_block((void*)&data[i], (const void*)&offset, 4); //save it in slot 0x100,101 and 102!
-						}
+						//offsetOffset = 100 + i*4;
+						//offset = 0x100 + i * 0x4;
+						//eeprom_read_block((void*)&data[i], (const void*)&offset, 4); //save it in slot 0x100,101 and 102!
+						//data[i] = dataa;
+					
 
 						//eeprom_read_block((void*)&data, (const void*)&offset, 4); //save it in slot 0x100,101 and 102!
 						//next move back up the same amount (aka build platform height)
 						mode = MOVING;
-						x = data[0];
-						y = data[1];
-						z = data[2];
+						x = 0;
+						y = 0;
+						z = autocal[2];
 						int32_t dda = 1250; // max feedrate for Z stage
 						steppers::setTarget(Point(x,y,z),dda);
-						
+						while (mode == MOVING) {
+						if (!steppers::isRunning()) {
+						mode = MOVING;
+						x = autocal[0];
+						y = autocal[1];
+						z = autocal[2];
+						dda = 10593; // max feedrate for Z stage
+						steppers::setTarget(Point(x,y,z),dda);
+						}
+						}
 								}// end of stepper is running if
 								} //end of homing while
 								}//end of command buffer if 
