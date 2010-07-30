@@ -138,13 +138,9 @@ int32_t intervals;
 volatile int32_t intervals_remaining;
 Axis axes[STEPPER_COUNT];
 volatile bool is_homing;
-volatile bool is_running_homing_script; //new boolean object that says if the machine is running a homing script. (We have to script the homing because we home the Z stage last to prevent nozzle crashing into BP problems.)
 
 bool isRunning() {
-	bool answer;
-	answer = is_running || is_homing;
-	answer = answer || is_running_homing_script;
-	return answer;
+	return is_running || is_homing;
 }
 
 //public:
@@ -158,7 +154,6 @@ void init(Motherboard& motherboard) {
 void abort() {
 	is_running = false;
 	is_homing = false;
-	is_running_homing_script = false;
 }
 
 /// Define current position as given point
@@ -173,19 +168,13 @@ const Point getPosition() {
 	return Point(axes[0].position,axes[1].position,axes[2].position);
 }
 
-bool holdZ = false;
-
-void setHoldZ(bool holdZ_in) {
-	holdZ = holdZ_in;
-}
-
 void setTarget(const Point& target, int32_t dda_interval) {
 	int32_t max_delta = 0;
 	for (int i = 0; i < AXIS_COUNT; i++) {
 		axes[i].setTarget(target[i]);
 		const int32_t delta = axes[i].delta;
 		// Only shut z axis on inactivity
-		if (i == 2 && !holdZ) axes[i].enableStepper(delta != 0);
+		if (i == 2) axes[i].enableStepper(delta != 0);
 		else if (delta != 0) axes[i].enableStepper(true);
 		if (delta > max_delta) {
 			max_delta = delta;
@@ -203,43 +192,18 @@ void setTarget(const Point& target, int32_t dda_interval) {
 
 /// Start homing
 void startHoming(const bool maximums, const uint8_t axes_enabled, const uint32_t us_per_step) {
-is_running_homing_script = true;
 	intervals_remaining = INT32_MAX;
 	intervals = us_per_step / INTERVAL_IN_MICROSECONDS;
 	const int32_t negative_half_interval = -intervals / 2;
-	if (axes_enabled <= 4 || maximums == true) { //if axis enabled does not equal XYZ (aka home all axis) or if the homing direction is positive. just wanted to give a shout out here my fellow comrade intern Mike for helping me make this line sane. Always sanity check with a buddy!
 	for (int i = 0; i < AXIS_COUNT; i++) {
 		axes[i].counter = negative_half_interval;
-		if ((axes_enabled & (1<<i)) != 0) { //Genius! He compared the binarys of the flag to see if that axis is enabled!
+		if ((axes_enabled & (1<<i)) != 0) {
 			axes[i].setHoming(maximums);
 		} else {
 			axes[i].delta = 0;
 		}
 	}
 	is_homing = true;
-} else { //if Axis enabled equals XYZ and direction is negative, we must take extra care not to smash the Z axis nozzle into the XY axis BP. Therefore we must home the XY axis out of the way before we home the Z axis downwards.
-//must change flags to 3 instead of 7. 7 is all. 3 is xy (X =1, Y =2, Z=4).
-const uint8_t axes_enabled_minus_z = axes_enabled - 4; //don't home the z axis
-for (int i = 0; i < AXIS_COUNT; i++) { //start homing all of the other axis
-		//axes[i].counter = negative_half_interval;
-		if ((axes_enabled_minus_z & (1<<i)) != 0) {
-			axes[i].counter = negative_half_interval;
-			axes[i].setHoming(maximums);
-		} else {
-			axes[i].delta = 0;
-		}
-	}
-is_homing = true; //home!
-while (is_running_homing_script == true) {  //wait 'till done homing
-if (is_homing == false) {
-axes[2].counter = negative_half_interval; //set speed?
-axes[2].setHoming(maximums); //set direction and start homing the Z axis
-is_homing = true; //home baby home!
-is_running_homing_script = false; //why won't this run?
-}
-}
-}
-is_running_homing_script = false;
 }
 
 /// Enable/disable the given axis.
@@ -263,7 +227,6 @@ bool doInterrupt() {
 			bool still_homing = axes[i].doHoming(intervals);
 			is_homing = still_homing || is_homing;
 		}
-		//if (is_homing == false) {is_running_homing_script = false;}
 		return is_homing;
 	}
 	return false;
