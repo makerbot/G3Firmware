@@ -14,6 +14,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
+ 
+ 
 
 #include "Command.hh"
 #include "Steppers.hh"
@@ -25,6 +27,9 @@
 #include <util/atomic.h>
 #include "SDCard.hh"
 #include <avr/eeprom.h>
+#define F_CPU 20000000UL  // 1 MHz
+    //#define F_CPU 14.7456E6
+#include <util/delay.h>
 
 //int32_t autocal[3] = 0;
 //int32_t autocal = new int32_t[3];
@@ -110,6 +115,7 @@ enum {
 
 Timeout delay_timeout;
 Timeout homing_timeout;
+Timeout wait_for_eeprom_timeout;
 
 void reset() {
 	command_buffer.reset();
@@ -230,6 +236,7 @@ void runCommandSlice() {
 					//Command pop only removes the first in the queue. pop multiple times to erase something big. pop also returns the value of the thing. Use command_buffer[something] if you want to read without poping. pop afterward please! Other code lives here too!
 				if (command_buffer.getLength() >= 8) {
 					//first we need to zero our position (We are at 0,0,0. AKA the center of the build platform and at the right hight.)
+					
 					int32_t x = 0; //set x
 					int32_t y = 0; //set y
 					int32_t z = 0; //set z
@@ -247,41 +254,31 @@ void runCommandSlice() {
 					//now need to wait 'till done homing and save the distance traveled.
 					while (mode == HOMING) {
 						if (steppers::isRunning() == false) {
-						//steppers::abort();
-						//steppers::is_running_homing_script() = false;
 						mode = READY;   //wait 'till done homing
 						Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
 
 						//save it in EEPROM!
 						
-						//uint16_t offsetOffset = 0x0;
+						//ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 						int32_t dataa;
+						
 						int16_t offset = 0x100;
 						dataa = currentPosition[0] * -1; //Grab individual current position from current position X,Y,Z.
-						//autocal[0] = dataa;
-						//while (!eeprom_is_ready()) {} //wait for eeprom
-						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4);
-						autocalx = dataa;
+						eeprom_write_block((const void*)&dataa, (void*)offset, 4);
+						_delay_ms(50);
+						
 						offset = 0x104;
 						dataa = currentPosition[1] * -1;
-						//autocal[1] = dataa;
-						//while (!eeprom_is_ready()) {} //wait for eeprom
-						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4);
-						autocaly = dataa;
+						eeprom_write_block((const void*)&dataa, (void*)offset, 4);
+						_delay_ms(50);
+						
 						offset = 0x108;
 						dataa = currentPosition[2] * -1;
-						//autocal[2] = dataa;
-						//while (!eeprom_is_ready()) {} //wait for eeprom
-						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4);
-						autocalz = dataa;
-						//autocal = dataa;
-						//currentPosition[i] = currentPosition[i]*1;
-						//eeprom_write_block((const void*)&currentPosition[i], (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
+						eeprom_write_block((const void*)&dataa, (void*)offset, 4);
+						_delay_ms(50);
 						
-						//int32_t dataa = -currentPosition[2]; //need to write this to eeprom, but it doesn't let me!
-						//autocal = dataa;
-						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
 						//next move back up the same amount (aka build platform height)
+						//}
 						mode = MOVING;
 						x = 0;
 						y = 0;
@@ -314,7 +311,7 @@ void runCommandSlice() {
 					steppers::startHoming(direction,
 							flags,
 							feedrate);
-					//now need to wait 'till done homing and save the distance traveled.
+					//now need to wait 'till done homing and go back up to the saved position.
 					while (mode == HOMING) {
 						if (!steppers::isRunning()) { //wait 'till done homing
 						mode = READY; //ok!
@@ -324,60 +321,46 @@ void runCommandSlice() {
 						steppers::definePosition(Point(x,y,z)); //set the position in steps
 
 						
-						
-						//move back up the amount saved in EEPROM.
-						//int32_t data[3]; //data to be read
-						//int32_t dataa;
-						//uint16_t offset = 0x100 ;
-						//uint16_t offsetOffset = 0x0;
+					//Read from EEPROM
+					
+						int32_t EEPROM_X = 0;
+						int32_t EEPROM_Y = 0;
+						int32_t EEPROM_Z = 0;
 						int32_t dataa;
+						
 						int16_t offset = 0x100;
-						//int8_t eepromStatusBuffer[20] __attribute__ ((section (".eeprom"))); 
-						//while (!eeprom_is_ready()) {} //wait for eeprom
-						//eeprom_read_block((void*)&dataa, (const void*) &offset, 4);
-						//dataa = autox;
+						eeprom_read_block((void*)&dataa, (const void*)offset, 4);
+						EEPROM_X = dataa;
+						_delay_ms(50);
 						
-						//data[0] = dataa;
 						offset = 0x104;
-						//while (!eeprom_is_ready()) {} //wait for eeprom
-						//eeprom_read_block((void*)&dataa, (const void*) &offset, 4);
-						//dataa = autox;
+						eeprom_read_block((void*)&dataa, (const void*)offset, 4);
+						EEPROM_Y = dataa;
+						_delay_ms(50);
 						
-						//data[1] = dataa;
 						offset = 0x108;
-						//while (!eeprom_is_ready()) {} //wait for eeprom
-						//eeprom_read_block((void*)&dataa, (const void*) &offset, 4);
-						//dataa = autox;
+						eeprom_read_block((void*)&dataa, (const void*)offset, 4);
+						EEPROM_Z = dataa;
+						_delay_ms(50);
 						
-						//data[2] = dataa;
-					
-					
-						//data = -currentPosition[i]; //Grab individual current position from current position X,Y,Z.
-						//Augment beginning byte
-						//offsetOffset = 100 + i*4;
-						//offset = 0x100 + i * 0x4;
-						//eeprom_read_block((void*)&data[i], (const void*)&offset, 4); //save it in slot 0x100,101 and 102!
-						//data[i] = dataa;
-					
-
-						//eeprom_read_block((void*)&data, (const void*)&offset, 4); //save it in slot 0x100,101 and 102!
 						//next move back up the same amount (aka build platform height)
+						
+						//mode = MOVING;
+						//x = 0;
+						//y = 0;
+						//z = EEPROM_Z;
+						//int32_t dda = 1250; // max feedrate for Z stage
+						//steppers::setTarget(Point(x,y,z),dda);
+						//while (mode == MOVING) {
+						//if (!steppers::isRunning()) {
 						mode = MOVING;
-						x = 0;
-						y = 0;
-						z = autocalz;
-						int32_t dda = 1250; // max feedrate for Z stage
+						x = EEPROM_X;
+						y = EEPROM_Y;
+						z = EEPROM_Z;
+						int32_t dda = 1250; // max feedrate 10593
 						steppers::setTarget(Point(x,y,z),dda);
-						while (mode == MOVING) {
-						if (!steppers::isRunning()) {
-						mode = MOVING;
-						x = autocalx;
-						y = autocaly;
-						z = autocalz;
-						dda = 10593; // max feedrate for Z stage
-						steppers::setTarget(Point(x,y,z),dda);
-						}
-						}
+						//}
+						//}
 								}// end of stepper is running if
 								} //end of homing while
 								}//end of command buffer if 
