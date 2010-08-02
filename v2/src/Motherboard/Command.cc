@@ -238,12 +238,35 @@ void runCommandSlice() {
 					uint8_t flags = pop8(); //get the axis
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
-					bool direction = false;
+					bool direction = false; //We might want to change this so that it is user definable, but for now it's fine.
+					//first home the BP out of the way. (If we need to)
+					
+					if (flags & (1<<2) != 0 && (flags - 4) != 0) { //if flags says home Z and something else (we don't care what)
+					flags = flags - 4; //Don't home Z.
+					waiting_to_move_Zstage = true;
 					mode = HOMING;
 					homing_timeout.start(timeout_s * 1000L * 1000L); 
 					steppers::startHoming(direction,
 							flags,
+							feedrate); //home the others
+						while (waiting_to_move_Zstage == true) {
+						if (steppers::isRunning() == false) {
+						waiting_to_move_Zstage = false;
+						flags = 4; //Home Z.
+						mode = HOMING;
+						homing_timeout.start(timeout_s * 1000L * 1000L); 
+						steppers::startHoming(direction,
+							flags,
 							feedrate);
+						}
+						}
+						} else { //if not, no special care is needed.
+						mode = HOMING;
+						homing_timeout.start(timeout_s * 1000L * 1000L); 
+						steppers::startHoming(direction,
+							flags,
+							feedrate);
+					}
 					//now need to wait 'till done homing and save the distance traveled.
 					while (mode == HOMING) {
 						if (steppers::isRunning() == false) {
