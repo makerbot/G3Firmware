@@ -28,7 +28,10 @@
 
 //int32_t autocal[3] = 0;
 //int32_t autocal = new int32_t[3];
-Point autocal;
+//Point autocal;
+int32_t autocalx;
+int32_t autocaly;
+int32_t autocalz;
 
 
 namespace command {
@@ -253,21 +256,24 @@ void runCommandSlice() {
 						
 						//uint16_t offsetOffset = 0x0;
 						int32_t dataa;
-						//int16_t offset = 0x100;
+						int16_t offset = 0x100;
 						dataa = currentPosition[0] * -1; //Grab individual current position from current position X,Y,Z.
-						autocal[0] = dataa;
+						//autocal[0] = dataa;
 						//while (!eeprom_is_ready()) {} //wait for eeprom
 						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4);
-						//offset = 0x104;
+						autocalx = dataa;
+						offset = 0x104;
 						dataa = currentPosition[1] * -1;
-						autocal[1] = dataa;
+						//autocal[1] = dataa;
 						//while (!eeprom_is_ready()) {} //wait for eeprom
 						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4);
-						//offset = 0x108;
+						autocaly = dataa;
+						offset = 0x108;
 						dataa = currentPosition[2] * -1;
-						autocal[2] = dataa;
+						//autocal[2] = dataa;
 						//while (!eeprom_is_ready()) {} //wait for eeprom
 						//eeprom_write_block((const void*)&dataa, (void*) &offset, 4);
+						autocalz = dataa;
 						//autocal = dataa;
 						//currentPosition[i] = currentPosition[i]*1;
 						//eeprom_write_block((const void*)&currentPosition[i], (void*) &offset, 4); //save it in slot 0x100,101 and 102 103!
@@ -320,23 +326,29 @@ void runCommandSlice() {
 						
 						
 						//move back up the amount saved in EEPROM.
-						int32_t data[3]; //data to be read
+						//int32_t data[3]; //data to be read
 						//int32_t dataa;
 						//uint16_t offset = 0x100 ;
 						//uint16_t offsetOffset = 0x0;
 						int32_t dataa;
-						//int16_t offset = 0x100;
+						int16_t offset = 0x100;
 						//int8_t eepromStatusBuffer[20] __attribute__ ((section (".eeprom"))); 
 						//while (!eeprom_is_ready()) {} //wait for eeprom
 						//eeprom_read_block((void*)&dataa, (const void*) &offset, 4);
+						//dataa = autox;
+						
 						//data[0] = dataa;
-						//offset = 0x104;
+						offset = 0x104;
 						//while (!eeprom_is_ready()) {} //wait for eeprom
 						//eeprom_read_block((void*)&dataa, (const void*) &offset, 4);
+						//dataa = autox;
+						
 						//data[1] = dataa;
-						//offset = 0x108;
+						offset = 0x108;
 						//while (!eeprom_is_ready()) {} //wait for eeprom
 						//eeprom_read_block((void*)&dataa, (const void*) &offset, 4);
+						//dataa = autox;
+						
 						//data[2] = dataa;
 					
 					
@@ -353,15 +365,15 @@ void runCommandSlice() {
 						mode = MOVING;
 						x = 0;
 						y = 0;
-						z = autocal[2];
+						z = autocalz;
 						int32_t dda = 1250; // max feedrate for Z stage
 						steppers::setTarget(Point(x,y,z),dda);
 						while (mode == MOVING) {
 						if (!steppers::isRunning()) {
 						mode = MOVING;
-						x = autocal[0];
-						y = autocal[1];
-						z = autocal[2];
+						x = autocalx;
+						y = autocaly;
+						z = autocalz;
 						dda = 10593; // max feedrate for Z stage
 						steppers::setTarget(Point(x,y,z),dda);
 						}
