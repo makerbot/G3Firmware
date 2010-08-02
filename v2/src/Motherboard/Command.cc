@@ -253,26 +253,19 @@ void runCommandSlice() {
 						//save it in EEPROM!
 						
 						int32_t dataa;
-						
 						int16_t offset = 0x100;
-						dataa = currentPosition[0] * -1; //Grab individual current position from current position X,Y,Z.
-						eeprom_write_block((const void*)&dataa, (void*)offset, 4);
-						_delay_ms(50);
 						
-						offset = 0x104;
-						dataa = currentPosition[1] * -1;
-						eeprom_write_block((const void*)&dataa, (void*)offset, 4);
-						_delay_ms(50);
-						
-						offset = 0x108;
-						dataa = currentPosition[2] * -1;
-						eeprom_write_block((const void*)&dataa, (void*)offset, 4);
-						_delay_ms(50);
+						for (int i = 0; i < 3; i++) { //compacted!
+						offset = 0x100 + (i*4);
+						dataa = currentPosition[i] * -1; //Grab individual current position from current position X,Y,Z.
+						eeprom_write_block((const void*)&dataa, (void*)offset, 4); //save it!
+						_delay_ms(50); //wait A little bit. EEPROM is not very fast.
+						}
 						
 						//next move back up the same amount (aka build platform height)
 						//}
 						mode = MOVING;
-						x = currentPosition[0];
+						x = currentPosition[0]; //leave these were they are
 						y = currentPosition[1];
 						z = 0; //move the Z stage back up to zero.
 						int32_t dda = 1250; // max feedrate for Z stage
@@ -334,6 +327,7 @@ void runCommandSlice() {
 						int32_t dataa;
 						
 						int16_t offset = 0x100;
+						
 						eeprom_read_block((void*)&dataa, (const void*)offset, 4);
 						EEPROM_X = dataa;
 						_delay_ms(50);
