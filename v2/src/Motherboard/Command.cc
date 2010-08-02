@@ -31,14 +31,6 @@
     //#define F_CPU 14.7456E6
 #include <util/delay.h>
 
-//int32_t autocal[3] = 0;
-//int32_t autocal = new int32_t[3];
-//Point autocal;
-int32_t autocalx;
-int32_t autocaly;
-int32_t autocalz;
-
-
 namespace command {
 
 #define COMMAND_BUFFER_SIZE 256
@@ -113,9 +105,10 @@ enum {
 	WAIT_ON_TOOL
 } mode = READY;
 
+bool waiting_to_move_Zstage = false;
+
 Timeout delay_timeout;
 Timeout homing_timeout;
-Timeout wait_for_eeprom_timeout;
 
 void reset() {
 	command_buffer.reset();
@@ -259,7 +252,6 @@ void runCommandSlice() {
 
 						//save it in EEPROM!
 						
-						//ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 						int32_t dataa;
 						
 						int16_t offset = 0x100;
@@ -280,11 +272,24 @@ void runCommandSlice() {
 						//next move back up the same amount (aka build platform height)
 						//}
 						mode = MOVING;
-						x = 0;
-						y = 0;
-						z = 0;
+						x = currentPosition[0];
+						y = currentPosition[1];
+						z = 0; //move the Z stage back up to zero.
 						int32_t dda = 1250; // max feedrate for Z stage
 						steppers::setTarget(Point(x,y,z),dda);
+						waiting_to_move_Zstage = true;
+						
+						while (waiting_to_move_Zstage == true) {
+						if (!steppers::isRunning()) {
+						waiting_to_move_Zstage = false;
+						mode = MOVING;
+						x = 0;
+						y = 0;
+						z = 0; 
+						int32_t dda = 1250; // max feedrate for Z stage
+						steppers::setTarget(Point(x,y,z),dda); //move everything back up
+						}// End of if is still running
+						}//End of while waiting
 						
 								}// end of stepper is running if
 								}//end of homing while
@@ -345,22 +350,29 @@ void runCommandSlice() {
 						
 						//next move back up the same amount (aka build platform height)
 						
-						//mode = MOVING;
-						//x = 0;
-						//y = 0;
-						//z = EEPROM_Z;
-						//int32_t dda = 1250; // max feedrate for Z stage
-						//steppers::setTarget(Point(x,y,z),dda);
-						//while (mode == MOVING) {
-						//if (!steppers::isRunning()) {
+						mode = MOVING;
+						x = 0;
+						y = 0;
+						z = EEPROM_Z;
+						int32_t dda = 1250; // max feedrate for Z stage
+						steppers::setTarget(Point(x,y,z),dda); //move the Z stage up first!
+						waiting_to_move_Zstage = true;
+						
+						while (waiting_to_move_Zstage == true) { //while we are waiting to move Z stage. Check if we can move it
+						if (!steppers::isRunning()) {
+						waiting_to_move_Zstage = false; 
 						mode = MOVING;
 						x = EEPROM_X;
 						y = EEPROM_Y;
 						z = EEPROM_Z;
-						int32_t dda = 1250; // max feedrate 10593
-						steppers::setTarget(Point(x,y,z),dda);
-						//}
-						//}
+						int32_t dda = 1017; // max feedrate for XY stage
+						steppers::setTarget(Point(x,y,z),dda); //Move the Z stage.
+						}
+						}
+						x = 0; //set all to zero, B/C are where we want to start printing.
+						y = 0; //set y
+						z = 0; //set z
+						steppers::definePosition(Point(x,y,z)); //set the position in steps
 								}// end of stepper is running if
 								} //end of homing while
 								}//end of command buffer if 
