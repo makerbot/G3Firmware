@@ -301,12 +301,10 @@ void runCommandSlice() {
 						if (steppers::isRunning() == false) {
 						mode = READY;   //wait 'till done homing
 						Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
-
-						//save it in EEPROM!
-						
+						//Squirrel everything into EEPROM for the long Winter.						
 						int32_t dataa;
 						int16_t offset = 0x100;
-						
+												
 						for (int i = 0; i < 3; i++) { //compacted!
 						offset = 0x100 + (i*4);
 						dataa = currentPosition[i] * -1; //Grab individual current position from current position X,Y,Z.
@@ -314,7 +312,7 @@ void runCommandSlice() {
 						_delay_ms(50); //wait A little bit. EEPROM is not very fast.
 						}
 						
-						//next move back up the same amount (aka build platform height)
+						//next move back up to 0,0,0 (aka build platform height)
 						mode = MOVING;		
 						steppers::moveCarefully(Point(0,0,0), 400); // move to 000 with a z offset of 400 steps.
 								}// end of stepper is running if 	
@@ -378,7 +376,7 @@ void runCommandSlice() {
 						
 					//Read from EEPROM
 					
-						int32_t EEPROM_X = 0;
+						/*int32_t EEPROM_X = 0;
 						int32_t EEPROM_Y = 0;
 						int32_t EEPROM_Z = 0;
 						int32_t dataa;
@@ -397,7 +395,28 @@ void runCommandSlice() {
 						offset = 0x108;
 						eeprom_read_block((void*)&dataa, (const void*)offset, 4);
 						EEPROM_Z = dataa;
+						_delay_ms(50);*/
+						
+						int32_t EEPROM_DATA[3] = {0,0,0};
+						int32_t EEPROM_X = 0;
+						int32_t EEPROM_Y = 0;
+						int32_t EEPROM_Z = 0;
+						int16_t offset = 0x100;
+						
+						eeprom_read_block((void*)&EEPROM_DATA[0], (const void*)offset, 4);
+						EEPROM_X = EEPROM_DATA[0];
 						_delay_ms(50);
+						
+						offset = 0x104;
+						eeprom_read_block((void*)&EEPROM_DATA[1], (const void*)offset, 4);
+						EEPROM_Y = EEPROM_DATA[1];
+						_delay_ms(50);
+						
+						offset = 0x108;
+						eeprom_read_block((void*)&EEPROM_DATA[2], (const void*)offset, 4);
+						EEPROM_Z = EEPROM_DATA[2];
+						_delay_ms(50);
+						
 						
 						//next move back up the same amount (aka build platform height)
 						
