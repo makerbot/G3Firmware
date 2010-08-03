@@ -277,13 +277,13 @@ void runCommandSlice() {
 					homing_timeout.start(timeout_s * 1000L * 1000L); 
 					steppers::startHoming(direction,
 							flags,
-							feedrate); //home the others
-						while (waiting_to_move_Zstage == true) {
-						if (steppers::isRunning() == false) {
+							feedrate); //home the others, but not Z
+						while (waiting_to_move_Zstage == true) { 
+						if (steppers::isRunning() == false) { //wait till done homing.
 						waiting_to_move_Zstage = false;
 						flags = 4; //Home Z.
 						mode = HOMING;
-						homing_timeout.start(timeout_s * 1000L * 1000L); 
+						homing_timeout.start(timeout_s * 1000L * 1000L); //home Z.
 						steppers::startHoming(direction,
 							flags,
 							feedrate);
@@ -315,42 +315,9 @@ void runCommandSlice() {
 						}
 						
 						//next move back up the same amount (aka build platform height)
-						//}
-						mode = MOVING;
-						x = currentPosition[0]; //leave these were they are
-						y = currentPosition[1];
-						z = 400; //move the Z stage back up to a bit above zero to avoid the BP hitting it.
-						int32_t dda = 1250; // max feedrate for Z stage
-						steppers::setTarget(Point(x,y,z),dda);
-						waiting_to_move_Zstage = true;
-						
-						while (waiting_to_move_Zstage == true) {
-						if (!steppers::isRunning()) {
-						waiting_to_move_Zstage = false;
-						mode = MOVING;
-						x = 0;
-						y = 0;
-						z = 400; 
-						int32_t dda = 1017; // max feedrate for XY stage
-						steppers::setTarget(Point(x,y,z),dda); //move everything back up
-						}// End of if is still running
-						}//End of while waiting
-						
-						waiting_to_move_Zstage = true;
-						
-						while (waiting_to_move_Zstage == true) {
-						if (!steppers::isRunning()) {
-						waiting_to_move_Zstage = false;
-						mode = MOVING;
-						x = 0;
-						y = 0;
-						z = 0; 
-						int32_t dda = 1250; // max feedrate for Z stage
-						steppers::setTarget(Point(x,y,z),dda); //move everything back up
-						}// End of if is still running
-						}//End of while waiting
-						
-								}// end of stepper is running if
+						mode = MOVING;		
+						steppers::moveCarefully(Point(0,0,0), 400); // move to 000 with a z offset of 400 steps.
+								}// end of stepper is running if 	
 								}//end of homing while
 								}//end of command buffer if 
 				is_running_homing_script = false;
@@ -435,49 +402,15 @@ void runCommandSlice() {
 						//next move back up the same amount (aka build platform height)
 						
 						mode = MOVING;
-						x = 0;
-						y = 0;
-						z = EEPROM_Z + 400; //move the Z to a safe location
-						int32_t dda = 1250; // max feedrate for Z stage
-						steppers::setTarget(Point(x,y,z),dda); //move the Z stage up first!
-						waiting_to_move_Zstage = true;
-						bool waiting_for_zeroed_location = false;
-						
-						while (waiting_to_move_Zstage == true) { //while we are waiting to move Z stage. Check if we can move the XY stages
-						if (!steppers::isRunning()) {
-						waiting_to_move_Zstage = false;
-						mode = MOVING;
-						x = EEPROM_X;
-						y = EEPROM_Y;
-						z = EEPROM_Z + 400;
-						int32_t dda = 1017; // max feedrate for XY stage
-						steppers::setTarget(Point(x,y,z),dda); //Move the XY stage.
-						}
-						}
-						waiting_to_move_Zstage = true; //now we can lower the Z stage back to 0
-						while (waiting_to_move_Zstage == true) { //while we are waiting to move Z stage. Check if we can move it
-						if (!steppers::isRunning()) {
-						waiting_to_move_Zstage = false; 
-						waiting_for_zeroed_location = true;
-						mode = MOVING;
-						x = EEPROM_X;
-						y = EEPROM_Y;
-						z = EEPROM_Z;
-						int32_t dda = 1250; // max feedrate for z stage
-						steppers::setTarget(Point(x,y,z),dda); //Move the Z stage.
-						}
-						}
-						
-						while (waiting_for_zeroed_location == true) { //now we can set this position as zero
-						if (!steppers::isRunning()) {
+						bool waiting_for_zeroed_location = true;
+						steppers::moveCarefully(Point(EEPROM_X,EEPROM_Y,EEPROM_Z), 400); //move carefully (raise the Z stage first)					
+						while (waiting_for_zeroed_location == true) { //wait
+						if (!steppers::isRunning()) { //now we can set this position as zero
 						waiting_for_zeroed_location = false;
-						x = 0; //set all to zero, B/C are where we want to start printing.
-						y = 0; //set y
-						z = 0; //set z
-						steppers::definePosition(Point(x,y,z)); //set the position in steps
+						steppers::definePosition(Point(0,0,0)); //set the position in steps to zero
 						}
 						}
-								}// end of stepper is running if
+								}// end of stepper is running if							
 								} //end of homing while
 								}//end of command buffer if 
 				is_running_homing_script = false;

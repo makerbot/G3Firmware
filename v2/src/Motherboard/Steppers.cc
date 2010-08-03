@@ -232,4 +232,43 @@ bool doInterrupt() {
 	return false;
 }
 
+
+
+
+void moveCarefully(const Point& target, int32_t Z_offset) {
+//next move back up the same amount (aka build platform height)
+						Point currentPosition = getPosition();
+						bool waiting_to_move_Zstage = false; //keep track
+						int32_t x = currentPosition[0]; //leave these were they are
+						int32_t y = currentPosition[1];
+						int32_t z = target[2] + Z_offset; //move the Z stage back up to a bit above zero to avoid the BP hitting it.
+						int32_t dda = 1250; // max feedrate for Z stage
+						setTarget(Point(x,y,z),dda);
+						waiting_to_move_Zstage = true;
+						
+						while (waiting_to_move_Zstage == true) {
+						if (!isRunning()) {
+						waiting_to_move_Zstage = false;
+						x = target[0];
+						y = target[1];
+						z = target[2] + Z_offset; //keep this where it was
+						int32_t dda = 1017; // max feedrate for XY stage
+						setTarget(Point(x,y,z),dda); //move everything back up
+						}// End of if is still running
+						}//End of while waiting
+						
+						waiting_to_move_Zstage = true;
+						
+						while (waiting_to_move_Zstage == true) {
+						if (!isRunning()) {
+						waiting_to_move_Zstage = false;
+						x = target[0];
+						y = target[1];
+						z = target[2]; 
+						int32_t dda = 1250; // max feedrate for Z stage
+						setTarget(Point(x,y,z),dda); //move everything back up
+						}// End of if is still running
+						}//End of while waiting
+}
+
 }

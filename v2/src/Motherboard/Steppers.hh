@@ -52,6 +52,8 @@ bool doInterrupt();
 const Point getPosition();
 /// Turn on in-build Z hold.  Defaults to off.
 void setHoldZ(bool holdZ);
+//move to a position carefully. (Move Z up first past destination, then move XY, then move Z to destination). Used to avoid crashing into BP at the end of homing scripts
+void moveCarefully(const Point& target, int32_t Z_offset);
 };
 
 #endif // STEPPERS_HH_
