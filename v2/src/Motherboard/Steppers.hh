@@ -56,6 +56,10 @@ void setHoldZ(bool holdZ);
 void moveCarefully(const Point& target, int32_t Z_offset);
 //home carefully. Checks to see if you are trying to home in the negative direction with Z and another axis. If so it will home the others before homing Z. It assumes that you know what you are doing if you are homing only Z. (Maybe it shouldn't?)
 void homeCarefully(const bool direction, uint8_t flags, const uint32_t feedrate);
+//return true if the higher level scripts are done homing.
+bool scripts_done_homing();
+//return true if the higher level scripts are done moving.
+bool scripts_done_moving();
 
 };
 

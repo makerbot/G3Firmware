@@ -225,8 +225,8 @@ void runCommandSlice() {
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16();
 					bool direction = command == HOST_CMD_FIND_AXES_MAXIMUM;
-					
 					steppers::homeCarefully(direction, flags, feedrate);
+					mode = HOMING;
 					
 					is_running_homing_script = false;
 				}
@@ -244,37 +244,13 @@ void runCommandSlice() {
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
 					bool direction = false; //We might want to change this so that it is user definable, but for now it's fine.
-					//first home the BP out of the way. (If we need to)
 					
-					if (flags & (1<<2) != 0 && (flags - 4) != 0) { //if flags says home Z and something else (we don't care what)
-					flags = flags - 4; //Don't home Z.
-					waiting_to_move_Zstage = true;
+					//home carefully! We don't want to break anything!
+					steppers::homeCarefully(direction, flags, feedrate);
 					mode = HOMING;
-					homing_timeout.start(timeout_s * 1000L * 1000L); 
-					steppers::startHoming(direction,
-							flags,
-							feedrate); //home the others, but not Z
-						while (waiting_to_move_Zstage == true) { 
-						if (steppers::isRunning() == false) { //wait till done homing.
-						waiting_to_move_Zstage = false;
-						flags = 4; //Home Z.
-						mode = HOMING;
-						homing_timeout.start(timeout_s * 1000L * 1000L); //home Z.
-						steppers::startHoming(direction,
-							flags,
-							feedrate);
-						}
-						}
-						} else { //if not, no special care is needed.
-						mode = HOMING;
-						homing_timeout.start(timeout_s * 1000L * 1000L); 
-						steppers::startHoming(direction,
-							flags,
-							feedrate);
-					}
 					//now need to wait 'till done homing and save the distance traveled.
 					while (mode == HOMING) {
-						if (steppers::isRunning() == false) {
+						if (steppers::scripts_done_homing()) {
 						mode = READY;   //wait 'till done homing
 						Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
 						//Squirrel everything into EEPROM for the long Winter.						
@@ -313,35 +289,11 @@ void runCommandSlice() {
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
 					bool direction = false;
 					
-					if (flags & (1<<2) != 0 && (flags - 4) != 0) { //if flags says home Z and something else (we don't care what)
-					flags = flags - 4; //Don't home Z.
-					waiting_to_move_Zstage = true;
+					steppers::homeCarefully(direction, flags, feedrate); //home carefully!
 					mode = HOMING;
-					homing_timeout.start(timeout_s * 1000L * 1000L); 
-					steppers::startHoming(direction,
-							flags,
-							feedrate); //home the others
-						while (waiting_to_move_Zstage == true) {
-						if (steppers::isRunning() == false) {
-						waiting_to_move_Zstage = false;
-						flags = 4; //Home Z.
-						mode = HOMING;
-						homing_timeout.start(timeout_s * 1000L * 1000L); 
-						steppers::startHoming(direction,
-							flags,
-							feedrate);
-						}
-						}
-						} else { //if not, no special care is needed.
-						mode = HOMING;
-						homing_timeout.start(timeout_s * 1000L * 1000L); 
-						steppers::startHoming(direction,
-							flags,
-							feedrate);
-					}
 					//now need to wait 'till done homing and go back up to the saved position.
 					while (mode == HOMING) {
-						if (!steppers::isRunning()) { //wait 'till done homing
+						if (steppers::scripts_done_homing()) { //wait 'till done homing
 						mode = READY; //ok!
 						x = 0; //set x at zero (we are at endstop)
 						y = 0; //set y
@@ -361,7 +313,7 @@ void runCommandSlice() {
 						bool waiting_for_zeroed_location = true;
 						steppers::moveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), 400); //move carefully (raise the Z stage first)					
 						while (waiting_for_zeroed_location == true) { //wait
-						if (!steppers::isRunning()) { //now we can set this position as zero
+						if (steppers::scripts_done_moving()) { //now we can set this position as zero
 						waiting_for_zeroed_location = false;
 						steppers::definePosition(Point(0,0,0)); //set the position in steps to zero
 						}

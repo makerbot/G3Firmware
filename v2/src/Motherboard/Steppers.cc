@@ -138,9 +138,19 @@ int32_t intervals;
 volatile int32_t intervals_remaining;
 Axis axes[STEPPER_COUNT];
 volatile bool is_homing;
+volatile bool script_done_homing = false;
+volatile bool script_done_moving = false;
 
 bool isRunning() {
 	return is_running || is_homing;
+}
+
+bool scripts_done_homing() {
+return script_done_homing;
+}
+
+bool scripts_done_moving() {
+return script_done_moving;
 }
 
 //public:
@@ -237,6 +247,7 @@ bool doInterrupt() {
 
 void moveCarefully(const Point& target, int32_t Z_offset) {
 //next move back up the same amount (aka build platform height)
+						script_done_moving = false;
 						Point currentPosition = getPosition();
 						bool waiting_to_move_Zstage = false; //keep track
 						int32_t x = currentPosition[0]; //leave these were they are
@@ -267,12 +278,20 @@ void moveCarefully(const Point& target, int32_t Z_offset) {
 						z = target[2]; 
 						int32_t dda = 1250; // max feedrate for Z stage
 						setTarget(Point(x,y,z),dda); //move everything back up
+						bool waiting_to_say_done = true;
+						while (waiting_to_say_done == true) {
+						if (isRunning() == false) {
+						waiting_to_say_done = false;
+						script_done_moving = true;
+						}
+						}
 						}// End of if is still running
 						}//End of while waiting
 }
 
 void homeCarefully(const bool direction, uint8_t flags, const uint32_t feedrate) {
 //Don't drink and home. Home carefully my friends!
+script_done_homing = false;
 if (flags & (1<<2) != 0 && (flags - 4) != 0 && direction == false) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction then home carefully.
 					flags = flags - 4; //Don't home Z.
 					bool waiting_to_move_Zstage = true;
@@ -293,6 +312,13 @@ if (flags & (1<<2) != 0 && (flags - 4) != 0 && direction == false) { //if flags 
 							flags,
 							feedrate);
 					}
+					bool waiting_to_say_done = true;
+					while (waiting_to_say_done == true) {
+						if (isRunning() == false) {
+						waiting_to_say_done = false;
+						script_done_homing = true;
+						}
+						}
 }
 
 }
