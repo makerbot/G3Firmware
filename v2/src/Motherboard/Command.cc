@@ -220,7 +220,7 @@ void runCommandSlice() {
 					uint16_t timeout_s = pop16();
 					bool direction = command == HOST_CMD_FIND_AXES_MAXIMUM;
 					
-					if (flags & (1<<2) != 0 && (flags - 4) != 0) { //if flags says home Z and something else (we don't care what)
+					if (flags & (1<<2) != 0 && (flags - 4) != 0 && direction == false) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction.
 					flags = flags - 4; //Don't home Z.
 					waiting_to_move_Zstage = true;
 					mode = HOMING;
@@ -419,10 +419,12 @@ void runCommandSlice() {
 						int32_t dda = 1250; // max feedrate for Z stage
 						steppers::setTarget(Point(x,y,z),dda); //move the Z stage up first!
 						waiting_to_move_Zstage = true;
+						bool waiting_for_zeroed_location = false;
 						
 						while (waiting_to_move_Zstage == true) { //while we are waiting to move Z stage. Check if we can move it
 						if (!steppers::isRunning()) {
 						waiting_to_move_Zstage = false; 
+						waiting_for_zeroed_location = true;
 						mode = MOVING;
 						x = EEPROM_X;
 						y = EEPROM_Y;
@@ -431,10 +433,15 @@ void runCommandSlice() {
 						steppers::setTarget(Point(x,y,z),dda); //Move the Z stage.
 						}
 						}
+						while (waiting_for_zeroed_location == true) {
+						if (!steppers::isRunning()) {
+						waiting_for_zeroed_location = false;
 						x = 0; //set all to zero, B/C are where we want to start printing.
 						y = 0; //set y
 						z = 0; //set z
 						steppers::definePosition(Point(x,y,z)); //set the position in steps
+						}
+						}
 								}// end of stepper is running if
 								} //end of homing while
 								}//end of command buffer if 
