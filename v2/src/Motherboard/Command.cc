@@ -319,9 +319,23 @@ void runCommandSlice() {
 						mode = MOVING;
 						x = currentPosition[0]; //leave these were they are
 						y = currentPosition[1];
-						z = 0; //move the Z stage back up to zero.
+						z = 400; //move the Z stage back up to a bit above zero to avoid the BP hitting it.
 						int32_t dda = 1250; // max feedrate for Z stage
 						steppers::setTarget(Point(x,y,z),dda);
+						waiting_to_move_Zstage = true;
+						
+						while (waiting_to_move_Zstage == true) {
+						if (!steppers::isRunning()) {
+						waiting_to_move_Zstage = false;
+						mode = MOVING;
+						x = 0;
+						y = 0;
+						z = 400; 
+						int32_t dda = 1017; // max feedrate for XY stage
+						steppers::setTarget(Point(x,y,z),dda); //move everything back up
+						}// End of if is still running
+						}//End of while waiting
+						
 						waiting_to_move_Zstage = true;
 						
 						while (waiting_to_move_Zstage == true) {
@@ -423,12 +437,24 @@ void runCommandSlice() {
 						mode = MOVING;
 						x = 0;
 						y = 0;
-						z = EEPROM_Z;
+						z = EEPROM_Z + 400; //move the Z to a safe location
 						int32_t dda = 1250; // max feedrate for Z stage
 						steppers::setTarget(Point(x,y,z),dda); //move the Z stage up first!
 						waiting_to_move_Zstage = true;
 						bool waiting_for_zeroed_location = false;
 						
+						while (waiting_to_move_Zstage == true) { //while we are waiting to move Z stage. Check if we can move the XY stages
+						if (!steppers::isRunning()) {
+						waiting_to_move_Zstage = false;
+						mode = MOVING;
+						x = EEPROM_X;
+						y = EEPROM_Y;
+						z = EEPROM_Z + 400;
+						int32_t dda = 1017; // max feedrate for XY stage
+						steppers::setTarget(Point(x,y,z),dda); //Move the XY stage.
+						}
+						}
+						waiting_to_move_Zstage = true; //now we can lower the Z stage back to 0
 						while (waiting_to_move_Zstage == true) { //while we are waiting to move Z stage. Check if we can move it
 						if (!steppers::isRunning()) {
 						waiting_to_move_Zstage = false; 
@@ -437,11 +463,12 @@ void runCommandSlice() {
 						x = EEPROM_X;
 						y = EEPROM_Y;
 						z = EEPROM_Z;
-						int32_t dda = 1017; // max feedrate for XY stage
+						int32_t dda = 1250; // max feedrate for z stage
 						steppers::setTarget(Point(x,y,z),dda); //Move the Z stage.
 						}
 						}
-						while (waiting_for_zeroed_location == true) {
+						
+						while (waiting_for_zeroed_location == true) { //now we can set this position as zero
 						if (!steppers::isRunning()) {
 						waiting_for_zeroed_location = false;
 						x = 0; //set all to zero, B/C are where we want to start printing.
