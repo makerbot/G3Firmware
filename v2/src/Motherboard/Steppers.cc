@@ -271,4 +271,28 @@ void moveCarefully(const Point& target, int32_t Z_offset) {
 						}//End of while waiting
 }
 
+void homeCarefully(const bool direction, uint8_t flags, const uint32_t feedrate) {
+//Don't drink and home. Home carefully my friends!
+if (flags & (1<<2) != 0 && (flags - 4) != 0 && direction == false) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction then home carefully.
+					flags = flags - 4; //Don't home Z.
+					bool waiting_to_move_Zstage = true;
+					startHoming(direction,
+							flags,
+							feedrate); //home the others
+						while (waiting_to_move_Zstage == true) {
+						if (isRunning() == false) {
+						waiting_to_move_Zstage = false;
+						flags = 4; //Home Z.
+						startHoming(direction,
+							flags,
+							feedrate);
+						}
+						}
+						} else { //if not, no special care is needed.
+						startHoming(direction,
+							flags,
+							feedrate);
+					}
+}
+
 }

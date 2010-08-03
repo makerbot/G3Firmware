@@ -226,32 +226,8 @@ void runCommandSlice() {
 					uint16_t timeout_s = pop16();
 					bool direction = command == HOST_CMD_FIND_AXES_MAXIMUM;
 					
-					if (flags & (1<<2) != 0 && (flags - 4) != 0 && direction == false) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction.
-					flags = flags - 4; //Don't home Z.
-					waiting_to_move_Zstage = true;
-					mode = HOMING;
-					homing_timeout.start(timeout_s * 1000L * 1000L); 
-					steppers::startHoming(direction,
-							flags,
-							feedrate); //home the others
-						while (waiting_to_move_Zstage == true) {
-						if (steppers::isRunning() == false) {
-						waiting_to_move_Zstage = false;
-						flags = 4; //Home Z.
-						mode = HOMING;
-						homing_timeout.start(timeout_s * 1000L * 1000L); 
-						steppers::startHoming(direction,
-							flags,
-							feedrate);
-						}
-						}
-						} else { //if not, no special care is needed.
-						mode = HOMING;
-						homing_timeout.start(timeout_s * 1000L * 1000L); 
-						steppers::startHoming(direction,
-							flags,
-							feedrate);
-					}
+					steppers::homeCarefully(direction, flags, feedrate);
+					
 					is_running_homing_script = false;
 				}
 			} else if (command == HOST_CMD_FIRST_AUTO_RAFT) { //Super beta testing phase! Please pardon our dust!
