@@ -59,6 +59,11 @@ bool isEmpty();
  */
 void push(uint8_t byte);
 
+/**
+ * Returns true homing scripts are still homing.
+ */
+bool is_running_homing_scripts();
+
 }
 
 #endif // COMMAND_HH_

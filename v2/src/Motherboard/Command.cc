@@ -40,6 +40,7 @@ CircularBuffer command_buffer(COMMAND_BUFFER_SIZE, buffer_data);
 bool outstanding_tool_command = false;
 
 bool paused = false;
+bool is_running_homing_script = false;
 
 uint16_t getRemainingCapacity() {
 	uint16_t sz;
@@ -63,6 +64,10 @@ bool isEmpty() {
 
 void push(uint8_t byte) {
 	command_buffer.push(byte);
+}
+
+bool is_running_homing_scripts() {
+	return is_running_homing_script;
 }
 
 uint8_t pop8() {
@@ -214,6 +219,7 @@ void runCommandSlice() {
 			} else if (command == HOST_CMD_FIND_AXES_MINIMUM ||
 					command == HOST_CMD_FIND_AXES_MAXIMUM) {
 				if (command_buffer.getLength() >= 8) {
+					is_running_homing_script = true;
 					command_buffer.pop(); // remove the command
 					uint8_t flags = pop8();
 					uint32_t feedrate = pop32(); // feedrate in us per step
@@ -246,12 +252,13 @@ void runCommandSlice() {
 							flags,
 							feedrate);
 					}
+					is_running_homing_script = false;
 				}
 			} else if (command == HOST_CMD_FIRST_AUTO_RAFT) { //Super beta testing phase! Please pardon our dust!
 					//Command pop only removes the first in the queue. pop multiple times to erase something big. pop also returns the value of the thing. Use command_buffer[something] if you want to read without poping. pop afterward please! Other code lives here too!
 				if (command_buffer.getLength() >= 8) {
 					//first we need to zero our position (We are at 0,0,0. AKA the center of the build platform and at the right hight.)
-					
+					is_running_homing_script = true;
 					int32_t x = 0; //set x
 					int32_t y = 0; //set y
 					int32_t z = 0; //set z
@@ -332,13 +339,14 @@ void runCommandSlice() {
 								}// end of stepper is running if
 								}//end of homing while
 								}//end of command buffer if 
-				
+				is_running_homing_script = false;
 				
 
 
 			} else if (command == HOST_CMD_AUTO_RAFT) { //Super beta testing phase! Please pardon our dust!
 					//Command pop only removes the first in the queue. pop multiple times to erase something big. pop also returns the value of the thing. Use command_buffer[something] if you want to read without poping. pop afterward please! Other code lives here too!
 				if (command_buffer.getLength() >= 8) {
+					is_running_homing_script = true;
 					//first we need to zero our position to get rid of any crazy numbers.
 					int32_t x = 0; //set x
 					int32_t y = 0; //set y
@@ -445,7 +453,7 @@ void runCommandSlice() {
 								}// end of stepper is running if
 								} //end of homing while
 								}//end of command buffer if 
-				
+				is_running_homing_script = false;
 				
 
 

@@ -286,7 +286,7 @@ inline void handlePause(const InPacket& from_host, OutPacket& to_host) {
 inline void handleIsFinished(const InPacket& from_host, OutPacket& to_host) {
 	to_host.append8(RC_OK);
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
-		bool done = !steppers::isRunning() && command::isEmpty();
+		bool done = !steppers::isRunning() && command::isEmpty() && !command::is_running_homing_scripts();
 		to_host.append8(done?1:0);
 	}
 }
