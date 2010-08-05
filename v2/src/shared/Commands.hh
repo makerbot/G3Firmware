@@ -57,6 +57,9 @@
 // Retrieve the value of a debugging register
 #define HOST_CMD_GET_DBG_REG       19
 
+//write a 32bit integer to EEPROM
+#define HOST_CMD_WRITE_EEPROM32	   20
+
 // These are our bufferable commands from the host
 // #define HOST_CMD_QUEUE_POINT_INC   128  // deprecated
 #define HOST_CMD_QUEUE_POINT_ABS   129
