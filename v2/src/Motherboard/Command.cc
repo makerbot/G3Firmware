@@ -301,17 +301,20 @@ void runCommandSlice() {
 						steppers::definePosition(Point(x,y,z)); //set the position in steps
 
 						//Read from EEPROM
-						int32_t EEPROM_DATA[3] = {0,0,0}; //Array to hold the read values.
+						int32_t EEPROM_DATA[4] = {0,0,0,0}; //Array to hold the read values.
 						int16_t offset = 0x100; //where to start copying from
 						for (int i = 0; i < 3; i++) { //loop and copy all of the data for all of the axis.
 						offset = 0x100 + (i*4);
 						eeprom_read_block((void*)&EEPROM_DATA[i], (const void*)offset, 4);
 						_delay_ms(50);
 						}
+						//read the amount of Z offset from EEPROM
+						offset = 0x113;
+						eeprom_read_block((void*)&EEPROM_DATA[3], (const void*)offset, 4);
 						//next move back up the read amount (aka build platform height)
 						mode = MOVING;
 						bool waiting_for_zeroed_location = true;
-						steppers::moveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), 400); //move carefully (raise the Z stage first)					
+						steppers::moveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), EEPROM_DATA[3]); //move carefully (raise the Z stage first)					
 						while (waiting_for_zeroed_location == true) { //wait
 						if (steppers::scripts_done_moving()) { //now we can set this position as zero
 						waiting_for_zeroed_location = false;
