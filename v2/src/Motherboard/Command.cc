@@ -265,7 +265,10 @@ void runCommandSlice() {
 						}
 						
 						//next move back up to 0,0,0 (aka build platform height)
-						mode = MOVING;		
+						int32_t zOffset; //varible to save the read amount
+						offset = 0x113; //offset of the saved Z offset amount.
+						eeprom_read_block((void*)&zOffset, (const void*)offset, 4); //read it from eeprom
+						mode = MOVING;
 						steppers::moveCarefully(Point(0,0,0), 400); // move to 000 with a z offset of 400 steps.
 								}// end of stepper is running if 	
 								}//end of homing while
@@ -309,7 +312,7 @@ void runCommandSlice() {
 						_delay_ms(50);
 						}
 						//read the amount of Z offset from EEPROM
-						offset = 0x113;
+						offset = 0x113; //offset of the saved Z offset amount.
 						eeprom_read_block((void*)&EEPROM_DATA[3], (const void*)offset, 4);
 						//next move back up the read amount (aka build platform height)
 						mode = MOVING;

@@ -316,15 +316,11 @@ inline void handleWriteEeprom(const InPacket& from_host, OutPacket& to_host) {
 }
 
 inline void handleWriteEeprom32(const InPacket& from_host, OutPacket& to_host) {
-	uint16_t offset_from_host = from_host.read16(1);
-	//uint8_t length = from_host.read8(3);
-	int16_t offset = 0x113;
+	int16_t offset_from_host = from_host.read16(1);
 	int32_t data;
-	//eeprom_read_block(data, (const void*) offset, 4);
 	data = from_host.read32(3);
-	eeprom_write_block((const void*)&data, (void*)offset, 4); //save it!
+	eeprom_write_block((const void*)&data, (void*)offset_from_host, 4); //save it!
 	to_host.append8(RC_OK);
-	//to_host.append8(length);
 }
 
 bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
