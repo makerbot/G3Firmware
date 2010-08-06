@@ -289,27 +289,13 @@ void moveCarefully(const Point& target, int32_t Z_offset) {
 						}//End of while waiting
 }
 
-void homeCarefully(const bool direction, uint8_t flags, const uint32_t feedrate, int32_t Z_offset) {
+void homeCarefully(const bool direction, uint8_t flags, const uint32_t feedrate) {
 //Don't drink and home. Home carefully my friends!
 script_done_homing = false;
 if (flags & (1<<2) != 0 && (flags - 4) != 0 && direction == false) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction then home carefully.
-//should it move the Z axis up before homing? (just to be super carefull?)
-
-						Point currentPosition = getPosition();
-						bool waiting_to_move_Zstage = false; //keep track
-						int32_t x = currentPosition[0]; //leave these were they are
-						int32_t y = currentPosition[1];
-						int32_t z = currentPosition[2] + Z_offset; //move the Z stage back up to a bit above zero to avoid the BP hitting it.
-						int32_t dda = 1250; // max feedrate for Z stage
-						setTarget(Point(x,y,z),dda);
-						bool waiting_to_home_XY = true;
-						while (waiting_to_home_XY == true) {
-						if (isRunning() == false) {
-						waiting_to_home_XY = false;
-
-						flags = flags - 4; //Don't home Z.
-						waiting_to_move_Zstage = true;
-						startHoming(direction,
+					flags = flags - 4; //Don't home Z.
+					bool waiting_to_move_Zstage = true;
+					startHoming(direction,
 							flags,
 							feedrate); //home the others
 						while (waiting_to_move_Zstage == true) {
@@ -319,8 +305,6 @@ if (flags & (1<<2) != 0 && (flags - 4) != 0 && direction == false) { //if flags 
 						startHoming(direction,
 							flags,
 							feedrate);
-						}
-						}
 						}
 						}
 						} else { //if not, no special care is needed.
