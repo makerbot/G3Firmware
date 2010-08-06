@@ -269,7 +269,7 @@ void runCommandSlice() {
 						offset = 0x113; //offset of the saved Z offset amount.
 						eeprom_read_block((void*)&zOffset, (const void*)offset, 4); //read it from eeprom
 						mode = MOVING;
-						steppers::moveCarefully(Point(0,0,0), 400); // move to 000 with a z offset of 400 steps.
+						steppers::moveCarefully(Point(0,0,0), zOffset); // move to 000 with a z offset of 400 steps.
 								}// end of stepper is running if 	
 								}//end of homing while
 								}//end of command buffer if 
