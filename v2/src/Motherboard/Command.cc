@@ -241,27 +241,30 @@ void runCommandSlice() {
 					steppers::definePosition(Point(x,y,z)); //set the position in steps
 					command_buffer.pop(); // remove the command
 					uint8_t flags = pop8(); //get the axis
+					bool direction = (pop8() == 1); //If the data = 1, then the direction is positive, else negative.
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
-					bool direction = false; //We might want to change this so that it is user definable, but for now it's fine.
 					
 					//home carefully! We don't want to break anything!
 					steppers::homeCarefully(direction, flags, feedrate);
 					mode = HOMING;
 					//now need to wait 'till done homing and save the distance traveled.
 					while (mode == HOMING) {
-						if (steppers::scripts_done_homing()) {
-						mode = READY;   //wait 'till done homing
+						if (steppers::scripts_done_homing()) { //wait 'till done homing
+						mode = READY;
 						Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
 						//Squirrel everything into EEPROM for the long Winter.						
-						int32_t dataa;
-						int16_t offset = 0x100;
+						int32_t dataa; //temporary varible.
+						int16_t offset = 0x100; //this is where in eeprom we should start saving.
 												
 						for (int i = 0; i < 3; i++) { //compacted code into loop!
 						offset = 0x100 + (i*4);
-						dataa = currentPosition[i] * -1; //Grab individual current position from current position X,Y,Z.
+						dataa = currentPosition[i]; //Grab individual current position from current position X,Y,Z.
+						if (dataa < 0) { //If the position is negative, make it positive!
+						dataa = -dataa;
+						}
 						eeprom_write_block((const void*)&dataa, (void*)offset, 4); //save it!
-						_delay_ms(50); //wait A little bit. EEPROM is not very fast.
+						_delay_ms(50); //wait A little bit. EEPROM is not very fast. (Probably not needed but couldn't hurt.)
 						}
 						
 						//next move back up to 0,0,0 (aka build platform height)
@@ -287,10 +290,10 @@ void runCommandSlice() {
 					int32_t z = 0; //set z
 					steppers::definePosition(Point(x,y,z)); //set the position in steps
 					command_buffer.pop(); // remove the command
-					uint8_t flags = pop8(); //get the axis
+					uint8_t flags = pop8(); //get the axis.
+					bool direction = (pop8() == 1); //We might want to change this so that it is user definable, but for now it's fine.
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
-					bool direction = false;
 					
 					steppers::homeCarefully(direction, flags, feedrate); //home carefully!
 					mode = HOMING;

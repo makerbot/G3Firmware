@@ -299,7 +299,7 @@ if (flags & (1<<2) != 0 && (flags - 4) != 0 && direction == false) { //if flags 
 							flags,
 							feedrate); //home the others
 						while (waiting_to_move_Zstage == true) {
-						if (isRunning() == false) {
+						if (isRunning() == false) { //wait till done
 						waiting_to_move_Zstage = false;
 						flags = 4; //Home Z.
 						startHoming(direction,
@@ -307,7 +307,25 @@ if (flags & (1<<2) != 0 && (flags - 4) != 0 && direction == false) { //if flags 
 							feedrate);
 						}
 						}
-						} else { //if not, no special care is needed.
+						} else if (flags & (1<<2) != 0 && (flags - 4) != 0 && direction == true) { 
+						//home the z up before homing xy in the positive direction.
+						uint8_t other_axis_flags = flags - 4; //axis besides Z to home.
+						
+						flags = 4; // Home Z up.
+					bool waiting_to_move_XYstage = true;
+					startHoming(direction,
+							flags,
+							feedrate); //home the others
+						while (waiting_to_move_XYstage == true) {
+						if (isRunning() == false) { //wait till done
+						waiting_to_move_XYstage = false;
+						flags = other_axis_flags; //Home the rest of the axis (besides Z).
+						startHoming(direction,
+							flags,
+							feedrate);
+						}
+						}
+						} else { //no special care is needed.
 						startHoming(direction,
 							flags,
 							feedrate);
