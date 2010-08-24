@@ -258,7 +258,7 @@ void runCommandSlice() {
 						int16_t offset = 0x100; //this is where in eeprom we should start saving.
 												
 						for (int i = 0; i < 3; i++) { //compacted code into loop!
-						offset = 0x100 + (i*4);
+						offset = 0x100 + (i*0x4);
 						dataa = currentPosition[i]; //Grab individual current position from current position X,Y,Z.
 						if (dataa < 0) { //If the position is negative, make it positive!
 						dataa = -dataa;
@@ -268,11 +268,15 @@ void runCommandSlice() {
 						}
 						
 						//next move back up to 0,0,0 (aka build platform height)
+						if (direction == false) { //if we are homing down then move z before XY
 						int32_t zOffset; //varible to save the read amount
-						offset = 0x113; //offset of the saved Z offset amount.
+						offset = 0x10c; //offset of the saved Z offset amount.
 						eeprom_read_block((void*)&zOffset, (const void*)offset, 4); //read it from eeprom
 						mode = MOVING;
 						steppers::moveCarefully(Point(0,0,0), zOffset); // move to 000 with a z offset of 400 steps.
+						} else { //if positive then move XY before Z
+						steppers::moveCarefully(Point(0,0,0), -1); // move to 000 with a z offset of -1 (aka none.) Also tells the subroutine to move XY before Z..
+						}
 								}// end of stepper is running if 	
 								}//end of homing while
 								}//end of command buffer if 
@@ -309,18 +313,21 @@ void runCommandSlice() {
 						//Read from EEPROM
 						int32_t EEPROM_DATA[4] = {0,0,0,0}; //Array to hold the read values.
 						int16_t offset = 0x100; //where to start copying from
-						for (int i = 0; i < 3; i++) { //loop and copy all of the data for all of the axis.
-						offset = 0x100 + (i*4);
+						for (int i = 0; i < 4; i++) { //loop and copy all of the data for all of the axis.
+						offset = 0x100 + (i*0x4);
 						eeprom_read_block((void*)&EEPROM_DATA[i], (const void*)offset, 4);
 						_delay_ms(50);
 						}
-						//read the amount of Z offset from EEPROM
-						offset = 0x113; //offset of the saved Z offset amount.
-						eeprom_read_block((void*)&EEPROM_DATA[3], (const void*)offset, 4);
+						
 						//next move back up the read amount (aka build platform height)
 						mode = MOVING;
 						bool waiting_for_zeroed_location = true;
+						
+						if (direction == false) {
 						steppers::moveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), EEPROM_DATA[3]); //move carefully (raise the Z stage first)					
+						} else {
+						steppers::moveCarefully(Point(-EEPROM_DATA[0],-EEPROM_DATA[1],-EEPROM_DATA[2]), -1); //move carefully (Move the XY first)
+						}
 						while (waiting_for_zeroed_location == true) { //wait
 						if (steppers::scripts_done_moving()) { //now we can set this position as zero
 						waiting_for_zeroed_location = false;

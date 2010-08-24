@@ -246,8 +246,35 @@ bool doInterrupt() {
 
 
 void moveCarefully(const Point& target, int32_t Z_offset) {
-//next move back up the same amount (aka build platform height)
 						script_done_moving = false;
+						if (Z_offset < 0) { //if the z offset is negative (this should not usually happen). assume we want to Center the XY before Z (as if we are centering the Z stage in the - direction)
+						Point currentPosition = getPosition();
+						bool waiting_to_move_Zstage = true; //keep track (suspect?)
+						int32_t x = target[0]; //Move XY
+						int32_t y = target[1];
+						int32_t z = currentPosition[2]; //Leave this alone.
+						
+						int32_t dda = 1017; // max feedrate for XY stage
+						setTarget(Point(x,y,z),dda); //move XY
+						while (waiting_to_move_Zstage == true) {
+						if (!isRunning()) {
+						waiting_to_move_Zstage = false;
+						x = target[0];
+						y = target[1];
+						z = target[2]; 
+						int32_t dda = 1250; // max feedrate for Z stage
+						setTarget(Point(x,y,z),dda); //move everything
+						
+						bool waiting_to_say_done = true;//probably not necessary and will be phased out
+						while (waiting_to_say_done == true) {
+						if (isRunning() == false) {
+						waiting_to_say_done = false;
+						}
+						}
+						}
+						}
+						
+						} else { //we must be moving in the positive direction so move Z before XY.
 						Point currentPosition = getPosition();
 						bool waiting_to_move_Zstage = false; //keep track
 						int32_t x = currentPosition[0]; //leave these were they are
@@ -278,15 +305,17 @@ void moveCarefully(const Point& target, int32_t Z_offset) {
 						z = target[2]; 
 						int32_t dda = 1250; // max feedrate for Z stage
 						setTarget(Point(x,y,z),dda); //move everything back up
-						bool waiting_to_say_done = true;
+						
+						bool waiting_to_say_done = true; //probably not necessary and will be phased out
 						while (waiting_to_say_done == true) {
 						if (isRunning() == false) {
 						waiting_to_say_done = false;
-						script_done_moving = true;
 						}
 						}
 						}// End of if is still running
 						}//End of while waiting
+						}
+						script_done_moving = true;
 }
 
 void homeCarefully(const bool direction, uint8_t flags, const uint32_t feedrate) {
