@@ -245,7 +245,23 @@ void runCommandSlice() {
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
 					
+					int32_t dataa; //temporary varible.
+					int16_t offset; //this is where in eeprom we should start saving/reading.
+					int32_t zOffset; //varible to save the read amount for the Z Offset.
+					
 					//home carefully! We don't want to break anything!
+					if (direction == false) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining.
+						offset = 0x10c; //offset of the saved Z offset amount.
+						eeprom_read_block((void*)&zOffset, (const void*)offset, 4); //read it from eeprom
+						mode = MOVING;
+						steppers::setTarget(Point(0,0,zOffset), 1250); // move to zoffset
+						//wait till done.
+						while (mode == MOVING) {
+						if (!steppers::isRunning()) {
+						mode == READY; //break out of while.
+						}
+						}
+					}
 					steppers::homeCarefully(direction, flags, feedrate);
 					mode = HOMING;
 					//now need to wait 'till done homing and save the distance traveled.
@@ -254,8 +270,6 @@ void runCommandSlice() {
 						mode = READY;
 						Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
 						//Squirrel everything into EEPROM for the long Winter.						
-						int32_t dataa; //temporary varible.
-						int16_t offset = 0x100; //this is where in eeprom we should start saving.
 												
 						for (int i = 0; i < 3; i++) { //compacted code into loop!
 						offset = 0x100 + (i*0x4);
@@ -269,9 +283,6 @@ void runCommandSlice() {
 						
 						//next move back up to 0,0,0 (aka build platform height)
 						if (direction == false) { //if we are homing down then move z before XY
-						int32_t zOffset; //varible to save the read amount
-						offset = 0x10c; //offset of the saved Z offset amount.
-						eeprom_read_block((void*)&zOffset, (const void*)offset, 4); //read it from eeprom
 						mode = MOVING;
 						steppers::moveCarefully(Point(0,0,0), zOffset); // move to 000 with a z offset of 400 steps.
 						} else { //if positive then move XY before Z

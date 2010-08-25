@@ -354,7 +354,7 @@ if (flags & (1<<2) != 0 && (flags - 4) != 0 && direction == false) { //if flags 
 							feedrate);
 						}
 						}
-						} else { //no special care is needed.
+						} else { //If it does not involve the Z axis, no special care is needed.
 						startHoming(direction,
 							flags,
 							feedrate);
