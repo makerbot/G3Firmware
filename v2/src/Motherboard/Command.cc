@@ -19,6 +19,7 @@
 
 #include "Command.hh"
 #include "Steppers.hh"
+#include "LinearScripts.hh"
 #include "Commands.hh"
 #include "Tool.hh"
 #include "Configuration.hh"
@@ -107,7 +108,8 @@ enum {
 	MOVING,
 	DELAY,
 	HOMING,
-	WAIT_ON_TOOL
+	WAIT_ON_TOOL,
+	SCRIPTS_RUNNING
 } mode = READY;
 
 bool waiting_to_move_Zstage = false;
@@ -167,6 +169,14 @@ void runCommandSlice() {
 			}
 			tool::releaseLock();
 		}
+	}
+	if (mode == SCRIPTS_RUNNING) {
+	if (scripts::isRunning() == true) {
+	scripts::RunScripts(); //run scripts while there is still something to do.
+	} else { 
+	mode = READY;
+	}
+	
 	}
 	if (mode == READY) {
 		// process next command on the queue.
