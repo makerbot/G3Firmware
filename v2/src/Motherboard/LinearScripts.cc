@@ -36,6 +36,7 @@ namespace scripts {
  enum {
 	NOTRUNNING,
 	MOVECAREFULLY,
+	HOMECAREFULLY,
 } LowScriptRunning = NOTRUNNING;
 
 int currentStep = 0;
@@ -226,10 +227,46 @@ if (Z_offset < 0) { //if the z offset is negative (this should not usually happe
 	lowScriptStep = 3;
 	}
 						
-}
+break; }
 
 case 2: {
+if (!steppers::isRunning()){
+	int32_t x = target[0];
+	int32_t y = target[1];
+	int32_t z = target[2]; 
+	int32_t dda = 1250; // max feedrate for Z stage
+	steppers::setTarget(Point(x,y,z),dda); //move everything
+	lowScriptStep = 5; //wait to say that you are finished.
+	}
+break; }
 
+case 3: {
+if (!steppers::isRunning()) {
+	int32_t x = target[0];
+	int32_t y = target[1];
+	int32_t z = target[2] + Z_offset; //keep this where it was
+	int32_t dda = 1017; // max feedrate for XY stage
+	steppers::setTarget(Point(x,y,z),dda); //move everything back up
+	lowScriptStep = 4;
+	}
+break; }
+
+case 4: {
+if (!steppers::isRunning()) {
+	int32_t x = target[0];
+	int32_t y = target[1];
+	int32_t z = target[2]; 
+	int32_t dda = 1250; // max feedrate for Z stage
+	steppers::setTarget(Point(x,y,z),dda); //move everything back up
+	lowScriptStep = 5; //wait to say that this script is finished
+}
+break; }
+
+case 5: { //script finished.
+if (!steppers::isRunning()) {
+lowScriptStep = 0;
+LowScriptRunning = NOTRUNNING;
+}
 }
 
 
