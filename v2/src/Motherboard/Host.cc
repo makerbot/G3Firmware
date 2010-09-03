@@ -19,6 +19,7 @@
 #include "Command.hh"
 #include "Tool.hh"
 #include "Commands.hh"
+#include "LinearScripts.hh"
 #include "Steppers.hh"
 #include "DebugPacketProcessor.hh"
 #include "Timeout.hh"
@@ -286,7 +287,7 @@ inline void handlePause(const InPacket& from_host, OutPacket& to_host) {
 inline void handleIsFinished(const InPacket& from_host, OutPacket& to_host) {
 	to_host.append8(RC_OK);
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
-		bool done = !steppers::isRunning() && command::isEmpty() && !command::is_running_homing_scripts();
+		bool done = !steppers::isRunning() && command::isEmpty() && !scripts::isRunning();
 		to_host.append8(done?1:0);
 	}
 }
