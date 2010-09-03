@@ -40,13 +40,15 @@ namespace scripts {
 } LowScriptRunning = NOTRUNNING;
 
 volatile int currentStep = 0;
-int lowScriptStep = 0;
+volatile int lowScriptStep = 0;
 
 uint8_t flags; //varibles for the autohoming scripts.
 bool direction;
 uint32_t feedrate;
 uint16_t timeout_s;
 int32_t zOffset; //varible to save the read amount for the Z Offset.s
+int8_t EEPROM_direction; //direction setting saved in EEPROM
+int32_t EEPROM_DATA[4] = {0,0,0,0}; //Array to hold the 32bit read values.
 
 //varibles for the Movecarefully script.
 Point target;
@@ -75,14 +77,17 @@ flags = flagsTemp;
 direction = directionTemp;
 feedrate = feedrateTemp;
 timeout_s = timeout_sTemp;
-RunScripts();
+//RunScripts();
 }
 
 void StartAutoHome(uint8_t flagsTemp,uint32_t feedrateTemp,uint16_t timeout_sTemp) {
 //start the FirstAutoHome script
 currentStep = 1; //start at the begining.
 ScriptRunning = AUTOHOME;
-RunScripts();
+flags = flagsTemp;
+feedrate = feedrateTemp;
+timeout_s = timeout_sTemp;
+//RunScripts();
 }
 
 void StartMoveCarefully(const Point& targetT, int32_t Z_offsetT) {
@@ -90,7 +95,7 @@ lowScriptStep = 1;
 LowScriptRunning = MOVECAREFULLY;
 target = targetT;
 Z_offset = Z_offsetT;
-RunScripts();
+//RunScripts();
 }
 
 void StartHomeCarefully(bool directionTemp, uint8_t flagsTemp, uint32_t feedrateTemp) {
@@ -99,7 +104,7 @@ LowScriptRunning = HOMECAREFULLY;
 homeDirection = directionTemp;
 homeFlags = flagsTemp;
 homeFeedrate = feedrateTemp;
-RunScripts();
+//RunScripts();
 }
 
 void RunScripts() { //script that checks if the makerbot can continue a script.
@@ -186,8 +191,69 @@ ScriptRunning = NONE;
 
 }
 
+} else if (ScriptRunning == AUTOHOME) {
+switch (currentStep) {
+case 1: {
+	int32_t x = 0; //set x. Zero current position
+	int32_t y = 0; //set y
+	int32_t z = 0; //set z
+	steppers::definePosition(Point(x,y,z)); //set the position in steps
+	//Read values from EEPROM
+	
+	int16_t offset = 0x100; //where to start copying from. 
+	eeprom_read_block((void*)&EEPROM_direction, (const void*)offset, 1); //read direction
+	
+	for (int i = 0; i < 4; i++) { //loop and copy all of the data for all of the axis.
+	offset = 0x101 + (i*0x4);
+	eeprom_read_block((void*)&EEPROM_DATA[i], (const void*)offset, 4);
+	_delay_ms(50);
+	}
+	direction = (EEPROM_direction > 0);
+	currentStep = 2;
+	
+	if (direction == false) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining. (Just in case)
+		steppers::setTarget(Point(0,0,EEPROM_DATA[3]), 1250); // move to zoffset
+	}
+	
+	//currentStep = 2;
+break; }
+
+case 2: {
+if (!steppers::isRunning()) {
+StartHomeCarefully(direction, flags, feedrate); //home carefully!
+currentStep = 3;
+}
+break; }
+
+case 3: {
+	if (LowScriptRunning == NOTRUNNING) {
+	int32_t x = 0; //set x at zero (we are at endstop)
+	int32_t y = 0; //set y
+	int32_t z = 0; //set z
+	steppers::definePosition(Point(x,y,z)); //set the position in steps
+	//next move back up the read amount (aka build platform height)
+	if (direction == false) {
+		StartMoveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), EEPROM_DATA[3]); //move carefully (raise the Z stage first)	
+	} else {
+		StartMoveCarefully(Point(-EEPROM_DATA[0],-EEPROM_DATA[1],-EEPROM_DATA[2]), -1); //move carefully
+}
+currentStep = 4;
 }
 
+
+break; }
+
+case 4: {
+if (LowScriptRunning == NOTRUNNING) {
+currentStep = 0;
+ScriptRunning = NONE;
+}
+break; }
+
+}
+
+}
+ 
 } else if (LowScriptRunning == MOVECAREFULLY) {
 switch (lowScriptStep) {
 
@@ -317,6 +383,8 @@ break; }
 
 
 
+	
+	
 	
 	}
 	}

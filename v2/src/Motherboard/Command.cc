@@ -253,9 +253,8 @@ void runCommandSlice() {
 					bool direction = (pop8() == 1); //If the data = 1, then the direction is positive, else negative.
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
-					
-					scripts::StartFirstAutoHome(flags, direction, feedrate, timeout_s);
 					mode = SCRIPTS_RUNNING;
+					scripts::StartFirstAutoHome(flags, direction, feedrate, timeout_s);
 					
 					/*int32_t dataa; //temporary varible.
 					int8_t data8; //temporary varible
@@ -322,17 +321,19 @@ void runCommandSlice() {
 			} else if (command == HOST_CMD_AUTO_RAFT) { //Super beta testing phase! Please pardon our dust!
 					//Command pop only removes the first in the queue. pop multiple times to erase something big. pop also returns the value of the thing. Use command_buffer[something] if you want to read without poping. pop afterward please! Other code lives here too!
 				if (command_buffer.getLength() >= 8) {
-					is_running_homing_script = true;
+					
 					//first we need to zero our position to get rid of any crazy numbers.
-					int32_t x = 0; //set x
+					/*int32_t x = 0; //set x
 					int32_t y = 0; //set y
 					int32_t z = 0; //set z
-					steppers::definePosition(Point(x,y,z)); //set the position in steps
+					steppers::definePosition(Point(x,y,z)); //set the position in steps */
 					command_buffer.pop(); // remove the command
 					uint8_t flags = pop8(); //get the axis.
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
-					
+					mode = SCRIPTS_RUNNING;
+					scripts::StartAutoHome(flags, feedrate, timeout_s);
+					/*
 					//Read values from EEPROM
 						int8_t EEPROM_direction;
 						bool direction;
@@ -376,9 +377,9 @@ void runCommandSlice() {
 						}
 						}
 								}// end of stepper is running if							
-								} //end of homing while
+								} //end of homing while */
 								}//end of command buffer if 
-				is_running_homing_script = false;
+				
 				
 
 
