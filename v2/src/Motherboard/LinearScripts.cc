@@ -39,7 +39,7 @@ namespace scripts {
 	HOMECAREFULLY,
 } LowScriptRunning = NOTRUNNING;
 
-int currentStep = 0;
+volatile int currentStep = 0;
 int lowScriptStep = 0;
 
 uint8_t flags; //varibles for the autohoming scripts.
@@ -104,18 +104,19 @@ case 1: { //step one.
 	int8_t data8; //temporary varible
 	int16_t offset; //this is where in eeprom we should start saving/reading.
 	
-					
+	currentStep = 2;		
 	//home carefully! We don't want to break anything!
 	if (direction == false) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining.
 		offset = 0x10D; //offset of the saved Z offset amount.
 		eeprom_read_block((void*)&zOffset, (const void*)offset, 4); //read it from eeprom
 		steppers::setTarget(Point(0,0,zOffset), 1250); // move to zoffset
-	currentStep = 2; //move on to the next step (that waits for the zoffset move.)
+	//currentStep = 2; //move on to the next step (that waits for the zoffset move.)
 	}
+	//currentStep = 2;
 break; }
 
 case 2: { //start homing
-if (!steppers::isRunning) {
+if (!steppers::isRunning()) {
 //proceed with homing.
 
 if (flags & (1<<2) != 0 && (flags - 4) != 0 && direction == false) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction then home carefully.
@@ -188,11 +189,19 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 	} else { //if positive then move XY before Z
 	StartMoveCarefully(Point(0,0,0), -1); // move to 000 with a z offset of -1 (aka none.) Also tells the subroutine to move XY before Z..
 						}
-	
+	currentStep = 6;
 						}
 						
 
 break; }
+
+case 6: {
+//wait for the movecarefully script to finish before finishing the first autohome.
+if (LowScriptRunning == NOTRUNNING) {
+currentStep = 0;
+ScriptRunning = NONE;
+}
+}
 
 //default:
 //nothing to do.

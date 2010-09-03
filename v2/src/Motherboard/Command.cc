@@ -109,7 +109,7 @@ enum {
 	DELAY,
 	HOMING,
 	WAIT_ON_TOOL,
-	SCRIPTS_RUNNING
+	SCRIPTS_RUNNING,
 } mode = READY;
 
 bool waiting_to_move_Zstage = false;
@@ -243,7 +243,7 @@ void runCommandSlice() {
 			} else if (command == HOST_CMD_FIRST_AUTO_RAFT) { //Super beta testing phase! Please pardon our dust!
 				if (command_buffer.getLength() >= 8) {
 					//first we need to zero our position (We are at 0,0,0. AKA the center of the build platform and at the right hight.)
-					is_running_homing_script = true;
+					//is_running_homing_script = true;
 					/*int32_t x = 0; //set x
 					int32_t y = 0; //set y
 					int32_t z = 0; //set z
@@ -255,8 +255,9 @@ void runCommandSlice() {
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
 					
 					scripts::StartFirstAutoHome(flags, direction, feedrate, timeout_s);
+					mode = SCRIPTS_RUNNING;
 					
-					int32_t dataa; //temporary varible.
+					/*int32_t dataa; //temporary varible.
 					int8_t data8; //temporary varible
 					int16_t offset; //this is where in eeprom we should start saving/reading.
 					int32_t zOffset; //varible to save the read amount for the Z Offset.
@@ -312,9 +313,9 @@ void runCommandSlice() {
 						steppers::moveCarefully(Point(0,0,0), -1); // move to 000 with a z offset of -1 (aka none.) Also tells the subroutine to move XY before Z..
 						}
 								}// end of stepper is running if 	
-								}//end of homing while
+								}//end of homing while*/
 								}//end of command buffer if 
-				is_running_homing_script = false;
+				//is_running_homing_script = false;
 				
 
 
