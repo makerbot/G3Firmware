@@ -138,19 +138,9 @@ int32_t intervals;
 volatile int32_t intervals_remaining;
 Axis axes[STEPPER_COUNT];
 volatile bool is_homing;
-volatile bool script_done_homing = false;
-volatile bool script_done_moving = false;
 
 bool isRunning() {
 	return is_running || is_homing;
-}
-
-bool scripts_done_homing() {
-return script_done_homing;
-}
-
-bool scripts_done_moving() {
-return script_done_moving;
 }
 
 //public:
@@ -240,132 +230,6 @@ bool doInterrupt() {
 		return is_homing;
 	}
 	return false;
-}
-
-
-
-
-void moveCarefully(const Point& target, int32_t Z_offset) {
-						script_done_moving = false;
-						if (Z_offset < 0) { //if the z offset is negative (this should not usually happen). assume we want to Center the XY before Z (as if we are centering the Z stage in the - direction)
-						Point currentPosition = getPosition();
-						bool waiting_to_move_Zstage = true; //keep track (suspect?)
-						int32_t x = target[0]; //Move XY
-						int32_t y = target[1];
-						int32_t z = currentPosition[2]; //Leave this alone.
-						
-						int32_t dda = 1017; // max feedrate for XY stage
-						setTarget(Point(x,y,z),dda); //move XY
-						while (waiting_to_move_Zstage == true) {
-						if (!isRunning()) {
-						waiting_to_move_Zstage = false;
-						x = target[0];
-						y = target[1];
-						z = target[2]; 
-						int32_t dda = 1250; // max feedrate for Z stage
-						setTarget(Point(x,y,z),dda); //move everything
-						
-						bool waiting_to_say_done = true;//probably not necessary and will be phased out
-						while (waiting_to_say_done == true) {
-						if (isRunning() == false) {
-						waiting_to_say_done = false;
-						}
-						}
-						}
-						}
-						
-						} else { //we must be moving in the positive direction so move Z before XY.
-						Point currentPosition = getPosition();
-						bool waiting_to_move_Zstage = false; //keep track
-						int32_t x = currentPosition[0]; //leave these were they are
-						int32_t y = currentPosition[1];
-						int32_t z = target[2] + Z_offset; //move the Z stage back up to a bit above zero to avoid the BP hitting it.
-						int32_t dda = 1250; // max feedrate for Z stage
-						setTarget(Point(x,y,z),dda);
-						waiting_to_move_Zstage = true;
-						
-						while (waiting_to_move_Zstage == true) {
-						if (!isRunning()) {
-						waiting_to_move_Zstage = false;
-						x = target[0];
-						y = target[1];
-						z = target[2] + Z_offset; //keep this where it was
-						int32_t dda = 1017; // max feedrate for XY stage
-						setTarget(Point(x,y,z),dda); //move everything back up
-						}// End of if is still running
-						}//End of while waiting
-						
-						waiting_to_move_Zstage = true;
-						
-						while (waiting_to_move_Zstage == true) {
-						if (!isRunning()) {
-						waiting_to_move_Zstage = false;
-						x = target[0];
-						y = target[1];
-						z = target[2]; 
-						int32_t dda = 1250; // max feedrate for Z stage
-						setTarget(Point(x,y,z),dda); //move everything back up
-						
-						bool waiting_to_say_done = true; //probably not necessary and will be phased out
-						while (waiting_to_say_done == true) {
-						if (isRunning() == false) {
-						waiting_to_say_done = false;
-						}
-						}
-						}// End of if is still running
-						}//End of while waiting
-						}
-						script_done_moving = true;
-}
-
-void homeCarefully(const bool direction, uint8_t flags, const uint32_t feedrate) {
-//Don't drink and home. Home carefully my friends!
-script_done_homing = false;
-if (flags & (1<<2) != 0 && (flags - 4) != 0 && direction == false) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction then home carefully.
-					flags = flags - 4; //Don't home Z.
-					bool waiting_to_move_Zstage = true;
-					startHoming(direction,
-							flags,
-							feedrate); //home the others
-						while (waiting_to_move_Zstage == true) {
-						if (isRunning() == false) { //wait till done
-						waiting_to_move_Zstage = false;
-						flags = 4; //Home Z.
-						startHoming(direction,
-							flags,
-							feedrate);
-						}
-						}
-						} else if (flags & (1<<2) != 0 && (flags - 4) != 0 && direction == true) { 
-						//home the z up before homing xy in the positive direction.
-						uint8_t other_axis_flags = flags - 4; //axis besides Z to home.
-						
-						flags = 4; // Home Z up.
-					bool waiting_to_move_XYstage = true;
-					startHoming(direction,
-							flags,
-							feedrate); //home the others
-						while (waiting_to_move_XYstage == true) {
-						if (isRunning() == false) { //wait till done
-						waiting_to_move_XYstage = false;
-						flags = other_axis_flags; //Home the rest of the axis (besides Z).
-						startHoming(direction,
-							flags,
-							feedrate);
-						}
-						}
-						} else { //If it does not involve the Z axis, no special care is needed.
-						startHoming(direction,
-							flags,
-							feedrate);
-					}
-					bool waiting_to_say_done = true;
-					while (waiting_to_say_done == true) {
-						if (isRunning() == false) {
-						waiting_to_say_done = false;
-						script_done_homing = true;
-						}
-						}
 }
 
 }

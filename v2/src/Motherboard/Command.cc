@@ -27,10 +27,6 @@
 #include "CircularBuffer.hh"
 #include <util/atomic.h>
 #include "SDCard.hh"
-#include <avr/eeprom.h>
-#define F_CPU 20000000UL  // 1 MHz
-    //#define F_CPU 14.7456E6
-#include <util/delay.h>
 
 namespace command {
 
@@ -41,7 +37,6 @@ CircularBuffer command_buffer(COMMAND_BUFFER_SIZE, buffer_data);
 bool outstanding_tool_command = false;
 
 bool paused = false;
-bool is_running_homing_script = false;
 
 uint16_t getRemainingCapacity() {
 	uint16_t sz;
@@ -67,9 +62,6 @@ void push(uint8_t byte) {
 	command_buffer.push(byte);
 }
 
-bool is_running_homing_scripts() {
-	return is_running_homing_script;
-}
 
 uint8_t pop8() {
 	return command_buffer.pop();
@@ -229,25 +221,21 @@ void runCommandSlice() {
 			} else if (command == HOST_CMD_FIND_AXES_MINIMUM ||
 					command == HOST_CMD_FIND_AXES_MAXIMUM) {
 				if (command_buffer.getLength() >= 8) {
-					is_running_homing_script = true;
 					command_buffer.pop(); // remove the command
 					uint8_t flags = pop8();
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16();
 					bool direction = command == HOST_CMD_FIND_AXES_MAXIMUM;
-					steppers::homeCarefully(direction, flags, feedrate);
 					mode = HOMING;
-					
-					is_running_homing_script = false;
+					homing_timeout.start(timeout_s * 1000L * 1000L);
+					steppers::startHoming(command==HOST_CMD_FIND_AXES_MAXIMUM,
+							flags,
+							feedrate);
 				}
-			} else if (command == HOST_CMD_FIRST_AUTO_RAFT) { //Super beta testing phase! Please pardon our dust!
+				
+				
+			} else if (command == HOST_CMD_FIRST_AUTO_RAFT) { //Made by Intern Winter
 				if (command_buffer.getLength() >= 8) {
-					//first we need to zero our position (We are at 0,0,0. AKA the center of the build platform and at the right hight.)
-					//is_running_homing_script = true;
-					/*int32_t x = 0; //set x
-					int32_t y = 0; //set y
-					int32_t z = 0; //set z
-					steppers::definePosition(Point(x,y,z)); //set the position in steps*/
 					command_buffer.pop(); // remove the command
 					uint8_t flags = pop8(); //get the axis
 					bool direction = (pop8() == 1); //If the data = 1, then the direction is positive, else negative.
@@ -255,130 +243,19 @@ void runCommandSlice() {
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
 					mode = SCRIPTS_RUNNING;
 					scripts::StartFirstAutoHome(flags, direction, feedrate, timeout_s);
-					
-					/*int32_t dataa; //temporary varible.
-					int8_t data8; //temporary varible
-					int16_t offset; //this is where in eeprom we should start saving/reading.
-					int32_t zOffset; //varible to save the read amount for the Z Offset.
-					
-					//home carefully! We don't want to break anything!
-					if (direction == false) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining.
-						offset = 0x10D; //offset of the saved Z offset amount.
-						eeprom_read_block((void*)&zOffset, (const void*)offset, 4); //read it from eeprom
-						mode = MOVING;
-						steppers::setTarget(Point(0,0,zOffset), 1250); // move to zoffset
-						//wait till done.
-						while (mode == MOVING) {
-						if (!steppers::isRunning()) {
-						mode == READY; //break out of while.
-						}
-						}
-					}
-					steppers::homeCarefully(direction, flags, feedrate);
-					mode = HOMING;
-					//now need to wait 'till done homing and save the distance traveled.
-					while (mode == HOMING) {
-						if (steppers::scripts_done_homing()) { //wait 'till done homing
-						mode = READY;
-						Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
-						//Squirrel everything into EEPROM for the long Winter.		
-						
-						offset = 0x100;
-						
-						if (direction == true) {
-						data8 = 1;
-						} else { 
-						data8 = 0; 
-						}
-						
-						eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.				
-												
-						for (int i = 0; i < 3; i++) { 
-						offset = 0x101 + (i*0x4);
-						dataa = currentPosition[i]; //Grab individual current position from current position X,Y,Z.
-						if (dataa < 0) { //If the position is negative, make it positive!
-						dataa = -dataa;
-						}
-						eeprom_write_block((const void*)&dataa, (void*)offset, 4); //save it!
-						_delay_ms(50); //wait A little bit. EEPROM is not very fast. (Probably not needed but couldn't hurt.)
-						}
-						
-						
-						//next move back up to 0,0,0 (aka build platform height)
-						if (direction == false) { //if we are homing down then move z before XY
-						mode = MOVING;
-						steppers::moveCarefully(Point(0,0,0), zOffset); // move to 000 with a z offset of 400 steps.
-						} else { //if positive then move XY before Z
-						steppers::moveCarefully(Point(0,0,0), -1); // move to 000 with a z offset of -1 (aka none.) Also tells the subroutine to move XY before Z..
-						}
-								}// end of stepper is running if 	
-								}//end of homing while*/
-								}//end of command buffer if 
-				//is_running_homing_script = false;
+				}//end of command buffer if 
 				
 
 
-			} else if (command == HOST_CMD_AUTO_RAFT) { //Super beta testing phase! Please pardon our dust!
-					//Command pop only removes the first in the queue. pop multiple times to erase something big. pop also returns the value of the thing. Use command_buffer[something] if you want to read without poping. pop afterward please! Other code lives here too!
+			} else if (command == HOST_CMD_AUTO_RAFT) { //Made by Intern Winter
 				if (command_buffer.getLength() >= 8) {
-					
-					//first we need to zero our position to get rid of any crazy numbers.
-					/*int32_t x = 0; //set x
-					int32_t y = 0; //set y
-					int32_t z = 0; //set z
-					steppers::definePosition(Point(x,y,z)); //set the position in steps */
 					command_buffer.pop(); // remove the command
 					uint8_t flags = pop8(); //get the axis.
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
 					mode = SCRIPTS_RUNNING;
 					scripts::StartAutoHome(flags, feedrate, timeout_s);
-					/*
-					//Read values from EEPROM
-						int8_t EEPROM_direction;
-						bool direction;
-						int32_t EEPROM_DATA[4] = {0,0,0,0}; //Array to hold the 32bit read values.
-						int16_t offset = 0x100; //where to start copying from
-						eeprom_read_block((void*)&EEPROM_direction, (const void*)offset, 1);
-						
-						for (int i = 0; i < 4; i++) { //loop and copy all of the data for all of the axis.
-						offset = 0x101 + (i*0x4);
-						eeprom_read_block((void*)&EEPROM_DATA[i], (const void*)offset, 4);
-						_delay_ms(50);
-						}
-						
-						direction = (EEPROM_direction > 0);
-						
-					
-					steppers::homeCarefully(direction, flags, feedrate); //home carefully!
-					mode = HOMING;
-					//now need to wait 'till done homing and go back up to the saved position.
-					while (mode == HOMING) {
-						if (steppers::scripts_done_homing()) { //wait 'till done homing
-						mode = READY; //ok!
-						x = 0; //set x at zero (we are at endstop)
-						y = 0; //set y
-						z = 0; //set z
-						steppers::definePosition(Point(x,y,z)); //set the position in steps
-						
-						//next move back up the read amount (aka build platform height)
-						mode = MOVING;
-						bool waiting_for_zeroed_location = true;
-						
-						if (direction == false) {
-						steppers::moveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), EEPROM_DATA[3]); //move carefully (raise the Z stage first)					
-						} else {
-						steppers::moveCarefully(Point(-EEPROM_DATA[0],-EEPROM_DATA[1],-EEPROM_DATA[2]), -1); //move carefully (Move the XY first)
-						}
-						while (waiting_for_zeroed_location == true) { //wait
-						if (steppers::scripts_done_moving()) { //now we can set this position as zero
-						waiting_for_zeroed_location = false;
-						steppers::definePosition(Point(0,0,0)); //set the position in steps to zero
-						}
-						}
-								}// end of stepper is running if							
-								} //end of homing while */
-								}//end of command buffer if 
+				}//end of command buffer if 
 				
 				
 
