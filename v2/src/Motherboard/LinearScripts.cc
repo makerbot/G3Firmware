@@ -33,13 +33,25 @@ namespace scripts {
 	AUTOHOME,
 } ScriptRunning = NONE;
 
+ enum {
+	NOTRUNNING,
+	MOVECAREFULLY,
+} LowScriptRunning = NOTRUNNING;
+
 int currentStep = 0;
+int lowScriptStep = 0;
 
 uint8_t flags; //varibles for the autohoming scripts.
 bool direction;
 uint32_t feedrate;
 uint16_t timeout_s;
 uint8_t other_axis_flags;
+int32_t zOffset; //varible to save the read amount for the Z Offset.s
+
+//varibles for the Movecarefully script.
+Point target;
+int32_t Z_offset;
+
 
 bool isRunning() {
 if (ScriptRunning == NONE) {
@@ -67,7 +79,16 @@ ScriptRunning = AUTOHOME;
 RunScripts();
 }
 
+void StartMoveCarefully(const Point& targetT, int32_t Z_offsetT) {
+lowScriptStep = 1;
+LowScriptRunning = MOVECAREFULLY;
+target = targetT;
+Z_offset = Z_offsetT;
+RunScripts();
+}
+
 void RunScripts() { //script that checks if the makerbot can continue a script.
+if (LowScriptRunning == NOTRUNNING) {
 if (ScriptRunning == FIRSTAUTOHOME) {
 //check if we can advance.
 switch (currentStep) {
@@ -81,7 +102,7 @@ case 1: { //step one.
 	int32_t dataa; //temporary varible.
 	int8_t data8; //temporary varible
 	int16_t offset; //this is where in eeprom we should start saving/reading.
-	int32_t zOffset; //varible to save the read amount for the Z Offset.
+	
 					
 	//home carefully! We don't want to break anything!
 	if (direction == false) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining.
@@ -161,6 +182,12 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 			_delay_ms(50); //wait A little bit. EEPROM is not very fast. (Probably not needed but couldn't hurt.)
 		}
 	//next move back up to 0,0,0 (aka build platform height)
+	if (direction == false) { //if we are homing down then move z before XY
+	StartMoveCarefully(Point(0,0,0), zOffset); // move to 000 with a z offset of 400 steps.
+	} else { //if positive then move XY before Z
+	StartMoveCarefully(Point(0,0,0), -1); // move to 000 with a z offset of -1 (aka none.) Also tells the subroutine to move XY before Z..
+						}
+	
 						}
 						
 
@@ -172,8 +199,42 @@ break; }
 
 }
 
+}
+
+} else {
+//low script is running.
+
+if (LowScriptRunning == MOVECAREFULLY) {
+switch (lowScriptStep) {
+
+case 1: {
+if (Z_offset < 0) { //if the z offset is negative (this should not usually happen). assume we want to Center the XY before Z (as if we are centering the Z stage in the - direction)
+	Point currentPosition = steppers::getPosition();
+	int32_t x = target[0]; //Move XY
+	int32_t y = target[1];
+	int32_t z = currentPosition[2]; //Leave this alone.
+	int32_t dda = 1017; // max feedrate for XY stage
+	steppers::setTarget(Point(x,y,z),dda); //move XY
+	lowScriptStep = 2;
+} else { //we must be moving in the positive direction so move Z before XY.
+	Point currentPosition = steppers::getPosition();
+	int32_t x = currentPosition[0]; //leave these were they are
+	int32_t y = currentPosition[1];
+	int32_t z = target[2] + Z_offset; //move the Z stage back up to a bit above zero to avoid the BP hitting it.
+	int32_t dda = 1250; // max feedrate for Z stage
+	steppers::setTarget(Point(x,y,z),dda);
+	lowScriptStep = 3;
+	}
+						
+}
+
+case 2: {
+
+}
 
 
+}
+}
 }
 }
 
