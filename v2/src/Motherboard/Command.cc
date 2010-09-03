@@ -244,15 +244,17 @@ void runCommandSlice() {
 				if (command_buffer.getLength() >= 8) {
 					//first we need to zero our position (We are at 0,0,0. AKA the center of the build platform and at the right hight.)
 					is_running_homing_script = true;
-					int32_t x = 0; //set x
+					/*int32_t x = 0; //set x
 					int32_t y = 0; //set y
 					int32_t z = 0; //set z
-					steppers::definePosition(Point(x,y,z)); //set the position in steps
+					steppers::definePosition(Point(x,y,z)); //set the position in steps*/
 					command_buffer.pop(); // remove the command
 					uint8_t flags = pop8(); //get the axis
 					bool direction = (pop8() == 1); //If the data = 1, then the direction is positive, else negative.
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
+					
+					scripts::StartFirstAutoHome(flags, direction, feedrate, timeout_s);
 					
 					int32_t dataa; //temporary varible.
 					int8_t data8; //temporary varible
