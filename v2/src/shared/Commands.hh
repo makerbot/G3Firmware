@@ -72,6 +72,7 @@
 #define HOST_CMD_TOOL_COMMAND      136
 #define HOST_CMD_ENABLE_AXES       137
 
+//Auto home commands (Also bufferable)
 #define HOST_CMD_FIRST_AUTO_RAFT   138
 #define HOST_CMD_AUTO_RAFT         139
 

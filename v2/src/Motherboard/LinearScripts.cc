@@ -1,4 +1,7 @@
+
 /*
+ * This file was created by Makerbot Industries Intern Winter on September 2010.
+ *
  * Copyright 2010 by Adam Mayer	 <adam@makerbot.com>
  *
  * This program is free software: you can redistribute it and/or modify
@@ -14,6 +17,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
+ 
+ //This file is for scripts that take a very long time to run (such as homing scripts and nozzle wipes). It contains two levels. The higher script level and the lower script level. The higher level is where the actual program is written, where as the lower level contains all of the subroutines. When a lower script is called, the higher script pauses and waits untill the lower script finishes.
+ 
+ //The scripts in this file repeatedly poll themselves and move on, instead of polling themselves and then just waiting 'till they can move on. This way the motherboard can still attend to the other things it might have to do (like maintaining contact with a connected computer) and not too much time is wasted.
 
 #define __STDC_LIMIT_MACROS
 #include "LinearScripts.hh"
@@ -27,13 +34,13 @@
 
 namespace scripts {
 
- enum {
+ enum { //possible states for the higher script.
 	NONE,
 	FIRSTAUTOHOME,
 	AUTOHOME,
 } ScriptRunning = NONE;
 
- enum {
+ enum { //possible states for the lower script. 
 	NOTRUNNING,
 	MOVECAREFULLY,
 	HOMECAREFULLY,
@@ -61,7 +68,7 @@ uint32_t homeFeedrate;
 uint8_t other_axis_flags;
 
 
-bool isRunning() {
+bool isRunning() { //program that can be called elsewhere in the firmware to check if the scripts are running or not. (False if not running)
 if (ScriptRunning == NONE) {
 return false;
 } else {
@@ -77,7 +84,6 @@ flags = flagsTemp;
 direction = directionTemp;
 feedrate = feedrateTemp;
 timeout_s = timeout_sTemp;
-//RunScripts();
 }
 
 void StartAutoHome(uint8_t flagsTemp,uint32_t feedrateTemp,uint16_t timeout_sTemp) {
@@ -87,7 +93,6 @@ ScriptRunning = AUTOHOME;
 flags = flagsTemp;
 feedrate = feedrateTemp;
 timeout_s = timeout_sTemp;
-//RunScripts();
 }
 
 void StartMoveCarefully(const Point& targetT, int32_t Z_offsetT) {
@@ -95,7 +100,6 @@ lowScriptStep = 1;
 LowScriptRunning = MOVECAREFULLY;
 target = targetT;
 Z_offset = Z_offsetT;
-//RunScripts();
 }
 
 void StartHomeCarefully(bool directionTemp, uint8_t flagsTemp, uint32_t feedrateTemp) {
@@ -104,7 +108,6 @@ LowScriptRunning = HOMECAREFULLY;
 homeDirection = directionTemp;
 homeFlags = flagsTemp;
 homeFeedrate = feedrateTemp;
-//RunScripts();
 }
 
 void RunScripts() { //script that checks if the makerbot can continue a script.
@@ -129,9 +132,7 @@ case 1: { //step one.
 		offset = 0x10D; //offset of the saved Z offset amount.
 		eeprom_read_block((void*)&zOffset, (const void*)offset, 4); //read it from eeprom
 		steppers::setTarget(Point(0,0,zOffset), 1250); // move to zoffset
-	//currentStep = 2; //move on to the next step (that waits for the zoffset move.)
 	}
-	//currentStep = 2;
 break; }
 
 case 2: { //start homing
