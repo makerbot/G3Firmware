@@ -72,8 +72,8 @@
 #define HOST_CMD_TOOL_COMMAND      136
 #define HOST_CMD_ENABLE_AXES       137
 
-#define HOST_CMD_FIRST_AUTO_RAFT   138 //Super beta testing in progress!
-#define HOST_CMD_AUTO_RAFT         139 //Also in super beta testing phase!
+#define HOST_CMD_FIRST_AUTO_RAFT   138
+#define HOST_CMD_AUTO_RAFT         139
 
 #define HOST_CMD_DEBUG_ECHO        0x70
 
