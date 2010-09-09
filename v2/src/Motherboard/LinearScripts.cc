@@ -246,6 +246,7 @@ break; }
 
 case 4: {
 if (LowScriptRunning == NOTRUNNING) {
+steppers::definePosition(Point(0,0,0)); //set the position in steps to zero (we are at center of BP)
 currentStep = 0;
 ScriptRunning = NONE;
 }
