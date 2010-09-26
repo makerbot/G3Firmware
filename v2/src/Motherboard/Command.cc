@@ -263,7 +263,7 @@ void runCommandSlice() {
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
 					mode = SCRIPTS_RUNNING;
-					//scripts::StartAutoHome(flags, feedrate, timeout_s);
+					scripts::StartAutoHome(feedrate, timeout_s);
 				}//end of command buffer if 
 				
 				

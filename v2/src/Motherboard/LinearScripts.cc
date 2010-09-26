@@ -23,7 +23,7 @@
  //The scripts in this file repeatedly poll themselves and move on, instead of polling themselves and then just waiting 'till they can move on. This way the motherboard can still attend to the other things it might have to do (like maintaining contact with a connected computer) and not too much time is wasted.
 
 #define __STDC_LIMIT_MACROS
-#include "LinearScripts.hh"
+#include "LinearScripts.hh"other_axis_flags = homeFlags - 4; //axis besides Z to home.
 #include "Steppers.hh"
 #include <stdint.h>
 #include <avr/eeprom.h>
@@ -65,7 +65,7 @@ int32_t Z_offset;
 uint8_t homeDirection[STEPPER_COUNT];
 uint8_t homeFlags;
 uint32_t homeFeedrate;
-uint8_t other_axis_flags;
+uint8_t other_axis_flags[STEPPER_COUNT];
 
 
 bool isRunning() { //program that can be called elsewhere in the firmware to check if the scripts are running or not. (False if not running)
@@ -88,11 +88,10 @@ feedrate = feedrateTemp;
 timeout_s = timeout_sTemp;
 }
 
-void StartAutoHome(uint8_t flagsTemp,uint32_t feedrateTemp,uint16_t timeout_sTemp) {
+void StartAutoHome(uint32_t feedrateTemp,uint16_t timeout_sTemp) {
 //start the AutoHome script
 currentStep = 1; //start at the begining.
 ScriptRunning = AUTOHOME;
-flags = flagsTemp;
 feedrate = feedrateTemp;
 timeout_s = timeout_sTemp;
 }
@@ -351,17 +350,20 @@ if (homeDirection[2] == 1 && (homeDirection[0] || homeDirection[1] != 0)) { //if
 					//homeFlags = homeFlags - 4; //Don't home Z.
 					steppers::startHoming(homeDirection,homeFeedrate); //home the others
 						lowScriptStep = 2;
-						} else if (homeFlags & (1<<2) != 0 && (homeFlags - 4) != 0 && homeDirection == true) { 
+						} else if (homeDirection[2] == 2 && (homeDirection[0] || homeDirection[1] != 0)) { 
 						//home the z up before homing xy in the positive direction.
-						other_axis_flags = homeFlags - 4; //axis besides Z to home.
+						for (int i = 0; i < STEPPER_COUNT; i++) {
+						other_axis_flags[i] = homeDirection[i]; //axis besides Z to home.
+						homeDirection[i] = 0; //reset
+						}
+						//other_axis_flags = homeFlags - 4; //axis besides Z to home.
 						
-						homeFlags = 4; // Home Z up.
+						//homeFlags = 4; // Home Z up.
+						homeDirection[2] = 2;
 					steppers::startHoming(homeDirection,homeFeedrate); //home Z
 						lowScriptStep = 3;
 						} else { //If it does not involve the Z axis, no special care is needed.
-						steppers::startHoming(homeDirection,
-							homeFlags,
-							homeFeedrate);
+						steppers::startHoming(homeDirection,homeFeedrate);
 							lowScriptStep = 4;
 							}
 				}
@@ -370,15 +372,23 @@ break; }
 case 2: {
 //wait till Xy is homed
 if (!steppers::isRunning()) {
-	homeFlags = 4; //Home Z.
-	steppers::startHoming(homeDirection, homeFlags, homeFeedrate);
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+	homeDirection[i] = 0;
+	}
+	homeDirection[2] = 1;
+	//homeFlags = 4; //Home Z.
+	steppers::startHoming(homeDirection, homeFeedrate);
 	lowScriptStep = 4;
 break; }
 
 case 3: {
 if (!steppers::isRunning()) {
-	homeFlags = other_axis_flags; //Home the rest of the axis (besides Z).
-	steppers::startHoming(homeDirection, homeFlags, homeFeedrate);
+for (int i = 0; i < STEPPER_COUNT; i++) {
+homeDirection[i] = other_axis_flags[i]; //Home the rest of the axis (besides Z).
+}
+	//homeDirection[i] = other_axis_flags[i]; //Home the rest of the axis (besides Z).
+	homeDirection[2] = 0;
+	steppers::startHoming(homeDirection, homeFeedrate);
 	lowScriptStep = 4;
 }
 break; }
