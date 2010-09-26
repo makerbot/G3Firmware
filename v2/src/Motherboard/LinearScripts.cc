@@ -349,18 +349,14 @@ if (!steppers::isRunning()) {
 
 if (homeDirection[2] == 1 && (homeDirection[0] || homeDirection[1] != 0)) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction then home carefully.
 					//homeFlags = homeFlags - 4; //Don't home Z.
-					steppers::startHoming(homeDirection,
-							homeFlags,
-							homeFeedrate); //home the others
+					steppers::startHoming(homeDirection,homeFeedrate); //home the others
 						lowScriptStep = 2;
 						} else if (homeFlags & (1<<2) != 0 && (homeFlags - 4) != 0 && homeDirection == true) { 
 						//home the z up before homing xy in the positive direction.
 						other_axis_flags = homeFlags - 4; //axis besides Z to home.
 						
 						homeFlags = 4; // Home Z up.
-					steppers::startHoming(homeDirection,
-							homeFlags,
-							homeFeedrate); //home Z
+					steppers::startHoming(homeDirection,homeFeedrate); //home Z
 						lowScriptStep = 3;
 						} else { //If it does not involve the Z axis, no special care is needed.
 						steppers::startHoming(homeDirection,

@@ -42,7 +42,7 @@ void enableAxis(uint8_t which, bool enable);
 /// Set current target
 void setTarget(const Point& target, int32_t dda_interval);
 /// Start homing
-void startHoming(const bool maximums, const uint8_t axes_enabled, const uint32_t us_per_step);
+void startHoming(const uint8_t maximums[], const uint32_t us_per_step);
 /// Define current position as given point
 void definePosition(const Point& position);
 /// Handle interrupt.  Return true if still moving to target; false

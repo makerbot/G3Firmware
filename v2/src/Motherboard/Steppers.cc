@@ -152,7 +152,7 @@ void init(Motherboard& motherboard) {
 }
 
 void abort() {
-	is_running = false;
+	is_running = false;axes[i].setHoming(FALSE);
 	is_homing = false;
 }
 
@@ -197,14 +197,18 @@ void setTarget(const Point& target, int32_t dda_interval) {
 }
 
 /// Start homing
-void startHoming(const bool maximums, const uint8_t axes_enabled, const uint32_t us_per_step) {
+void startHoming(const uint8_t maximums[], const uint32_t us_per_step) {
 	intervals_remaining = INT32_MAX;
 	intervals = us_per_step / INTERVAL_IN_MICROSECONDS;
 	const int32_t negative_half_interval = -intervals / 2;
 	for (int i = 0; i < AXIS_COUNT; i++) {
 		axes[i].counter = negative_half_interval;
-		if ((axes_enabled & (1<<i)) != 0) {
-			axes[i].setHoming(maximums);
+		if ((maximums[i] != 0) {
+		if (maximums[i] == 1) {
+			axes[i].setHoming(FALSE);
+			} else {
+			axes[i].setHoming(TRUE);
+			}
 		} else {
 			axes[i].delta = 0;
 		}

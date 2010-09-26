@@ -1,5 +1,5 @@
 /*
- * Copyright 2010 by Adam Mayer	 <adam@makerbot.com>
+ * Copyright 2010 by Adam Mayer	 <adam@makerbot.com>uint8_t direction[STEPPER_COUNT];
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -225,12 +225,17 @@ void runCommandSlice() {
 					uint8_t flags = pop8();
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16();
-					bool direction = command == HOST_CMD_FIND_AXES_MAXIMUM;
 					mode = HOMING;
 					homing_timeout.start(timeout_s * 1000L * 1000L);
-					steppers::startHoming(command==HOST_CMD_FIND_AXES_MAXIMUM,
-							flags,
-							feedrate);
+					uint8_t direction[STEPPER_COUNT];
+					for (int i = 0; i < STEPPER_COUNT; i++) {
+					if (command==HOST_CMD_FIND_AXES_MAXIMUM) {
+					direction[i] = 2;
+					} else {
+					direction[i] = 1;
+					}
+					}
+					steppers::startHoming(direction, feedrate);
 				}
 				
 				
@@ -258,7 +263,7 @@ void runCommandSlice() {
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
 					mode = SCRIPTS_RUNNING;
-					scripts::StartAutoHome(flags, feedrate, timeout_s);
+					//scripts::StartAutoHome(flags, feedrate, timeout_s);
 				}//end of command buffer if 
 				
 				
