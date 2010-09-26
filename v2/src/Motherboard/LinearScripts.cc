@@ -278,7 +278,7 @@ break; }
 switch (lowScriptStep) {
 
 case 1: {
-if (Z_offset < 0) { //if the z offset is negative (this should not usually happen). assume we want to Center the XY before Z (as if we are centering the Z stage in the - direction)
+if (Z_offset < 0) { //if the z offset is negative (this should not usually happen). assume we want to Center the XY before Z (as if we are centering the Z stage in the - direction) AKA from the top.
 	Point currentPosition = steppers::getPosition();
 	int32_t x = target[0]; //Move XY
 	int32_t y = target[1];
@@ -347,8 +347,8 @@ case 1: {
 if (!steppers::isRunning()) {
 //proceed with homing.
 
-if (homeFlags & (1<<2) != 0 && (homeFlags - 4) != 0 && homeDirection == false) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction then home carefully.
-					homeFlags = homeFlags - 4; //Don't home Z.
+if (homeDirection[2] == 1 && (homeDirection[0] || homeDirection[1] != 0)) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction then home carefully.
+					//homeFlags = homeFlags - 4; //Don't home Z.
 					steppers::startHoming(homeDirection,
 							homeFlags,
 							homeFeedrate); //home the others
