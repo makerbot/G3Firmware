@@ -134,7 +134,7 @@ case 1: { //step one.
 	currentStep = 2;		
 	//home carefully! We don't want to break anything!
 	if (direction[3] == 1) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining.
-		offset = 0x10D; //offset of the saved Z offset amount.
+		offset = 0x10F; //offset of the saved Z offset amount.
 		eeprom_read_block((void*)&zOffset, (const void*)offset, 4); //read it from eeprom
 		steppers::setTarget(Point(0,0,zOffset), 1250); // move to zoffset
 	}
@@ -154,16 +154,22 @@ if (LowScriptRunning == NOTRUNNING) {
 Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
 						//Squirrel everything into EEPROM for the long Winter.		
 	int16_t offset = 0x100;
-	int8_t data8;
+	uint8_t data8;
 	int32_t dataa;
-	if (direction == true) {
+	
+	/*if (direction == true) {
 		data8 = 1;
 	} else { 
 		data8 = 0; 
+	}*/
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+	offset = 0x100 + i;
+	data8 = direction[i];
+	eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
 	}
-	eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.				
+	//eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.				
 	for (int i = 0; i < 3; i++) { 
-		offset = 0x101 + (i*0x4);
+		offset = 0x103 + (i*0x4);
 		dataa = currentPosition[i]; //Grab individual current position from current position X,Y,Z.
 		if (dataa < 0) { //If the position is negative, make it positive!
 			dataa = -dataa;
@@ -172,9 +178,9 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 			_delay_ms(50); //wait A little bit. EEPROM is not very fast. (Probably not needed but couldn't hurt.)
 		}
 	//next move back up to 0,0,0 (aka build platform height)
-	if (direction == false) { //if we are homing down then move z before XY
+	if (direction[3] == 1) { //if we are homing down then move z before XY
 	StartMoveCarefully(Point(0,0,0), zOffset); // move to 000 with a z offset of 400 steps.
-	} else { //if positive then move XY before Z
+	} else if (direction[3] == 2) { //if positive then move XY before Z
 	StartMoveCarefully(Point(0,0,0), -1); // move to 000 with a z offset of -1 (aka none.) Also tells the subroutine to move XY before Z..
 						}
 	currentStep = 4;
@@ -243,7 +249,7 @@ case 3: {
 	} else {
 		StartMoveCarefully(Point(-EEPROM_DATA[0],-EEPROM_DATA[1],-EEPROM_DATA[2]), -1); //move carefully
 }
-currentStep = 4;
+currentStep = 4;eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
 }
 
 
