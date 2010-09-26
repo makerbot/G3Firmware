@@ -54,7 +54,7 @@ uint8_t direction[STEPPER_COUNT];
 uint32_t feedrate;
 uint16_t timeout_s;
 int32_t zOffset; //varible to save the read amount for the Z Offset.s
-int8_t EEPROM_direction; //direction setting saved in EEPROM
+uint8_t EEPROM_direction[STEPPER_COUNT]; //direction setting saved in EEPROM
 int32_t EEPROM_DATA[4] = {0,0,0,0}; //Array to hold the 32bit read values.
 
 //varibles for the Movecarefully script.
@@ -133,7 +133,7 @@ case 1: { //step one.
 	
 	currentStep = 2;		
 	//home carefully! We don't want to break anything!
-	if (direction[3] == 1) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining.
+	if (direction[2] == 1) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining.
 		offset = 0x10F; //offset of the saved Z offset amount.
 		eeprom_read_block((void*)&zOffset, (const void*)offset, 4); //read it from eeprom
 		steppers::setTarget(Point(0,0,zOffset), 1250); // move to zoffset
@@ -178,9 +178,9 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 			_delay_ms(50); //wait A little bit. EEPROM is not very fast. (Probably not needed but couldn't hurt.)
 		}
 	//next move back up to 0,0,0 (aka build platform height)
-	if (direction[3] == 1) { //if we are homing down then move z before XY
+	if (direction[2] == 1) { //if we are homing down then move z before XY
 	StartMoveCarefully(Point(0,0,0), zOffset); // move to 000 with a z offset of 400 steps.
-	} else if (direction[3] == 2) { //if positive then move XY before Z
+	} else if (direction[2] == 2) { //if positive then move XY before Z
 	StartMoveCarefully(Point(0,0,0), -1); // move to 000 with a z offset of -1 (aka none.) Also tells the subroutine to move XY before Z..
 						}
 	currentStep = 4;
@@ -213,17 +213,23 @@ case 1: {
 	//Read values from EEPROM
 	
 	int16_t offset = 0x100; //where to start copying from. 
-	eeprom_read_block((void*)&EEPROM_direction, (const void*)offset, 1); //read direction
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+	uint8_t data8;
+	offset = 0x100 + i;
+	eeprom_read_block((void*)&data8, (const void*)offset, 1); //read direction
+	EEPROM_direction[i] = data8;
+	}
+	//eeprom_read_block((void*)&EEPROM_direction, (const void*)offset, 1); //read direction
 	
-	for (int i = 0; i < 4; i++) { //loop and copy all of the data for all of the axis.
-	offset = 0x101 + (i*0x4);
+	for (int i = 0; i < (STEPPER_COUNT + 1); i++) { //loop and copy all of the data for all of the axis.
+	offset = 0x103 + (i*0x4);
 	eeprom_read_block((void*)&EEPROM_DATA[i], (const void*)offset, 4);
 	_delay_ms(50);
 	}
-	direction = (EEPROM_direction > 0);
+	//direction = (EEPROM_direction > 0);
 	currentStep = 2;
 	
-	if (direction == false) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining. (Just in case)
+	if (direction[2] == 1) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining. (Just in case)
 		steppers::setTarget(Point(0,0,EEPROM_DATA[3]), 1250); // move to zoffset
 	}
 	
@@ -232,7 +238,7 @@ break; }
 
 case 2: {
 if (!steppers::isRunning()) {
-StartHomeCarefully(direction, flags, feedrate); //home carefully!
+StartHomeCarefully(direction, feedrate); //home carefully!
 currentStep = 3;
 }
 break; }
@@ -244,12 +250,13 @@ case 3: {
 	int32_t z = 0; //set z
 	steppers::definePosition(Point(x,y,z)); //set the position in steps
 	//next move back up the read amount (aka build platform height)
-	if (direction == false) {
+	if (direction[2] == 1) {
 		StartMoveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), EEPROM_DATA[3]); //move carefully (raise the Z stage first)	
 	} else {
 		StartMoveCarefully(Point(-EEPROM_DATA[0],-EEPROM_DATA[1],-EEPROM_DATA[2]), -1); //move carefully
 }
-currentStep = 4;eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
+currentStep = 4;
+//eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
 }
 
 
