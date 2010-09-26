@@ -50,7 +50,7 @@ volatile int currentStep = 0;
 volatile int lowScriptStep = 0;
 
 uint8_t flags; //varibles for the autohoming scripts.
-bool direction;
+uint8_t direction[STEPPER_COUNT];
 uint32_t feedrate;
 uint16_t timeout_s;
 int32_t zOffset; //varible to save the read amount for the Z Offset.s
@@ -62,7 +62,7 @@ Point target;
 int32_t Z_offset;
 
 //varibles for the homecarefully script
-bool homeDirection;
+uint8_t homeDirection[STEPPER_COUNT];
 uint8_t homeFlags;
 uint32_t homeFeedrate;
 uint8_t other_axis_flags;
@@ -76,18 +76,20 @@ return true;
 }
 }
 
-void StartFirstAutoHome(uint8_t flagsTemp,bool directionTemp,uint32_t feedrateTemp,uint16_t timeout_sTemp) {
+void StartFirstAutoHome(uint8_t directionTemp[],uint32_t feedrateTemp,uint16_t timeout_sTemp) {
 //start the FirstAutoHome script
 currentStep = 1; //start at the begining.
 ScriptRunning = FIRSTAUTOHOME;
-flags = flagsTemp;
-direction = directionTemp;
+//flags = flagsTemp;
+for (int i = 0; i < STEPPER_COUNT; i++) {
+direction[i] = directionTemp[i];
+}
 feedrate = feedrateTemp;
 timeout_s = timeout_sTemp;
 }
 
 void StartAutoHome(uint8_t flagsTemp,uint32_t feedrateTemp,uint16_t timeout_sTemp) {
-//start the FirstAutoHome script
+//start the AutoHome script
 currentStep = 1; //start at the begining.
 ScriptRunning = AUTOHOME;
 flags = flagsTemp;
@@ -102,11 +104,14 @@ target = targetT;
 Z_offset = Z_offsetT;
 }
 
-void StartHomeCarefully(bool directionTemp, uint8_t flagsTemp, uint32_t feedrateTemp) {
+void StartHomeCarefully(uint8_t directionTemp[], uint32_t feedrateTemp) {
 lowScriptStep = 1;
 LowScriptRunning = HOMECAREFULLY;
-homeDirection = directionTemp;
-homeFlags = flagsTemp;
+for (int i = 0; i < STEPPER_COUNT; i++) {
+homeDirection[i] = directionTemp[i];
+}
+//homeDirection = directionTemp;
+//homeFlags = flagsTemp;
 homeFeedrate = feedrateTemp;
 }
 
@@ -128,7 +133,7 @@ case 1: { //step one.
 	
 	currentStep = 2;		
 	//home carefully! We don't want to break anything!
-	if (direction == false) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining.
+	if (direction[3] == 1) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining.
 		offset = 0x10D; //offset of the saved Z offset amount.
 		eeprom_read_block((void*)&zOffset, (const void*)offset, 4); //read it from eeprom
 		steppers::setTarget(Point(0,0,zOffset), 1250); // move to zoffset
@@ -138,7 +143,7 @@ break; }
 case 2: { //start homing
 if (!steppers::isRunning()) {
 //proceed with homing.
-StartHomeCarefully(direction,flags,feedrate);
+StartHomeCarefully(direction, feedrate);
 currentStep = 3;
 }
 break; }
