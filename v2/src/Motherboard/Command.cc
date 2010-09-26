@@ -235,20 +235,24 @@ void runCommandSlice() {
 				
 				
 			} else if (command == HOST_CMD_FIRST_AUTO_RAFT) { //Made by Intern Winter
-				if (command_buffer.getLength() >= 8) {
+				if (command_buffer.getLength() >= (7 + STEPPER_COUNT)) {
 					command_buffer.pop(); // remove the command
-					uint8_t flags = pop8(); //get the axis
-					bool direction = (pop8() == 1); //If the data = 1, then the direction is positive, else negative.
+					//uint8_t flags = pop8(); //get the axis (and directions)
+					uint8_t direction[STEPPER_COUNT];
+					for (int i = 0; i < STEPPER_COUNT; i++) {
+					direction[i] = pop8();
+					}
+					//bool direction = (pop8() == 1); //If the data = 1, then the direction is positive, else negative.
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
 					mode = SCRIPTS_RUNNING;
-					scripts::StartFirstAutoHome(flags, direction, feedrate, timeout_s);
+					//scripts::StartFirstAutoHome(direction, feedrate, timeout_s);
 				}//end of command buffer if 
 				
 
 
 			} else if (command == HOST_CMD_AUTO_RAFT) { //Made by Intern Winter
-				if (command_buffer.getLength() >= 8) {
+				if (command_buffer.getLength() >= 9) {
 					command_buffer.pop(); // remove the command
 					uint8_t flags = pop8(); //get the axis.
 					uint32_t feedrate = pop32(); // feedrate in us per step
