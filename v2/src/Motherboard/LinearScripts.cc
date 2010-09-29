@@ -80,7 +80,6 @@ void StartFirstAutoHome(uint8_t directionTemp[],uint32_t feedrateTemp,uint16_t t
 //start the FirstAutoHome script
 currentStep = 1; //start at the begining.
 ScriptRunning = FIRSTAUTOHOME;
-//flags = flagsTemp;
 for (int i = 0; i < STEPPER_COUNT; i++) {
 direction[i] = directionTemp[i];
 }
@@ -155,12 +154,7 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 	int16_t offset = 0x100;
 	uint8_t data8;
 	int32_t dataa;
-	
-	/*if (direction == true) {
-		data8 = 1;
-	} else { 
-		data8 = 0; 
-	}*/
+
 	for (int i = 0; i < STEPPER_COUNT; i++) {
 	offset = 0x100 + i;
 	data8 = direction[i];

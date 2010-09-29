@@ -257,7 +257,7 @@ void runCommandSlice() {
 
 
 			} else if (command == HOST_CMD_AUTO_RAFT) { //Made by Intern Winter
-				if (command_buffer.getLength() >= 9) {
+				if (command_buffer.getLength() >= 8) {
 					command_buffer.pop(); // remove the command
 					uint8_t flags = pop8(); //get the axis.
 					uint32_t feedrate = pop32(); // feedrate in us per step
