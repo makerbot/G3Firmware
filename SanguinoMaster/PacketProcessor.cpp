@@ -404,6 +404,9 @@ void handle_commands()
 	// Belay until we're at a good location.
 	if (!is_point_buffer_empty()) { return; }
 
+        //which ones are we going to?
+        flags = cursor.read_8();
+
         //find them!
         seek_maximums(
           flags & 1,
