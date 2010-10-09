@@ -203,14 +203,14 @@ void startHoming(const uint8_t maximums[], const uint32_t us_per_step) {
 	const int32_t negative_half_interval = -intervals / 2;
 	for (int i = 0; i < AXIS_COUNT; i++) {
 		axes[i].counter = negative_half_interval;
-		if (maximums[i] != 0) {
-		if (maximums[i] == 1) {
-			axes[i].setHoming(false);
+		if (maximums[i] != 0) { //if homing this axis
+		if (maximums[i] == 1) { //if negative
+			axes[i].setHoming(false); //home -
 			} else {
-			axes[i].setHoming(true);
+			axes[i].setHoming(true); //home +
 			}
 		} else {
-			axes[i].delta = 0;
+			axes[i].delta = 0; //don't home at all
 		}
 	}
 	is_homing = true;

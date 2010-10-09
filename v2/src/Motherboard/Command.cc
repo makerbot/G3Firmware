@@ -228,26 +228,37 @@ void runCommandSlice() {
 					mode = HOMING;
 					homing_timeout.start(timeout_s * 1000L * 1000L);
 					uint8_t direction[STEPPER_COUNT];
-					for (int i = 0; i < STEPPER_COUNT; i++) {
-					if (command==HOST_CMD_FIND_AXES_MAXIMUM) {
-					direction[i] = 2;
+					
+					if (command==HOST_CMD_FIND_AXES_MAXIMUM) { //convert flags system to array system.
+						for (int i = 0; i < STEPPER_COUNT; i++) {
+							if ((flags & (1<<i)) != 0) {
+								direction[i] = 2;
+							} else {
+								direction[i] = 0;
+							}
+						}
+					
 					} else {
-					direction[i] = 1;
+						for (int i = 0; i < STEPPER_COUNT; i++) {
+							if ((flags & (1<<i)) != 0) {
+								direction[i] = 1;
+							} else {
+								direction[i] = 0;
+							}
+						}
 					}
-					}
+					
 					steppers::startHoming(direction, feedrate);
-				}
 				
+				}
 				
 			} else if (command == HOST_CMD_FIRST_AUTO_RAFT) { //Made by Intern Winter
 				if (command_buffer.getLength() >= (7 + STEPPER_COUNT)) {
 					command_buffer.pop(); // remove the command
-					//uint8_t flags = pop8(); //get the axis (and directions)
 					uint8_t direction[STEPPER_COUNT];
 					for (int i = 0; i < STEPPER_COUNT; i++) {
-					direction[i] = pop8();
+					direction[i] = pop8(); //get directions for all three axis.
 					}
-					//bool direction = (pop8() == 1); //If the data = 1, then the direction is positive, else negative.
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
 					mode = SCRIPTS_RUNNING;
