@@ -205,6 +205,12 @@ case 1: {
 	steppers::definePosition(Point(x,y,z)); //set the position in steps
 	//Read values from EEPROM
 	
+	//EEPROM MAP
+	//0x100, 0x101, 0x102 Directions of XYZ.
+	//0x103-06, 0x107-0x10a, 0x10b-0x10e Steps to move.
+	//0x10f-0x112 MM to move up on Z axis.
+	
+	
 	int16_t offset = 0x100; //where to start copying from. 
 	for (int i = 0; i < STEPPER_COUNT; i++) {
 	uint8_t data8;
