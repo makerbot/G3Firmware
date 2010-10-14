@@ -56,18 +56,19 @@
 // Platform thermistor analog pin
 #define PLATFORM_PIN    6
 
+#define CHANNEL_A				Pin(PortC,1)
+#define CHANNEL_B				Pin(PortB,3)
+#define CHANNEL_C				Pin(PortB,4)
+
 // Fan configuration
 #define HAS_FAN				1
-#define FAN_ENABLE_PIN		Pin(PortB,4)
+#define FAN_ENABLE_PIN		CHANNEL_C
 
 #define HB1_ENABLE_PIN		Pin(PortD,5)
 #define HB1_DIR_PIN			Pin(PortD,7)
 
 #define HB2_ENABLE_PIN		Pin(PortD,6)
 #define HB2_DIR_PIN			Pin(PortB,0)
-
-#define MOTOR_ENABLE_PIN	HB1_ENABLE_PIN
-#define MOTOR_DIR_PIN		HB1_DIR_PIN
 
 #define DEBUG_LED			Pin(PortB,5)
 
