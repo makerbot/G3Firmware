@@ -1,6 +1,6 @@
 
 /*
- * This file was created by Makerbot Industries Intern Winter on September 2010.
+ * This file was created by Makerbot Industries intern Winter on September 2010.
  *
  * Copyright 2010 by Adam Mayer	 <adam@makerbot.com>
  *
@@ -212,8 +212,8 @@ case 1: {
 	
 	
 	int16_t offset = 0x100; //where to start copying from. 
-	for (int i = 0; i < STEPPER_COUNT; i++) {
 	uint8_t data8;
+	for (int i = 0; i < STEPPER_COUNT; i++) {
 	offset = 0x100 + i;
 	eeprom_read_block((void*)&data8, (const void*)offset, 1); //read direction
 	EEPROM_direction[i] = data8;
@@ -228,7 +228,7 @@ case 1: {
 	//direction = (EEPROM_direction > 0);
 	currentStep = 2;
 	
-	if (direction[2] == 1) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining. (Just in case)
+	if (EEPROM_direction[2] == 1) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining. (Just in case)
 		steppers::setTarget(Point(0,0,EEPROM_DATA[3]), 1250); // move to zoffset
 	}
 	
@@ -237,7 +237,7 @@ break; }
 
 case 2: {
 if (!steppers::isRunning()) {
-StartHomeCarefully(direction, feedrate); //home carefully!
+StartHomeCarefully(EEPROM_direction, feedrate); //home carefully!
 currentStep = 3;
 }
 break; }
@@ -249,7 +249,7 @@ case 3: {
 	int32_t z = 0; //set z
 	steppers::definePosition(Point(x,y,z)); //set the position in steps
 	//next move back up the read amount (aka build platform height)
-	if (direction[2] == 1) {
+	if (EEPROM_direction[2] == 1) {
 		StartMoveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), EEPROM_DATA[3]); //move carefully (raise the Z stage first)	
 	} else {
 		StartMoveCarefully(Point(-EEPROM_DATA[0],-EEPROM_DATA[1],-EEPROM_DATA[2]), -1); //move carefully
@@ -346,11 +346,17 @@ case 1: {
 if (!steppers::isRunning()) {
 //proceed with homing.
 
-if (homeDirection[2] == 1 && (homeDirection[0] || homeDirection[1] != 0)) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction then home carefully.
+if (homeDirection[2] == 1) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction then home carefully.
 					//homeFlags = homeFlags - 4; //Don't home Z.
+					for (int i = 0; i < STEPPER_COUNT; i++) {
+					other_axis_flags[i] = homeDirection[i]; //Save a snapshot of the directions
+					}
+					homeDirection[2] = 0;
 					steppers::startHoming(homeDirection,homeFeedrate); //home the others
 						lowScriptStep = 2;
-						} else if (homeDirection[2] == 2 && (homeDirection[0] || homeDirection[1] != 0)) { 
+						
+						
+						} else if (homeDirection[2] == 2) { 
 						//home the z up before homing xy in the positive direction.
 						for (int i = 0; i < STEPPER_COUNT; i++) {
 						other_axis_flags[i] = homeDirection[i]; //axis besides Z to home.
@@ -375,7 +381,7 @@ if (!steppers::isRunning()) {
 	for (int i = 0; i < STEPPER_COUNT; i++) {
 	homeDirection[i] = 0;
 	}
-	homeDirection[2] = 1;
+	homeDirection[2] = other_axis_flags[2];
 	//homeFlags = 4; //Home Z.
 	steppers::startHoming(homeDirection, homeFeedrate);
 	lowScriptStep = 4;
