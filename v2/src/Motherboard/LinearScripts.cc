@@ -218,7 +218,6 @@ case 1: {
 	eeprom_read_block((void*)&data8, (const void*)offset, 1); //read direction
 	EEPROM_direction[i] = data8;
 	}
-	//eeprom_read_block((void*)&EEPROM_direction, (const void*)offset, 1); //read direction
 	
 	for (int i = 0; i < (STEPPER_COUNT + 1); i++) { //loop and copy all of the data for all of the axis.
 	offset = 0x103 + (i*0x4);
@@ -249,11 +248,21 @@ case 3: {
 	int32_t z = 0; //set z
 	steppers::definePosition(Point(x,y,z)); //set the position in steps
 	//next move back up the read amount (aka build platform height)
-	if (EEPROM_direction[2] == 1) {
+	
+	for (int i = 0; i < STEPPER_COUNT; i++) { //This should fix the bug below. lets see...
+	if (EEPROM_direction[i] == 2) { //If the direction homed was up, then make the direction to move negative.
+	EEPROM_DATA[i] = -EEPROM_DATA[i];
+	}
+	}
+	
+	if (EEPROM_direction[2] == 1) { //If we homed down then raise the Z first.
+	
 		StartMoveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), EEPROM_DATA[3]); //move carefully (raise the Z stage first)	
-	} else {
-		StartMoveCarefully(Point(-EEPROM_DATA[0],-EEPROM_DATA[1],-EEPROM_DATA[2]), -1); //move carefully
+	} else { //else move the XY first
+		StartMoveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), -1); //move carefully
 }
+
+
 currentStep = 4;
 //eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
 }
