@@ -27,9 +27,7 @@
 #include "Steppers.hh"
 #include <stdint.h>
 #include <avr/eeprom.h>
-#define F_CPU 20000000UL  // 1 MHz
-    //#define F_CPU 14.7456E6
-#include <util/delay.h>
+
 
 
 namespace scripts {
@@ -168,8 +166,8 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 			dataa = -dataa;
 		}
 			eeprom_write_block((const void*)&dataa, (void*)offset, 4); //save it!
-			_delay_ms(50); //wait A little bit. EEPROM is not very fast. (Probably not needed but couldn't hurt.)
 		}
+		
 	//next move back up to 0,0,0 (aka build platform height)
 	if (direction[2] == 1) { //if we are homing down then move z before XY
 	StartMoveCarefully(Point(0,0,0), zOffset); // move to 000 with a z offset of 400 steps.
@@ -222,7 +220,7 @@ case 1: {
 	for (int i = 0; i < (STEPPER_COUNT + 1); i++) { //loop and copy all of the data for all of the axis.
 	offset = 0x103 + (i*0x4);
 	eeprom_read_block((void*)&EEPROM_DATA[i], (const void*)offset, 4);
-	_delay_ms(50);
+	
 	}
 	//direction = (EEPROM_direction > 0);
 	currentStep = 2;

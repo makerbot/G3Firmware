@@ -27,6 +27,7 @@
 #include "Motherboard.hh"
 
 namespace scripts {
+
 void StartFirstAutoHome(uint8_t directionTemp[],uint32_t feedrateTemp,uint16_t timeout_sTemp);
 void StartAutoHome(uint32_t feedrateTemp,uint16_t timeout_sTemp);
 void StartMoveCarefully(const Point& targetT, int32_t Z_offsetT);
