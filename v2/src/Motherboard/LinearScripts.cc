@@ -23,7 +23,7 @@
  //The scripts in this file repeatedly poll themselves and move on, instead of polling themselves and then just waiting 'till they can move on. This way the motherboard can still attend to the other things it might have to do (like maintaining contact with a connected computer) and not too much time is wasted.
 
 #define __STDC_LIMIT_MACROS
-#include "LinearScripts.hh"other_axis_flags = homeFlags - 4; //axis besides Z to home.
+#include "LinearScripts.hh"
 #include "Steppers.hh"
 #include <stdint.h>
 #include <avr/eeprom.h>
