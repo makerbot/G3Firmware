@@ -114,8 +114,6 @@ LowScriptRunning = HOMECAREFULLY;
 for (int i = 0; i < STEPPER_COUNT; i++) {
 homeDirection[i] = directionTemp[i];
 }
-//homeDirection = directionTemp;
-//homeFlags = flagsTemp;
 XYhomeFeedrate = XYfeedrateTemp;
 ZhomeFeedrate = ZfeedrateTemp;
 }
@@ -169,7 +167,7 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 	}
 					
 	for (int i = 0; i < 3; i++) { 
-		offset = 0x103 + (i*0x4);
+		offset = AUTOHOMEOFFSET + 0x3 + (i*0x4);
 		dataa = currentPosition[i]; //Grab individual current position from current position X,Y,Z.
 		if (dataa < 0) { //If the position is negative, make it positive!
 			dataa = -dataa;
@@ -218,16 +216,16 @@ case 1: {
 	//0x10f-0x112 MM to move up on Z axis.
 	
 	
-	int16_t offset = 0x100; //where to start copying from. 
+	int16_t offset; //where to start copying from. 
 	uint8_t data8;
 	for (int i = 0; i < STEPPER_COUNT; i++) {
-	offset = 0x100 + i;
+	offset = AUTOHOMEOFFSET + i;
 	eeprom_read_block((void*)&data8, (const void*)offset, 1); //read direction
 	EEPROM_direction[i] = data8;
 	}
 	
 	for (int i = 0; i < (STEPPER_COUNT + 1); i++) { //loop and copy all of the data for all of the axis.
-	offset = 0x103 + (i*0x4);
+	offset = AUTOHOMEOFFSET + 0x3 + (i*0x4);
 	eeprom_read_block((void*)&EEPROM_DATA[i], (const void*)offset, 4);
 	
 	}
@@ -235,7 +233,7 @@ case 1: {
 	currentStep = 2;
 	
 	if (EEPROM_direction[2] == 1) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining. (Just in case)
-		steppers::setTarget(Point(0,0,EEPROM_DATA[3]), 1250); // move to zoffset
+		steppers::setTarget(Point(0,0,EEPROM_DATA[3]), feedrateZ); // move to zoffset
 	}
 	
 	//currentStep = 2;
@@ -256,7 +254,7 @@ case 3: {
 	steppers::definePosition(Point(x,y,z)); //set the position in steps
 	//next move back up the read amount (aka build platform height)
 	
-	for (int i = 0; i < STEPPER_COUNT; i++) { //This should fix the bug below. lets see...
+	for (int i = 0; i < STEPPER_COUNT; i++) { 
 	if (EEPROM_direction[i] == 2) { //If the direction homed was up, then make the direction to move negative.
 	EEPROM_DATA[i] = -EEPROM_DATA[i];
 	}
@@ -313,18 +311,18 @@ if (Z_offset < 0) { //if the z offset is negative (this should not usually happe
 						
 break; }
 
-case 2: {
+case 2: { //wait for XY stage
 if (!steppers::isRunning()){
 	int32_t x = target[0];
 	int32_t y = target[1];
-	int32_t z = target[2]; 
+	int32_t z = target[2]; //move Z down 
 	int32_t dda = ZhomeFeedrate; // max feedrate for Z stage
 	steppers::setTarget(Point(x,y,z),dda); //move everything
 	lowScriptStep = 5; //wait to say that you are finished.
 	}
 break; }
 
-case 3: {
+case 3: { //wait for Z
 if (!steppers::isRunning()) {
 	int32_t x = target[0];
 	int32_t y = target[1];
@@ -335,11 +333,11 @@ if (!steppers::isRunning()) {
 	}
 break; }
 
-case 4: {
+case 4: { //wait for XY
 if (!steppers::isRunning()) {
 	int32_t x = target[0];
 	int32_t y = target[1];
-	int32_t z = target[2]; 
+	int32_t z = target[2]; //move back down to 000 
 	int32_t dda = ZhomeFeedrate; // max feedrate for Z stage
 	steppers::setTarget(Point(x,y,z),dda); //move everything back up
 	lowScriptStep = 5; //wait to say that this script is finished
@@ -363,11 +361,11 @@ if (!steppers::isRunning()) {
 //proceed with homing.
 
 	if (homeDirection[2] == 1) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction then home carefully.
-					//homeFlags = homeFlags - 4; //Don't home Z.
+					//Don't home Z.
 					for (int i = 0; i < STEPPER_COUNT; i++) {
 					other_axis_flags[i] = homeDirection[i]; //Save a snapshot of the directions
 					}
-					homeDirection[2] = 0;
+					homeDirection[2] = 0; //don't home Z
 					steppers::startHoming(homeDirection,XYhomeFeedrate); //home the others (XY)
 						lowScriptStep = 2;
 						
@@ -378,10 +376,8 @@ if (!steppers::isRunning()) {
 						other_axis_flags[i] = homeDirection[i]; // Save axis besides Z to home.
 						homeDirection[i] = 0; //reset
 						}
-						//other_axis_flags = homeFlags - 4; //axis besides Z to home.
 						
-						//homeFlags = 4; // Home Z up.
-						homeDirection[2] = 2;
+						homeDirection[2] = 2; // Home Z up.
 					steppers::startHoming(homeDirection,ZhomeFeedrate); //home Z
 						lowScriptStep = 3;
 	} else { //If it does not involve the Z axis, no special care is needed.
@@ -398,17 +394,17 @@ if (!steppers::isRunning()) {
 	homeDirection[i] = 0;
 	}
 	homeDirection[2] = other_axis_flags[2];
-	//homeFlags = 4; //Home Z.
+	//Home Z.
 	steppers::startHoming(homeDirection, ZhomeFeedrate);
 	lowScriptStep = 4;
 break; }
 
-case 3: {
+case 3: {//wait till Z is homed
 if (!steppers::isRunning()) {
 for (int i = 0; i < STEPPER_COUNT; i++) {
 homeDirection[i] = other_axis_flags[i]; //Home the rest of the axis (besides Z).
 }
-	//homeDirection[i] = other_axis_flags[i]; //Home the rest of the axis (besides Z).
+	//Home the rest of the axis (besides Z).
 	homeDirection[2] = 0;
 	steppers::startHoming(homeDirection, XYhomeFeedrate);
 	lowScriptStep = 4;

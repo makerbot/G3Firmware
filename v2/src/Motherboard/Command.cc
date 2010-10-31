@@ -165,6 +165,7 @@ void runCommandSlice() {
 	if (mode == SCRIPTS_RUNNING) {
 	if (scripts::isRunning() == true) {
 	scripts::RunScripts(); //run scripts while there is still something to do.
+	//TODO: have the scripts have a timeout.
 	} else { 
 	mode = READY;
 	}
@@ -255,10 +256,12 @@ void runCommandSlice() {
 			} else if (command == HOST_CMD_FIRST_AUTO_RAFT) { //Made by Intern Winter
 				if (command_buffer.getLength() >= (7 + STEPPER_COUNT)) {
 					command_buffer.pop(); // remove the command
+					
 					uint8_t direction[STEPPER_COUNT];
 					for (int i = 0; i < STEPPER_COUNT; i++) {
 					direction[i] = pop8(); //get directions for all three axis.
 					}
+					
 					uint32_t feedrateXY = pop32(); // feedrate in us per step
 					uint32_t feedrateZ = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
@@ -271,7 +274,8 @@ void runCommandSlice() {
 			} else if (command == HOST_CMD_AUTO_RAFT) { //Made by Intern Winter
 				if (command_buffer.getLength() >= 7) {
 					command_buffer.pop(); // remove the command
-					//uint8_t flags = pop8(); //get the axis. Not needed, axis prefs are saved in EEPROM.
+					//axis prefs are saved in EEPROM.
+					
 					uint32_t feedrateXY = pop32(); // feedrate in us per step
 					uint32_t feedrateZ = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.

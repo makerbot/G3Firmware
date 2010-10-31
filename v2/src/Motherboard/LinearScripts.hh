@@ -31,7 +31,7 @@ namespace scripts {
 void StartFirstAutoHome(uint8_t directionTemp[],uint32_t XYfeedrateTemp, uint32_t ZfeedrateTemp, uint16_t timeout_sTemp);
 void StartAutoHome(uint32_t XYfeedrateTemp, uint32_t ZfeedrateTemp, uint16_t timeout_sTemp);
 void StartMoveCarefully(const Point& targetT, int32_t Z_offsetT, uint32_t XYfeedrateTemp, uint32_t ZfeedrateTemp);
-void StartHomeCarefully(uint8_t directionTemp[], uint32_t feedrateTemp);
+void StartHomeCarefully(uint8_t directionTemp[], uint32_t XYfeedrateTemp, uint32_t ZfeedrateTemp);
 
 void RunScripts();
 
