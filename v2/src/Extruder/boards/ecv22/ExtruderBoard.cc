@@ -24,6 +24,7 @@
 #include <util/atomic.h>
 #include <avr/sfr_defs.h>
 #include <avr/io.h>
+#include "EepromMap.hh"
 
 ExtruderBoard ExtruderBoard::extruderBoard;
 
@@ -31,12 +32,14 @@ Pin channel_a(PortC,1);
 Pin channel_b(PortB,3);
 Pin channel_c = FAN_ENABLE_PIN;
 
+volatile bool using_relays = false;
+
 ExtruderBoard::ExtruderBoard() :
 		micros(0L),
 		extruder_thermistor(THERMISTOR_PIN,0),
 		platform_thermistor(PLATFORM_PIN,1),
-		extruder_heater(extruder_thermistor,extruder_element,SAMPLE_INTERVAL_MICROS_THERMISTOR),
-		platform_heater(platform_thermistor,platform_element,SAMPLE_INTERVAL_MICROS_THERMISTOR),
+		extruder_heater(extruder_thermistor,extruder_element,SAMPLE_INTERVAL_MICROS_THERMISTOR,eeprom::EXTRUDER_PID_P_TERM),
+		platform_heater(platform_thermistor,platform_element,SAMPLE_INTERVAL_MICROS_THERMISTOR,eeprom::HBP_PID_P_TERM),
 		using_platform(true)
 {
 }
@@ -59,15 +62,27 @@ void pwmBOn(bool on) {
 	}
 }
 
+#define SERVO_COUNT 2
+
+volatile int servoPos[SERVO_COUNT];
+
+// Index 0 = D9, Index 1 = D10.  Value = -1 to turn off, 0-255 to set position.
+void ExtruderBoard::setServo(uint8_t index, int value) {
+	servoPos[0] = value;
+}
+
 void ExtruderBoard::reset() {
+	for (uint8_t i = 0; i < SERVO_COUNT; i++) {
+		servoPos[i] = -1;
+	}
 	initExtruderMotor();
-	// Timer 1 is for microsecond-level timing.
-	// CTC mode, interrupt on OCR1A, no prescaler
-	TCCR1A = 0x00;
-	TCCR1B = 0x09;
+	// Timer 1 is for microsecond-level timing and servo pulses.
+	// CTC mode, interrupt on ICR1, top at ICR1, no prescaler
+	TCCR1A = _BV(WGM11);
+	TCCR1B = _BV(WGM13) | _BV(WGM12) | _BV(CS10);
 	TCCR1C = 0x00;
-	OCR1A = INTERVAL_IN_MICROSECONDS * 16;
-	TIMSK1 = 0x02; // turn on OCR1A match interrupt
+	ICR1 = INTERVAL_IN_MICROSECONDS * 16;
+	TIMSK1 = _BV(ICIE1) | _BV(OCIE1A) | _BV(OCIE1B); // turn on ICR1 match interrupt
 	TIMSK2 = 0x00; // turn off channel A PWM by default
 	// TIMER2 is used to PWM mosfet channel B on OC2A, and channel A on
 	// PC1 (using the OC2B register).
@@ -79,7 +94,7 @@ void ExtruderBoard::reset() {
 	channel_c.setValue(false);
 	channel_c.setDirection(true); // set channel C as output
 	TCCR2A = 0b10000011;
-	TCCR2B = 0b00000010; // prescaler 1/8
+	TCCR2B = 0b00000110; // prescaler 1/256
 	OCR2A = 0;
 	OCR2B = 0;
 	// We use interrupts on OC2B and OVF to control channel A.
@@ -91,6 +106,24 @@ void ExtruderBoard::reset() {
 	setMotorSpeed(0);
 	getHostUART().enable(true);
 	getHostUART().in.reset();
+	// These are disabled until the newer replicatorg with eeprom path
+	// support has been out for a while.
+//	uint16_t features = getEeprom16(eeprom::FEATURES);
+//	setUsingRelays((features & eeprom::RELAY_BOARD) != 0);
+//	setStepperMode((features & eeprom::HBRIDGE_STEPPER) != 0);
+	// Init servo ports: OC1A and OC1B as outputs when not linked to counter.
+	PORTB &= ~_BV(1) & ~_BV(2);
+	DDRB |= _BV(1) | _BV(2);
+#ifdef DEFAULT_STEPPER
+	setStepperMode(true);
+#else
+	setStepperMode(false);
+#endif
+#ifdef DEFAULT_RELAYS
+	setUsingRelays(true);
+#else
+	setUsingRelays(false);
+#endif
 }
 
 void ExtruderBoard::setMotorSpeed(int16_t speed) {
@@ -105,9 +138,28 @@ micros_t ExtruderBoard::getCurrentMicros() {
 	return micros_snapshot;
 }
 
+// ms between servo updates; conservative to avoid 7805 overheating
+#define SERVO_CYCLE_LENGTH 8
+volatile uint8_t servo_cycle = 0;
+
 /// Run the extruder board interrupt
 void ExtruderBoard::doInterrupt() {
+	// update microseconds
 	micros += INTERVAL_IN_MICROSECONDS;
+	// update servos
+	ExtruderBoard::getBoard().indicateError(0);
+	if (servo_cycle == 0) {
+		if (servoPos[0] != -1) {
+			PORTB |= _BV(1);
+			OCR1A = (600*16) + (servoPos[0]*160);
+		}
+		if (servoPos[1] != -1) {
+			PORTB |= _BV(2);
+			OCR1B = (600*16) + (servoPos[1] * 160);
+		}
+	}
+	servo_cycle++;
+	if (servo_cycle > SERVO_CYCLE_LENGTH) { servo_cycle = 0; }
 }
 
 void ExtruderBoard::setFan(bool on) {
@@ -130,9 +182,21 @@ void ExtruderBoard::setUsingPlatform(bool is_using) {
 	using_platform = is_using;
 }
 
-/// Timer one comparator match interrupt
-ISR(TIMER1_COMPA_vect) {
+void ExtruderBoard::setUsingRelays(bool is_using) {
+	using_relays = is_using;
+}
+
+/// Timer one ICR1 match interrupt
+ISR(TIMER1_CAPT_vect) {
 	ExtruderBoard::getBoard().doInterrupt();
+}
+
+ISR(TIMER1_COMPA_vect) {
+	PORTB &= ~_BV(1);
+}
+
+ISR(TIMER1_COMPB_vect) {
+	PORTB &= ~_BV(2);
 }
 
 void ExtruderHeatingElement::setHeatingElement(uint8_t value) {
@@ -142,7 +206,10 @@ void ExtruderHeatingElement::setHeatingElement(uint8_t value) {
 //		value = 128;
 //	}
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-		if (value == 0 || value == 255) {
+		if (using_relays) {
+			pwmBOn(false);
+			channel_b.setValue(value != 0);
+		} else if (value == 0 || value == 255) {
 			pwmBOn(false);
 			channel_b.setValue(value == 255);
 		} else {

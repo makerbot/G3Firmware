@@ -27,7 +27,9 @@
 #define DEVICE_ID		0
 
 // Interval for timer update in microseconds
-#define INTERVAL_IN_MICROSECONDS 64
+// Servos are locked to this, so this must be 2500.
+// (It turns out that nothing needed microsecond timing, anyway.)
+#define INTERVAL_IN_MICROSECONDS 2500
 
 // Power supply control pin
 #define HAS_PSU         0
@@ -56,9 +58,14 @@
 #define HAS_FAN				1
 #define FAN_ENABLE_PIN		Pin(PortB,4)
 
-#define HAS_DC_MOTOR		1
-#define MOTOR_ENABLE_PIN	Pin(PortD,5)
-#define MOTOR_DIR_PIN		Pin(PortD,7)
+#define HB1_ENABLE_PIN		Pin(PortD,5)
+#define HB1_DIR_PIN			Pin(PortD,7)
+
+#define HB2_ENABLE_PIN		Pin(PortD,6)
+#define HB2_DIR_PIN			Pin(PortB,0)
+
+#define MOTOR_ENABLE_PIN	HB1_ENABLE_PIN
+#define MOTOR_DIR_PIN		HB1_DIR_PIN
 
 #define DEBUG_LED			Pin(PortB,5)
 

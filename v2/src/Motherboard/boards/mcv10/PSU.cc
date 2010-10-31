@@ -15,12 +15,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-#ifndef VERSION_HH
-#define VERSION_HH
+#include "PSU.hh"
+#include <avr/io.h>
+#include <util/delay.h>
+#include "Configuration.hh"
+#include "AvrPort.hh"
 
-#include <stdint.h>
+void PSU::init() {
+#if defined(HAS_PSU) && HAS_PSU == 1
+	PSU_PIN.setDirection(true);
+	turnOn(true);
+#endif
+}
 
-// Firmware is a decimal number major*100 + minor
-const uint16_t firmware_version = 204;
-
-#endif // VERSION_HH
+void PSU::turnOn(bool on) {
+#if defined(HAS_PSU) && HAS_PSU == 1
+	// PSU pin is pulled low to turn on power supply
+	PSU_PIN.setValue(!on);
+#endif
+}

@@ -15,12 +15,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-#ifndef VERSION_HH
-#define VERSION_HH
+#ifndef BOARDS_RRMBV12_PSU_HH_
+#define BOARDS_RRMBV12_PSU_HH_
 
-#include <stdint.h>
+/// Simple wrapper class for encapsulating the PSU functionality
+class PSU {
+public:
+	/// Initialize the PSU
+	void init();
+	/// Turn the PSU on or off
+	void turnOn(bool on);
+};
 
-// Firmware is a decimal number major*100 + minor
-const uint16_t firmware_version = 204;
-
-#endif // VERSION_HH
+#endif // BOARDS_RRMBV12_PSU_HH_
