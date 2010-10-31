@@ -259,10 +259,11 @@ void runCommandSlice() {
 					for (int i = 0; i < STEPPER_COUNT; i++) {
 					direction[i] = pop8(); //get directions for all three axis.
 					}
-					uint32_t feedrate = pop32(); // feedrate in us per step
+					uint32_t feedrateXY = pop32(); // feedrate in us per step
+					uint32_t feedrateZ = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
 					mode = SCRIPTS_RUNNING;
-					scripts::StartFirstAutoHome(direction, feedrate, timeout_s);
+					scripts::StartFirstAutoHome(direction, feedrateXY, feedrateZ, timeout_s);
 				}//end of command buffer if 
 				
 
@@ -271,10 +272,11 @@ void runCommandSlice() {
 				if (command_buffer.getLength() >= 7) {
 					command_buffer.pop(); // remove the command
 					//uint8_t flags = pop8(); //get the axis. Not needed, axis prefs are saved in EEPROM.
-					uint32_t feedrate = pop32(); // feedrate in us per step
+					uint32_t feedrateXY = pop32(); // feedrate in us per step
+					uint32_t feedrateZ = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16(); //The time to home for before giving up.
 					mode = SCRIPTS_RUNNING;
-					scripts::StartAutoHome(feedrate, timeout_s);
+					scripts::StartAutoHome(feedrateXY, feedrateZ, timeout_s);
 				}//end of command buffer if 
 				
 				
