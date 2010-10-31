@@ -68,7 +68,7 @@ volatile int servoPos[SERVO_COUNT];
 
 // Index 0 = D9, Index 1 = D10.  Value = -1 to turn off, 0-255 to set position.
 void ExtruderBoard::setServo(uint8_t index, int value) {
-	servoPos[0] = value;
+	servoPos[index] = value;
 }
 
 void ExtruderBoard::reset() {

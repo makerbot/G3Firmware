@@ -148,6 +148,18 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 		}
 			to_host.append8(RC_OK);
 			return true;
+		case SLAVE_CMD_SET_SERVO_2_POS:
+		{
+			uint8_t v = from_host.read8(2);
+			if (v == 255) {
+				board.setServo(1,-1);
+			} else {
+				if (v > 180) v = 180;
+				board.setServo(1,v);
+			}
+		}
+			to_host.append8(RC_OK);
+			return true;
 		case SLAVE_CMD_GET_SP:
 			to_host.append8(RC_OK);
 			to_host.append16(board.getExtruderHeater().get_set_temperature());
