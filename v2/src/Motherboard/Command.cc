@@ -254,7 +254,7 @@ void runCommandSlice() {
 				}
 				
 			} else if (command == HOST_CMD_FIRST_AUTO_RAFT) { //Made by Intern Winter
-				if (command_buffer.getLength() >= (7 + STEPPER_COUNT)) {
+				if (command_buffer.getLength() >= (11 + STEPPER_COUNT)) {
 					command_buffer.pop(); // remove the command
 					
 					uint8_t direction[STEPPER_COUNT];
@@ -272,7 +272,7 @@ void runCommandSlice() {
 
 
 			} else if (command == HOST_CMD_AUTO_RAFT) { //Made by Intern Winter
-				if (command_buffer.getLength() >= 7) {
+				if (command_buffer.getLength() >= 11) {
 					command_buffer.pop(); // remove the command
 					//axis prefs are saved in EEPROM.
 					
