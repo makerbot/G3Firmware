@@ -166,8 +166,7 @@ void runCommandSlice() {
 	if (scripts::isRunning() == true) {
 	scripts::RunScripts(); //run scripts while there is still something to do.
 	//TODO: have the scripts have a timeout.
-	} else { 
-	mode = READY;
+	
 	}
 	
 	}
