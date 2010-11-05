@@ -214,7 +214,9 @@ case 1: {
 	//0x100, 0x101, 0x102 Directions of XYZ.
 	//0x103-06, 0x107-0x10a, 0x10b-0x10e Steps to move.
 	//0x10f-0x112 MM to move up on Z axis.
-	
+	//0x113 tool index for Z-probe
+	//0x114 lift angle for Z-Probe servo
+	//0x115 lovered angle for Z-Probe servo
 	
 	int16_t offset; //where to start copying from. 
 	uint8_t data8;
