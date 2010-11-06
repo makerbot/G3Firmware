@@ -136,7 +136,7 @@ case 1: { //step one.
 	
 	currentStep = 2;		
 	//home carefully! We don't want to break anything!
-	if (direction[2] == 1) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining.
+	if (direction[2] == 1 || direction[2] == 3) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining.
 		offset = AUTOHOMEOFFSET + 0xF; //offset of the saved Z offset amount.
 		eeprom_read_block((void*)&zOffset, (const void*)offset, 4); //read it from eeprom
 		steppers::setTarget(Point(0,0,zOffset), feedrateZ); // move to zoffset
@@ -146,8 +146,17 @@ break; }
 case 2: { //start homing
 if (!steppers::isRunning()) {
 //proceed with homing.
+if (direction[2] == 3) { //if using Z probe then...
+	//for (int i = 0; i < STEPPER_COUNT; i++) {
+	//	other_axis_flags[i] = direction[i]; //Save a snapshot of the direction
+	//}
+	direction[2] = 0; //don't home Z
+	steppers::startHoming(direction,feedrateXY); //home the others (XY)
+	currentStep = 5; //skip to case 5		
+} else {
 StartHomeCarefully(direction, feedrateXY, feedrateZ);
 currentStep = 3;
+}
 }
 break; }
 
@@ -193,7 +202,51 @@ if (LowScriptRunning == NOTRUNNING) {
 currentStep = 0;
 ScriptRunning = NONE;
 }
+break;}
+
+case 5: { //wait for XY homing to finish
+if (!steppers::isRunning()) {
+//proceed with ZProbe
+//save XY pos then center
+
+Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
+						//Squirrel everything into EEPROM for the long Winter.		
+	int16_t offset;
+	uint8_t data8;
+	int32_t dataa;
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+		homeDirection[i] = other_axis_flags[i]; //Save a snapshot of the direction
+	}
+	
+
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+	offset = AUTOHOMEOFFSET + i;
+	data8 = direction[i];
+	eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
+	}
+					
+	for (int i = 0; i < 2; i++) { 
+		offset = AUTOHOMEOFFSET + 0x3 + (i*0x4);
+		dataa = currentPosition[i]; //Grab individual current position from current position X,Y, (Z is not ready yet)
+		if (dataa < 0) { //If the position is negative, make it positive!
+			dataa = -dataa;
+		}
+			eeprom_write_block((const void*)&dataa, (void*)offset, 4); //save it!
+		}
+//center BP
+	int32_t x = 0;
+	int32_t y = 0;
+	int32_t z = currentPosition[2]; //keep this where it was
+	int32_t dda = feedrateXY; // max feedrate for XY stage
+	steppers::setTarget(Point(x,y,z),dda); //move everything back up
+	
+	currentStep = 6;
+
 }
+break; }
+
+
+
 
 //default:
 //nothing to do.
