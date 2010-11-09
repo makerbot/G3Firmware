@@ -30,6 +30,15 @@
 
 #define AUTOHOMEOFFSET 0x100
 
+//EEPROM MAP
+	//0x100, 0x101, 0x102 Directions of XYZ.
+	//0x103-06, 0x107-0x10a, 0x10b-0x10e Steps to move.
+	//0x10f-0x112 MM to move up on Z axis.
+	//0x113 tool index for Z-probe
+	//0x114 lift angle for Z-Probe servo
+	//0x115 lowered angle for Z-Probe servo
+
+
 
 
 namespace scripts {
@@ -128,16 +137,16 @@ case 1: { //Step one. Get directions and decide whether to move up or not before
 	firstTimeHomeStep1();
 break; }
 
-case 2: {
+case 2: { //start homing
 	firstTimeHomeStep2();
 break; }
 
-case 3: {
+case 3: { //Homing is done. Save everything is EEPROM
 firstTimeHomeStep3();
 break; }
 
 case 4: {
-//wait for the movecarefully script to finish before finishing the first autohome.
+//wait for the script to finish before finishing the first autohome.
 if (LowScriptRunning == NOTRUNNING) {
 currentStep = 0;
 ScriptRunning = NONE;
@@ -145,54 +154,16 @@ ScriptRunning = NONE;
 break;}
 
 case 5: { //wait for XY homing to finish
-if (!steppers::isRunning()) {
 //proceed with ZProbe
 //save XY pos then center
-
-Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
-						//Squirrel everything into EEPROM for the long Winter.
-	int16_t offset;
-	uint8_t data8;
-	int32_t dataa;
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-		direction[i] = other_axis_flags[i]; //Recover directions from snapshot
-	}
-
-
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-	offset = AUTOHOMEOFFSET + i;
-	data8 = direction[i];
-	eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
-	}
-
-	for (int i = 0; i < 2; i++) {
-		offset = AUTOHOMEOFFSET + 0x3 + (i*0x4);
-		dataa = currentPosition[i]; //Grab individual current position from current position X,Y, (Z is not ready yet)
-		if (dataa < 0) { //If the position is negative, make it positive!
-			dataa = -dataa;
-		}
-			eeprom_write_block((const void*)&dataa, (void*)offset, 4); //save it!
-		}
-//center BP
-	int32_t x = 0;
-	int32_t y = 0;
-	int32_t z = currentPosition[2]; //keep this where it was
-	int32_t dda = feedrateXY; // max feedrate for XY stage
-	steppers::setTarget(Point(x,y,z),dda); //move everything back up
-
-	currentStep = 6;
-
-}
+    firstTimeHomeWithZProbeStep1();
 break; }
 
 
-case 6: { //wait for XY homing to finish
-if (!steppers::isRunning()) {
+case 6: { //wait for XY centering to finish
 //proceed with ZProbe
 //lower servo then home down
-
-
-}
+    firstTimeHomeWithZProbeStep2();
 break; }
 
 
@@ -207,75 +178,22 @@ break; }
 } else if (ScriptRunning == AUTOHOME) {
 switch (currentStep) {
 case 1: {
-	int32_t x = 0; //set x. Zero current position
-	int32_t y = 0; //set y
-	int32_t z = 0; //set z
-	steppers::definePosition(Point(x,y,z)); //set the position in steps
-	//Read values from EEPROM
+	//Zero current position (to prevent some sort of stepper overflow)
+	//Then read the directions to home from EEPROM
+	//and decide whether the bot should lift before homing (depending on the directions)
 
-	//EEPROM MAP
-	//0x100, 0x101, 0x102 Directions of XYZ.
-	//0x103-06, 0x107-0x10a, 0x10b-0x10e Steps to move.
-	//0x10f-0x112 MM to move up on Z axis.
-	//0x113 tool index for Z-probe
-	//0x114 lift angle for Z-Probe servo
-	//0x115 lowered angle for Z-Probe servo
-
-	int16_t offset; //where to start copying from.
-	uint8_t data8;
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-	offset = AUTOHOMEOFFSET + i;
-	eeprom_read_block((void*)&data8, (const void*)offset, 1); //read direction
-	EEPROM_direction[i] = data8;
-	}
-
-	for (int i = 0; i < (STEPPER_COUNT + 1); i++) { //loop and copy all of the data for all of the axis.
-	offset = AUTOHOMEOFFSET + 0x3 + (i*0x4);
-	eeprom_read_block((void*)&EEPROM_DATA[i], (const void*)offset, 4);
-
-	}
-	//direction = (EEPROM_direction > 0);
-	currentStep = 2;
-
-	if (EEPROM_direction[2] == 1) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining. (Just in case)
-		steppers::setTarget(Point(0,0,EEPROM_DATA[3]), feedrateZ); // move to zoffset
-	}
-
-	//currentStep = 2;
+	autoHomeStep1();
 break; }
 
 case 2: {
-if (!steppers::isRunning()) {
-StartHomeCarefully(EEPROM_direction, feedrateXY, feedrateZ); //home carefully!
-currentStep = 3;
-}
+    //wait 'till step 1 is done, before commencing the homing sequence.
+    autoHomeStep2();
 break; }
 
 case 3: {
-	if (LowScriptRunning == NOTRUNNING) {
-	int32_t x = 0; //set x at zero (we are at endstop)
-	int32_t y = 0; //set y
-	int32_t z = 0; //set z
-	steppers::definePosition(Point(x,y,z)); //set the position in steps
-	//next move back up the read amount (aka build platform height)
+    //If the previous step is done, then move carefully to the 0,0,0 position.
+    autoHomeStep3();
 
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-	if (EEPROM_direction[i] == 2) { //If the direction homed was up, then make the direction to move negative.
-	EEPROM_DATA[i] = -EEPROM_DATA[i];
-	}
-	}
-
-	if (EEPROM_direction[2] == 1) { //If we homed down then raise the Z first.
-
-		StartMoveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), EEPROM_DATA[3], feedrateXY, feedrateZ); //move carefully (raise the Z stage first)
-	} else { //else move the XY first
-		StartMoveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), -1, feedrateXY, feedrateZ); //move carefully
-}
-
-
-currentStep = 4;
-//eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
-}
 
 
 break; }
@@ -519,4 +437,133 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 
 }
 
+void firstTimeHomeWithZProbeStep1() {
+//wait for XY homing to finish
+if (!steppers::isRunning()) {
+//proceed with ZProbe
+//save XY pos then center
+
+Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
+						//Squirrel everything into EEPROM for the long Winter.
+	int16_t offset;
+	uint8_t data8;
+	int32_t dataa;
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+		direction[i] = other_axis_flags[i]; //Recover directions from snapshot
 	}
+
+
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+	offset = AUTOHOMEOFFSET + i;
+	data8 = direction[i];
+	eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
+	}
+
+	for (int i = 0; i < 2; i++) {
+		offset = AUTOHOMEOFFSET + 0x3 + (i*0x4);
+		dataa = currentPosition[i]; //Grab individual current position from current position X,Y, (Z is not ready yet)
+		if (dataa < 0) { //If the position is negative, make it positive!
+			dataa = -dataa;
+		}
+			eeprom_write_block((const void*)&dataa, (void*)offset, 4); //save it!
+		}
+//center BP
+	int32_t x = 0;
+	int32_t y = 0;
+	int32_t z = currentPosition[2]; //keep this where it was
+	int32_t dda = feedrateXY; // max feedrate for XY stage
+	steppers::setTarget(Point(x,y,z),dda); //move everything back up
+
+	currentStep = 6;
+
+}
+}
+
+void firstTimeHomeWithZProbeStep2() {
+
+}
+
+void autoHomeStep1() {
+int32_t x = 0; //set x. Zero current position
+	int32_t y = 0; //set y
+	int32_t z = 0; //set z
+	steppers::definePosition(Point(x,y,z)); //set the position in steps
+	//Read values from EEPROM
+
+	//EEPROM MAP
+	//0x100, 0x101, 0x102 Directions of XYZ.
+	//0x103-06, 0x107-0x10a, 0x10b-0x10e Steps to move.
+	//0x10f-0x112 MM to move up on Z axis.
+	//0x113 tool index for Z-probe
+	//0x114 lift angle for Z-Probe servo
+	//0x115 lowered angle for Z-Probe servo
+
+	int16_t offset; //where to start copying from.
+	uint8_t data8;
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+	offset = AUTOHOMEOFFSET + i;
+	eeprom_read_block((void*)&data8, (const void*)offset, 1); //read direction
+	EEPROM_direction[i] = data8;
+	}
+
+	for (int i = 0; i < (STEPPER_COUNT + 1); i++) { //loop and copy all of the data for all of the axis.
+	offset = AUTOHOMEOFFSET + 0x3 + (i*0x4);
+	eeprom_read_block((void*)&EEPROM_DATA[i], (const void*)offset, 4);
+
+	}
+	//direction = (EEPROM_direction > 0);
+	currentStep = 2;
+
+	if (EEPROM_direction[2] == 1) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining. (Just in case)
+		steppers::setTarget(Point(0,0,EEPROM_DATA[3]), feedrateZ); // move to zoffset
+	}
+
+}
+
+void autoHomeStep2() {
+    //wait 'till step 1 is done, before commencing the homing sequence.
+    if (!steppers::isRunning()) {
+    StartHomeCarefully(EEPROM_direction, feedrateXY, feedrateZ); //home carefully!
+    currentStep = 3;
+    }
+}
+
+void autoHomeStep3() {
+    //If the previous step is done, then move carefully to the 0,0,0 position.
+if (LowScriptRunning == NOTRUNNING) {
+	int32_t x = 0; //set x at zero (we are at endstop)
+	int32_t y = 0; //set y
+	int32_t z = 0; //set z
+	steppers::definePosition(Point(x,y,z)); //set the position in steps
+	//next move back up the read amount (aka build platform height)
+
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+	if (EEPROM_direction[i] == 2) { //If the direction homed was up, then make the direction to move negative.
+	EEPROM_DATA[i] = -EEPROM_DATA[i];
+	}
+	}
+
+	if (EEPROM_direction[2] == 1) { //If we homed down then raise the Z first.
+
+		StartMoveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), EEPROM_DATA[3], feedrateXY, feedrateZ); //move carefully (raise the Z stage first)
+	} else { //else move the XY first
+		StartMoveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), -1, feedrateXY, feedrateZ); //move carefully
+}
+
+
+currentStep = 4;
+
+}
+}
+
+void autoHomeFinalEnd() {
+    //check if the script has ended then end the script.
+if (LowScriptRunning == NOTRUNNING) {
+steppers::definePosition(Point(0,0,0)); //set the position in steps to zero (we are at center of BP)
+currentStep = 0;
+ScriptRunning = NONE;
+}
+
+}
+
+}

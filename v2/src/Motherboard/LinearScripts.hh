@@ -43,11 +43,26 @@ Internal Subroutines
 **
 **/
 
+//First time homing (calibration) subroutines.
 void firstTimeHomeStep1();
 
 void firstTimeHomeStep2();
 
 void firstTimeHomeStep3();
+
+void firstTimeHomeWithZProbeStep1();
+
+void firstTimeHomeWithZProbeStep2();
+
+//Auto homing script subroutines.
+
+void autoHomeStep1();
+
+void autoHomeStep2();
+
+void autoHomeStep3();
+
+void autoHomeFinalEnd();
 
 }
 
