@@ -37,6 +37,18 @@ void RunScripts();
 
 bool isRunning();
 
+/**
+**
+Internal Subroutines
+**
+**/
+
+void firstTimeHomeStep1();
+
+void firstTimeHomeStep2();
+
+void firstTimeHomeStep3();
+
 }
 
 #endif // LinearScripts_HH_

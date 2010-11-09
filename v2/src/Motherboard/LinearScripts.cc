@@ -17,9 +17,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
- 
+
  //This file is for scripts that take a very long time to run (such as homing scripts and nozzle wipes). It contains two levels. The higher script level and the lower script level. The higher level is where the actual program is written, where as the lower level contains all of the subroutines. When a lower script is called, the higher script pauses and waits untill the lower script finishes.
- 
+
  //The scripts in this file repeatedly poll themselves and move on, instead of polling themselves and then just waiting 'till they can move on. This way the motherboard can still attend to the other things it might have to do (like maintaining contact with a connected computer) and not too much time is wasted.
 
 #define __STDC_LIMIT_MACROS
@@ -40,7 +40,7 @@ namespace scripts {
 	AUTOHOME,
 } ScriptRunning = NONE;
 
- enum { //possible states for the lower script. 
+ enum { //possible states for the lower script.
 	NOTRUNNING,
 	MOVECAREFULLY,
 	HOMECAREFULLY,
@@ -124,76 +124,16 @@ if (ScriptRunning == FIRSTAUTOHOME) {
 //check if we can advance.
 switch (currentStep) {
 
-case 1: { //step one.
-	int32_t x = 0; //set x
-	int32_t y = 0; //set y
-	int32_t z = 0; //set z
-	steppers::definePosition(Point(x,y,z)); //set the position in steps to 000
-	
-	int32_t dataa; //temporary varible.
-	int8_t data8; //temporary varible
-	int16_t offset; //this is where in eeprom we should start saving/reading.
-	
-	currentStep = 2;		
-	//home carefully! We don't want to break anything!
-	if (direction[2] == 1 || direction[2] == 3) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining.
-		offset = AUTOHOMEOFFSET + 0xF; //offset of the saved Z offset amount.
-		eeprom_read_block((void*)&zOffset, (const void*)offset, 4); //read it from eeprom
-		steppers::setTarget(Point(0,0,zOffset), feedrateZ); // move to zoffset
-	}
+case 1: { //Step one. Get directions and decide whether to move up or not before homing.
+	firstTimeHomeStep1();
 break; }
 
-case 2: { //start homing
-if (!steppers::isRunning()) {
-//proceed with homing.
-if (direction[2] == 3) { //if using Z probe then...
-	//for (int i = 0; i < STEPPER_COUNT; i++) {
-	//	other_axis_flags[i] = direction[i]; //Save a snapshot of the direction
-	//}
-	direction[2] = 0; //don't home Z
-	steppers::startHoming(direction,feedrateXY); //home the others (XY)
-	currentStep = 5; //skip to case 5		
-} else {
-StartHomeCarefully(direction, feedrateXY, feedrateZ);
-currentStep = 3;
-}
-}
+case 2: {
+	firstTimeHomeStep2();
 break; }
 
-case 3: { //Homing is done.
-if (LowScriptRunning == NOTRUNNING) {
-
-Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
-						//Squirrel everything into EEPROM for the long Winter.		
-	int16_t offset;
-	uint8_t data8;
-	int32_t dataa;
-
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-	offset = AUTOHOMEOFFSET + i;
-	data8 = direction[i];
-	eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
-	}
-					
-	for (int i = 0; i < 3; i++) { 
-		offset = AUTOHOMEOFFSET + 0x3 + (i*0x4);
-		dataa = currentPosition[i]; //Grab individual current position from current position X,Y,Z.
-		if (dataa < 0) { //If the position is negative, make it positive!
-			dataa = -dataa;
-		}
-			eeprom_write_block((const void*)&dataa, (void*)offset, 4); //save it!
-		}
-		
-	//next move back up to 0,0,0 (aka build platform height)
-	if (direction[2] == 1) { //if we are homing down then move z before XY
-	StartMoveCarefully(Point(0,0,0), zOffset, feedrateXY, feedrateZ); // move to 000 with a saved z offset and a custom feedrate.
-	} else if (direction[2] == 2) { //if positive then move XY before Z
-	StartMoveCarefully(Point(0,0,0), -1, feedrateXY, feedrateZ); // move to 000 with a z offset of -1 (aka none.) Also tells the subroutine to move XY before Z..
-						}
-	currentStep = 4;
-						}
-						
-
+case 3: {
+firstTimeHomeStep3();
 break; }
 
 case 4: {
@@ -210,22 +150,22 @@ if (!steppers::isRunning()) {
 //save XY pos then center
 
 Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
-						//Squirrel everything into EEPROM for the long Winter.		
+						//Squirrel everything into EEPROM for the long Winter.
 	int16_t offset;
 	uint8_t data8;
 	int32_t dataa;
 	for (int i = 0; i < STEPPER_COUNT; i++) {
-		homeDirection[i] = other_axis_flags[i]; //Save a snapshot of the direction
+		direction[i] = other_axis_flags[i]; //Recover directions from snapshot
 	}
-	
+
 
 	for (int i = 0; i < STEPPER_COUNT; i++) {
 	offset = AUTOHOMEOFFSET + i;
 	data8 = direction[i];
 	eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
 	}
-					
-	for (int i = 0; i < 2; i++) { 
+
+	for (int i = 0; i < 2; i++) {
 		offset = AUTOHOMEOFFSET + 0x3 + (i*0x4);
 		dataa = currentPosition[i]; //Grab individual current position from current position X,Y, (Z is not ready yet)
 		if (dataa < 0) { //If the position is negative, make it positive!
@@ -239,8 +179,18 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 	int32_t z = currentPosition[2]; //keep this where it was
 	int32_t dda = feedrateXY; // max feedrate for XY stage
 	steppers::setTarget(Point(x,y,z),dda); //move everything back up
-	
+
 	currentStep = 6;
+
+}
+break; }
+
+
+case 6: { //wait for XY homing to finish
+if (!steppers::isRunning()) {
+//proceed with ZProbe
+//lower servo then home down
+
 
 }
 break; }
@@ -262,35 +212,35 @@ case 1: {
 	int32_t z = 0; //set z
 	steppers::definePosition(Point(x,y,z)); //set the position in steps
 	//Read values from EEPROM
-	
+
 	//EEPROM MAP
 	//0x100, 0x101, 0x102 Directions of XYZ.
 	//0x103-06, 0x107-0x10a, 0x10b-0x10e Steps to move.
 	//0x10f-0x112 MM to move up on Z axis.
 	//0x113 tool index for Z-probe
 	//0x114 lift angle for Z-Probe servo
-	//0x115 lovered angle for Z-Probe servo
-	
-	int16_t offset; //where to start copying from. 
+	//0x115 lowered angle for Z-Probe servo
+
+	int16_t offset; //where to start copying from.
 	uint8_t data8;
 	for (int i = 0; i < STEPPER_COUNT; i++) {
 	offset = AUTOHOMEOFFSET + i;
 	eeprom_read_block((void*)&data8, (const void*)offset, 1); //read direction
 	EEPROM_direction[i] = data8;
 	}
-	
+
 	for (int i = 0; i < (STEPPER_COUNT + 1); i++) { //loop and copy all of the data for all of the axis.
 	offset = AUTOHOMEOFFSET + 0x3 + (i*0x4);
 	eeprom_read_block((void*)&EEPROM_DATA[i], (const void*)offset, 4);
-	
+
 	}
 	//direction = (EEPROM_direction > 0);
 	currentStep = 2;
-	
+
 	if (EEPROM_direction[2] == 1) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining. (Just in case)
 		steppers::setTarget(Point(0,0,EEPROM_DATA[3]), feedrateZ); // move to zoffset
 	}
-	
+
 	//currentStep = 2;
 break; }
 
@@ -308,16 +258,16 @@ case 3: {
 	int32_t z = 0; //set z
 	steppers::definePosition(Point(x,y,z)); //set the position in steps
 	//next move back up the read amount (aka build platform height)
-	
-	for (int i = 0; i < STEPPER_COUNT; i++) { 
+
+	for (int i = 0; i < STEPPER_COUNT; i++) {
 	if (EEPROM_direction[i] == 2) { //If the direction homed was up, then make the direction to move negative.
 	EEPROM_DATA[i] = -EEPROM_DATA[i];
 	}
 	}
-	
+
 	if (EEPROM_direction[2] == 1) { //If we homed down then raise the Z first.
-	
-		StartMoveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), EEPROM_DATA[3], feedrateXY, feedrateZ); //move carefully (raise the Z stage first)	
+
+		StartMoveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), EEPROM_DATA[3], feedrateXY, feedrateZ); //move carefully (raise the Z stage first)
 	} else { //else move the XY first
 		StartMoveCarefully(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), -1, feedrateXY, feedrateZ); //move carefully
 }
@@ -341,7 +291,7 @@ break; }
 }
 
 }
- 
+
 } else if (LowScriptRunning == MOVECAREFULLY) {
 switch (lowScriptStep) {
 
@@ -363,14 +313,14 @@ if (Z_offset < 0) { //if the z offset is negative (this should not usually happe
 	steppers::setTarget(Point(x,y,z),dda);
 	lowScriptStep = 3;
 	}
-						
+
 break; }
 
 case 2: { //wait for XY stage
 if (!steppers::isRunning()){
 	int32_t x = target[0];
 	int32_t y = target[1];
-	int32_t z = target[2]; //move Z down 
+	int32_t z = target[2]; //move Z down
 	int32_t dda = ZhomeFeedrate; // max feedrate for Z stage
 	steppers::setTarget(Point(x,y,z),dda); //move everything
 	lowScriptStep = 5; //wait to say that you are finished.
@@ -392,7 +342,7 @@ case 4: { //wait for XY
 if (!steppers::isRunning()) {
 	int32_t x = target[0];
 	int32_t y = target[1];
-	int32_t z = target[2]; //move back down to 000 
+	int32_t z = target[2]; //move back down to 000
 	int32_t dda = ZhomeFeedrate; // max feedrate for Z stage
 	steppers::setTarget(Point(x,y,z),dda); //move everything back up
 	lowScriptStep = 5; //wait to say that this script is finished
@@ -423,15 +373,15 @@ if (!steppers::isRunning()) {
 					homeDirection[2] = 0; //don't home Z
 					steppers::startHoming(homeDirection,XYhomeFeedrate); //home the others (XY)
 						lowScriptStep = 2;
-						
-						
+
+
 	} else if (homeDirection[2] == 2) { //else if we are homing the Z stage up then...
 						//home the z up before homing xy in the positive direction.
 						for (int i = 0; i < STEPPER_COUNT; i++) {
 						other_axis_flags[i] = homeDirection[i]; // Save axis besides Z to home.
 						homeDirection[i] = 0; //reset
 						}
-						
+
 						homeDirection[2] = 2; // Home Z up.
 					steppers::startHoming(homeDirection,ZhomeFeedrate); //home Z
 						lowScriptStep = 3;
@@ -482,8 +432,91 @@ break; }
 
 
 
-	
-	
-	
+
+
+
 	}
+
+	/**
+	**
+	Start of the individual subroutines for each step.
+	**
+	**/
+
+
+void firstTimeHomeStep1() {
+	//step one.
+	int32_t x = 0; //set x
+	int32_t y = 0; //set y
+	int32_t z = 0; //set z
+	steppers::definePosition(Point(x,y,z)); //set the position in steps to 000
+
+	int32_t dataa; //temporary varible.
+	int8_t data8; //temporary varible
+	int16_t offset; //this is where in eeprom we should start saving/reading.
+
+	currentStep = 2;
+	//home carefully! We don't want to break anything!
+	if (direction[2] == 1 || direction[2] == 3) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining.
+		offset = AUTOHOMEOFFSET + 0xF; //offset of the saved Z offset amount.
+		eeprom_read_block((void*)&zOffset, (const void*)offset, 4); //read it from eeprom
+		steppers::setTarget(Point(0,0,zOffset), feedrateZ); // move to zoffset
+	}
+}
+
+void firstTimeHomeStep2() {
+//start homing
+	if (!steppers::isRunning()) {
+		//proceed with homing.
+		if (direction[2] == 3) { //if using Z probe then...
+		for (int i = 0; i < STEPPER_COUNT; i++) {
+			other_axis_flags[i] = direction[i]; //Save a snapshot of the direction
+		}
+		direction[2] = 0; //don't home Z
+		steppers::startHoming(direction,feedrateXY); //home the others (XY)
+		currentStep = 5; //skip to case 5
+
+	} else { //if zprobe is not is use then proceed as normal
+		StartHomeCarefully(direction, feedrateXY, feedrateZ);
+		currentStep = 3;
+	}
+	}
+	}
+
+void firstTimeHomeStep3() {
+//Homing is done.
+if (LowScriptRunning == NOTRUNNING) {
+
+Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
+						//Squirrel everything into EEPROM for the long Winter.
+	int16_t offset;
+	uint8_t data8;
+	int32_t dataa;
+
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+	offset = AUTOHOMEOFFSET + i;
+	data8 = direction[i];
+	eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
+	}
+
+	for (int i = 0; i < 3; i++) {
+		offset = AUTOHOMEOFFSET + 0x3 + (i*0x4);
+		dataa = currentPosition[i]; //Grab individual current position from current position X,Y,Z.
+		if (dataa < 0) { //If the position is negative, make it positive!
+			dataa = -dataa;
+		}
+			eeprom_write_block((const void*)&dataa, (void*)offset, 4); //save it!
+		}
+
+	//next move back up to 0,0,0 (aka build platform height)
+	if (direction[2] == 1) { //if we are homing down then move z before XY
+	StartMoveCarefully(Point(0,0,0), zOffset, feedrateXY, feedrateZ); // move to 000 with a saved z offset and a custom feedrate.
+	} else if (direction[2] == 2) { //if positive then move XY before Z
+	StartMoveCarefully(Point(0,0,0), -1, feedrateXY, feedrateZ); // move to 000 with a z offset of -1 (aka none.) Also tells the subroutine to move XY before Z..
+						}
+	currentStep = 4;
+						}
+
+}
+
 	}
