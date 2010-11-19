@@ -28,16 +28,20 @@
 #include <stdint.h>
 #include <avr/eeprom.h>
 
-#define AUTOHOMEOFFSET 0x100
+#define AUTOHOMEOFFSET 0x100    //Homing settings EEPROM starting block.
+                                //Change this to move the save location for the data.
 
-//EEPROM MAP
-	//0x100, 0x101, 0x102 Directions of XYZ.
-	//0x103-06, 0x107-0x10a, 0x10b-0x10e Steps to move.
-	//0x10f-0x112 MM to move up on Z axis.
-	//0x113 tool index for Z-probe
-	//0x114 lift angle for Z-Probe servo
-	//0x115 lowered angle for Z-Probe servo
-
+    /*
+    **
+    **EEPROM MAP (Based on a offset of 0x100)
+	**0x100, 0x101, 0x102 Directions of XYZ.
+	**0x103-06, 0x107-0x10a, 0x10b-0x10e Steps to move.
+	**0x10f-0x112 MM to move up on Z axis.
+	**0x113 tool index for Z-probe
+	**0x114 lift angle for Z-Probe servo
+	**0x115 lowered angle for Z-Probe servo
+    **
+    */
 
 
 
@@ -402,39 +406,47 @@ void firstTimeHomeStep2() {
 	}
 
 void firstTimeHomeStep3() {
-//Homing is done.
+ //Homing is done.
 if (LowScriptRunning == NOTRUNNING) {
 
 Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
-						//Squirrel everything into EEPROM for the long Winter.
-	int16_t offset;
-	uint8_t data8;
-	int32_t dataa;
+                                               //Squirrel everything into EEPROM for the long Winter.
+       int16_t offset;
+       uint8_t data8;
+       int32_t dataa;
 
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-	offset = AUTOHOMEOFFSET + i;
-	data8 = direction[i];
-	eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
-	}
+       for (int i = 0; i < STEPPER_COUNT; i++) {
+       offset = AUTOHOMEOFFSET + i;
+       data8 = direction[i];
+       eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
+       }
 
-	for (int i = 0; i < 3; i++) {
-		offset = AUTOHOMEOFFSET + 0x3 + (i*0x4);
-		dataa = currentPosition[i]; //Grab individual current position from current position X,Y,Z.
-		if (dataa < 0) { //If the position is negative, make it positive!
-			dataa = -dataa;
-		}
-			eeprom_write_block((const void*)&dataa, (void*)offset, 4); //save it!
-		}
+       for (int i = 0; i < 3; i++) {
+               offset = AUTOHOMEOFFSET + 0x3 + (i*0x4);
+               dataa = currentPosition[i]; //Grab individual current position from current position X,Y,Z.
+               if (dataa < 0) { //If the position is negative, make it positive!
+                       dataa = -dataa;
+               }
+                       eeprom_write_block((const void*)&dataa, (void*)offset, 4); //save it!
+               }
 
-	//next move back up to 0,0,0 (aka build platform height)
-	if (direction[2] == 1) { //if we are homing down then move z before XY
-	StartMoveCarefully(Point(0,0,0), zOffset, feedrateXY, feedrateZ); // move to 000 with a saved z offset and a custom feedrate.
-	} else if (direction[2] == 2) { //if positive then move XY before Z
-	StartMoveCarefully(Point(0,0,0), -1, feedrateXY, feedrateZ); // move to 000 with a z offset of -1 (aka none.) Also tells the subroutine to move XY before Z..
-						}
-	currentStep = 4;
-						}
+       //next move back up to 0,0,0 (aka build platform height)
+       if (direction[2] == 1) { //if we are homing down then move z before XY
+       StartMoveCarefully(Point(0,0,0), zOffset, feedrateXY, feedrateZ); // move to 000 with a saved z offset and a custom feedrate.
+       } else if (direction[2] == 2) { //if positive then move XY before Z
+       StartMoveCarefully(Point(0,0,0), -1, feedrateXY, feedrateZ); // move to 000 with a z offset of -1 (aka none.) Also tells the subroutine to move XY before Z..
+                                               }
+       currentStep = 4;
+                                               }
 
+}
+
+void firstTimeHomeFinal() {
+//wait for the script to finish before finishing the first autohome.
+if (LowScriptRunning == NOTRUNNING) {
+currentStep = 0;
+ScriptRunning = NONE;
+}
 }
 
 void firstTimeHomeWithZProbeStep1() {
@@ -482,6 +494,11 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 void firstTimeHomeWithZProbeStep2() {
 
 }
+
+
+/**
+**Auto Home Subroutines
+**/
 
 void autoHomeStep1() {
 int32_t x = 0; //set x. Zero current position

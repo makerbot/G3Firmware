@@ -50,6 +50,8 @@ void firstTimeHomeStep2();
 
 void firstTimeHomeStep3();
 
+void firstTimeHomeFinal();
+
 void firstTimeHomeWithZProbeStep1();
 
 void firstTimeHomeWithZProbeStep2();
