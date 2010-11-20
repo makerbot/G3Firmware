@@ -25,11 +25,18 @@
 #define __STDC_LIMIT_MACROS
 #include "LinearScripts.hh"
 #include "Steppers.hh"
+#include "Tool.hh"
+#include "Commands.hh"
+#include "Timeout.hh"
 #include <stdint.h>
 #include <avr/eeprom.h>
 
 #define AUTOHOMEOFFSET 0x100    //Homing settings EEPROM starting block.
                                 //Change this to move the save location for the data.
+
+#define HOST_TOOL_RESPONSE_TIMEOUT_MS 50
+#define HOST_TOOL_RESPONSE_TIMEOUT_MICROS (1000L*HOST_TOOL_RESPONSE_TIMEOUT_MS)
+
 
     /*
     **
@@ -150,11 +157,7 @@ firstTimeHomeStep3();
 break; }
 
 case 4: {
-//wait for the script to finish before finishing the first autohome.
-if (LowScriptRunning == NOTRUNNING) {
-currentStep = 0;
-ScriptRunning = NONE;
-}
+firstTimeHomeFinal();
 break;}
 
 case 5: { //wait for XY homing to finish
@@ -197,17 +200,11 @@ break; }
 case 3: {
     //If the previous step is done, then move carefully to the 0,0,0 position.
     autoHomeStep3();
-
-
-
 break; }
 
 case 4: {
-if (LowScriptRunning == NOTRUNNING) {
-steppers::definePosition(Point(0,0,0)); //set the position in steps to zero (we are at center of BP)
-currentStep = 0;
-ScriptRunning = NONE;
-}
+    //Wait for the end of the script then save the current pos at 000 and reset scripts.
+    autoHomeFinalEnd();
 break; }
 
 }
@@ -359,6 +356,8 @@ break; }
 
 	}
 
+
+
 	/**
 	**
 	Start of the individual subroutines for each step.
@@ -492,6 +491,22 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 }
 
 void firstTimeHomeWithZProbeStep2() {
+//xy is now centered. lower z-probe and home z downwards.
+//To lower the servo you must send these commands:
+    Timeout acquire_lock_timeout;
+	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MS);
+	while (!tool::getLock()) {
+		if (acquire_lock_timeout.hasElapsed()) {
+			return;
+		}
+	}
+	OutPacket& out = tool::getOutPacket();
+	out.reset();
+	out.append8(0); // TODO: tool index
+	out.append8(SLAVE_CMD_SET_SERVO_2_POS);
+	out.append8(180);
+	tool::startTransaction();
+
 
 }
 
@@ -582,5 +597,6 @@ ScriptRunning = NONE;
 }
 
 }
-
 }
+
+
