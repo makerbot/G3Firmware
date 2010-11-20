@@ -34,7 +34,7 @@
 #define AUTOHOMEOFFSET 0x100    //Homing settings EEPROM starting block.
                                 //Change this to move the save location for the data.
 
-#define HOST_TOOL_RESPONSE_TIMEOUT_MS 50
+#define HOST_TOOL_RESPONSE_TIMEOUT_MS 50 //Timeouts for when the Z-Probe is communicating with the extruder.
 #define HOST_TOOL_RESPONSE_TIMEOUT_MICROS (1000L*HOST_TOOL_RESPONSE_TIMEOUT_MS)
 
 
@@ -492,22 +492,32 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 
 void firstTimeHomeWithZProbeStep2() {
 //xy is now centered. lower z-probe and home z downwards.
-//To lower the servo you must send these commands:
-    Timeout acquire_lock_timeout;
+if (!steppers::isRunning()) {
+    //Read servo position values from EEPROM
+    int16_t offset; //where to start copying from.
+	uint8_t RaisedPositiondata8;
+	offset = 0x114;
+	eeprom_read_block((void*)&RaisedPositiondata8, (const void*)offset, 1); //read direction
+
+
+    //To lower the servo you must send these commands:
+    Timeout acquire_lock_timeout; //try to get a lock on the extruder.
 	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MS);
 	while (!tool::getLock()) {
 		if (acquire_lock_timeout.hasElapsed()) {
 			return;
 		}
-	}
+	} //locked!
 	OutPacket& out = tool::getOutPacket();
 	out.reset();
 	out.append8(0); // TODO: tool index
-	out.append8(SLAVE_CMD_SET_SERVO_2_POS);
-	out.append8(180);
-	tool::startTransaction();
+	out.append8(SLAVE_CMD_SET_SERVO_2_POS); //send command
+	out.append8(RaisedPositiondata8); //send pos (From EEPROM)
+	tool::startTransaction(); //Send!
+	tool::releaseLock();
 
-
+currentStep = 4;
+}
 }
 
 
