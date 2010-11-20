@@ -56,6 +56,8 @@ void firstTimeHomeWithZProbeStep1();
 
 void firstTimeHomeWithZProbeStep2();
 
+void firstTimeHomeWithZProbeStep3();
+
 //Auto homing script subroutines.
 
 void autoHomeStep1();

@@ -173,6 +173,11 @@ case 6: { //wait for XY centering to finish
     firstTimeHomeWithZProbeStep2();
 break; }
 
+case 7: { //wait for zhoming to finish
+//proceed with ZProbe
+//save pos raise servo and center all
+    firstTimeHomeWithZProbeStep3();
+break; }
 
 
 
@@ -442,7 +447,7 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 
 void firstTimeHomeFinal() {
 //wait for the script to finish before finishing the first autohome.
-if (LowScriptRunning == NOTRUNNING) {
+if (LowScriptRunning == NOTRUNNING && !steppers::isRunning()) {
 currentStep = 0;
 ScriptRunning = NONE;
 }
@@ -495,6 +500,57 @@ void firstTimeHomeWithZProbeStep2() {
 if (!steppers::isRunning()) {
     //Read servo position values from EEPROM
     int16_t offset; //where to start copying from.
+	uint8_t LoweredPositiondata8;
+	offset = 0x115;
+	eeprom_read_block((void*)&LoweredPositiondata8, (const void*)offset, 1); //read direction
+
+
+    //To lower the servo you must send these commands:
+    Timeout acquire_lock_timeout; //try to get a lock on the extruder.
+	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MS);
+	while (!tool::getLock()) {
+		if (acquire_lock_timeout.hasElapsed()) {
+			return;
+		}
+	} //locked!
+	OutPacket& out = tool::getOutPacket();
+	out.reset();
+	out.append8(0); // TODO: tool index
+	out.append8(SLAVE_CMD_SET_SERVO_2_POS); //send command
+	out.append8(LoweredPositiondata8); //send pos (From EEPROM)
+	tool::startTransaction(); //Send!
+	tool::releaseLock(); //clean up after yourself.
+
+	//Home down now....
+	//maybe should wait till the servo is lowered all the way?... Nah....
+
+	direction[0] = 0; //don't home X
+	direction[1] = 0; //don't home Y
+    steppers::startHoming(direction,feedrateZ); //home the Z axis.
+
+currentStep = 7;
+}
+}
+
+
+void firstTimeHomeWithZProbeStep3() {
+//wait till done homing Z then save the current position in EEPROM and lift servo.
+//Go back to 0,0,0 and end script.
+if (!steppers::isRunning()) {
+
+Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
+                                               //Squirrel everything into EEPROM for the long Winter.
+        int16_t offset;
+        uint8_t data8;
+        int32_t dataa;
+
+               offset = AUTOHOMEOFFSET + 0x3 + (2*0x4);
+               dataa = currentPosition[2]; //Grab individual current position from current position,Z.
+
+               eeprom_write_block((const void*)&dataa, (void*)offset, 4); //save it!
+
+               //Read servo position values from EEPROM
+
 	uint8_t RaisedPositiondata8;
 	offset = 0x114;
 	eeprom_read_block((void*)&RaisedPositiondata8, (const void*)offset, 1); //read direction
@@ -514,13 +570,19 @@ if (!steppers::isRunning()) {
 	out.append8(SLAVE_CMD_SET_SERVO_2_POS); //send command
 	out.append8(RaisedPositiondata8); //send pos (From EEPROM)
 	tool::startTransaction(); //Send!
-	tool::releaseLock();
+	tool::releaseLock(); //clean up after yourself.
 
-currentStep = 4;
+    int32_t x = 0;
+	int32_t y = 0;
+	int32_t z = 0; //Zero all
+	int32_t dda = feedrateZ; // max feedrate for XY stage
+	steppers::setTarget(Point(x,y,z),dda); //move everything to 000
+
+	currentStep = 4;
+
+
 }
 }
-
-
 /**
 **Auto Home Subroutines
 **/
@@ -608,5 +670,6 @@ ScriptRunning = NONE;
 
 }
 }
+
 
 
