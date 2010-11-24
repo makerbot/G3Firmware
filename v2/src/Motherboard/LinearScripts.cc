@@ -198,7 +198,7 @@ case 1: {
 break; }
 
 case 2: {
-    //wait 'till step 1 is done, before commencing the homing sequence.
+    //wait 'till step 1 is done, before commencing the homing sequence. (Including for ZProbe)
     autoHomeStep2();
 break; }
 
@@ -210,6 +210,23 @@ break; }
 case 4: {
     //Wait for the end of the script then save the current pos at 000 and reset scripts.
     autoHomeFinalEnd();
+break; }
+
+case 5: {
+    //ZProbe. Wait till XY is done homing, then center and save and lower servo.
+    autoHomeZProbeStep1();
+break; }
+
+case 6: {
+    //ZProbe. Home Z down. (After centered)
+    autoHomeZProbeStep2();
+break; }
+
+
+case 7: {
+    //ZProbe. after homing, lift servo and lower by amount saved in EEPROM (the probe is longer than the nozzle)
+    //Center everything and go to last step (quit script)
+    autoHomeZProbeStep3();
 break; }
 
 }
@@ -618,7 +635,7 @@ int32_t x = 0; //set x. Zero current position
 	//direction = (EEPROM_direction > 0);
 	currentStep = 2;
 
-	if (EEPROM_direction[2] == 1) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining. (Just in case)
+	if (EEPROM_direction[2] == 1 || EEPROM_direction[2] == 3) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining. (Just in case)
 		steppers::setTarget(Point(0,0,EEPROM_DATA[3]), feedrateZ); // move to zoffset
 	}
 
@@ -627,8 +644,22 @@ int32_t x = 0; //set x. Zero current position
 void autoHomeStep2() {
     //wait 'till step 1 is done, before commencing the homing sequence.
     if (!steppers::isRunning()) {
+        if (EEPROM_direction[2] == 3) { //if we are using Z-Probe hardware...
+            //Home XY then center....
+            //save a snapshot.
+            for (int i = 0; i < STEPPER_COUNT; i++) {
+            other_axis_flags[i] = EEPROM_direction[i]; //Save a snapshot of the directions.
+            }
+            EEPROM_direction[2] = 0; //dont home Z
+
+            steppers::startHoming(EEPROM_direction, feedrateXY);
+
+            //need to redirect to other current step
+            currentstep = 5;
+        } else { //if Z-Probe is not installed then proceed as normal
     StartHomeCarefully(EEPROM_direction, feedrateXY, feedrateZ); //home carefully!
     currentStep = 3;
+        }
     }
 }
 
