@@ -148,7 +148,7 @@ case 1: { //Step one. Get directions and decide whether to move up or not before
 	firstTimeHomeStep1();
 break; }
 
-case 2: { //start homing
+case 2: { //start homing (includes Z-Probe)
 	firstTimeHomeStep2();
 break; }
 
@@ -163,13 +163,14 @@ break;}
 case 5: { //wait for XY homing to finish
 //proceed with ZProbe
 //save XY pos then center
+//lower servo
     firstTimeHomeWithZProbeStep1();
 break; }
 
 
 case 6: { //wait for XY centering to finish
 //proceed with ZProbe
-//lower servo then home down
+//Home down
     firstTimeHomeWithZProbeStep2();
 break; }
 
@@ -213,7 +214,7 @@ case 4: {
 break; }
 
 case 5: {
-    //ZProbe. Wait till XY is done homing, then center and save and lower servo.
+    //ZProbe. Wait till XY is done homing, then center and lower servo.
     autoHomeZProbeStep1();
 break; }
 
@@ -505,24 +506,17 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 	int32_t y = 0;
 	int32_t z = currentPosition[2]; //keep this where it was
 	int32_t dda = feedrateXY; // max feedrate for XY stage
-	steppers::setTarget(Point(x,y,z),dda); //move everything back up
+	steppers::setTarget(Point(x,y,z),dda); //move everything back
 
-	currentStep = 6;
+//Lower servo (to give it time to lower)
+//Read servo position values from EEPROM
 
-}
-}
-
-void firstTimeHomeWithZProbeStep2() {
-//xy is now centered. lower z-probe and home z downwards.
-if (!steppers::isRunning()) {
-    //Read servo position values from EEPROM
-    int16_t offset; //where to start copying from.
 	uint8_t LoweredPositiondata8;
-	offset = 0x115;
+	offset = AUTOHOMEOFFSET + 0x15;
 	eeprom_read_block((void*)&LoweredPositiondata8, (const void*)offset, 1); //read direction
 
 
-    //To lower the servo you must send these commands:
+//To lower the servo you must send these commands:
     Timeout acquire_lock_timeout; //try to get a lock on the extruder.
 	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MS);
 	while (!tool::getLock()) {
@@ -538,7 +532,16 @@ if (!steppers::isRunning()) {
 	tool::startTransaction(); //Send!
 	tool::releaseLock(); //clean up after yourself.
 
-	//Home down now....
+
+	currentStep = 6;
+
+}
+}
+
+void firstTimeHomeWithZProbeStep2() {
+//xy is now centered. Home z downwards.
+if (!steppers::isRunning()) {
+    //Home down now....
 	//maybe should wait till the servo is lowered all the way?... Nah....
 
 	direction[0] = 0; //don't home X
@@ -548,7 +551,6 @@ if (!steppers::isRunning()) {
 currentStep = 7;
 }
 }
-
 
 void firstTimeHomeWithZProbeStep3() {
 //wait till done homing Z then save the current position in EEPROM and lift servo.
@@ -566,10 +568,10 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 
                eeprom_write_block((const void*)&dataa, (void*)offset, 4); //save it!
 
-               //Read servo position values from EEPROM
+    //Read servo position values from EEPROM
 
 	uint8_t RaisedPositiondata8;
-	offset = 0x114;
+	offset = AUTOHOMEOFFSET + 0x14;
 	eeprom_read_block((void*)&RaisedPositiondata8, (const void*)offset, 1); //read direction
 
 
@@ -592,20 +594,23 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
     int32_t x = 0;
 	int32_t y = 0;
 	int32_t z = 0; //Zero all
-	int32_t dda = feedrateZ; // max feedrate for XY stage
+	int32_t dda = feedrateZ; // max feedrate for Z stage
 	steppers::setTarget(Point(x,y,z),dda); //move everything to 000
 
-	currentStep = 4;
+	currentStep = 4; //end script
 
 
 }
 }
+
+
 /**
 **Auto Home Subroutines
 **/
 
+
 void autoHomeStep1() {
-int32_t x = 0; //set x. Zero current position
+    int32_t x = 0; //set x. Zero current position
 	int32_t y = 0; //set y
 	int32_t z = 0; //set z
 	steppers::definePosition(Point(x,y,z)); //set the position in steps
@@ -652,15 +657,123 @@ void autoHomeStep2() {
             }
             EEPROM_direction[2] = 0; //dont home Z
 
-            steppers::startHoming(EEPROM_direction, feedrateXY);
+            steppers::startHoming(EEPROM_direction, feedrateXY); //home XY
 
             //need to redirect to other current step
-            currentstep = 5;
+            currentStep = 5; //next ZProbe step
         } else { //if Z-Probe is not installed then proceed as normal
     StartHomeCarefully(EEPROM_direction, feedrateXY, feedrateZ); //home carefully!
     currentStep = 3;
         }
     }
+}
+
+void autoHomeZProbeStep1() {
+//wait till XY homing is done.
+//center XY, lower servo.
+if (!steppers::isRunning()) {
+
+    //recover our original directions
+    for (int i = 0; i < STEPPER_COUNT; i++) {
+            EEPROM_direction[i] = other_axis_flags[i]; //read a snapshot of the directions.
+    }
+
+    int32_t x = 0; //set x at zero (we are at endstop)
+	int32_t y = 0; //set y
+	int32_t z = 0; //set z (we are not at endstop but this is still ok.)
+	steppers::definePosition(Point(x,y,z)); //set the position in steps
+	//next move back up the read amount (aka build platform center)
+
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+	if (EEPROM_direction[i] == 2 || EEPROM_direction[i] == 3) { //If the direction homed was up, then make the direction to move negative.(this applies to Z_Probes)
+	EEPROM_DATA[i] = -EEPROM_DATA[i];
+	}
+	}
+
+    steppers::setTarget(Point(EEPROM_DATA[0],EEPROM_DATA[1],0), feedrateXY); // Center XY
+
+    //Lower servo.
+    //Read servo position values from EEPROM
+
+	uint8_t LoweredPositiondata8;
+	int16_t offset = AUTOHOMEOFFSET + 0x15;
+	eeprom_read_block((void*)&LoweredPositiondata8, (const void*)offset, 1); //read direction
+
+
+    //To lower the servo you must send these commands:
+    Timeout acquire_lock_timeout; //try to get a lock on the extruder.
+	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MS);
+	while (!tool::getLock()) {
+		if (acquire_lock_timeout.hasElapsed()) {
+			return;
+		}
+	} //locked!
+	OutPacket& out = tool::getOutPacket();
+	out.reset();
+	out.append8(0); // TODO: tool index
+	out.append8(SLAVE_CMD_SET_SERVO_2_POS); //send command
+	out.append8(LoweredPositiondata8); //send pos (From EEPROM)
+	tool::startTransaction(); //Send!
+	tool::releaseLock(); //clean up after yourself.
+	//go to next command.
+	currentStep = 6;
+
+
+}
+}
+
+void autoHomeZProbeStep2() {
+//wait till the platform is centered then home the ZAxis down
+if (!steppers::isRunning()) {
+    EEPROM_direction[0] = 0;
+    EEPROM_direction[1] = 0;
+    steppers::startHoming(EEPROM_direction, feedrateZ); //home XY
+
+    //go to next step
+    currentStep = 7;
+}
+}
+
+void autoHomeZProbeStep3() {
+    //ZProbe. after homing, lift servo and lower by amount saved in EEPROM (the probe is longer than the nozzle)
+    //Center everything and go to last step (quit script)
+    if (!steppers::isRunning()) {
+    //Lift servo.
+    //Read servo position values from EEPROM
+	uint8_t RaisedPositiondata8;
+	int16_t offset = AUTOHOMEOFFSET + 0x14;
+	eeprom_read_block((void*)&RaisedPositiondata8, (const void*)offset, 1); //read direction
+
+
+    //To lower the servo you must send these commands:
+    Timeout acquire_lock_timeout; //try to get a lock on the extruder.
+	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MS);
+	while (!tool::getLock()) {
+		if (acquire_lock_timeout.hasElapsed()) {
+			return;
+		}
+	} //locked!
+	OutPacket& out = tool::getOutPacket();
+	out.reset();
+	out.append8(0); // TODO: tool index
+	out.append8(SLAVE_CMD_SET_SERVO_2_POS); //send command
+	out.append8(RaisedPositiondata8); //send pos (From EEPROM)
+	tool::startTransaction(); //Send!
+	tool::releaseLock(); //clean up after yourself.
+
+	//set z to zero (we are at endstop)
+	int32_t x = EEPROM_DATA[0]; //set x at zero (we are at endstop)
+	int32_t y = EEPROM_DATA[1]; //set y
+	int32_t z = 0; //set z (we are not at endstop but this is still ok.)
+	steppers::definePosition(Point(x,y,z)); //set the position in steps
+
+
+	steppers::setTarget(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), feedrateZ); // Center all (mainly Z)
+    //go to clean up step
+    currentStep = 4;
+
+    }
+
 }
 
 void autoHomeStep3() {
@@ -693,7 +806,7 @@ currentStep = 4;
 
 void autoHomeFinalEnd() {
     //check if the script has ended then end the script.
-if (LowScriptRunning == NOTRUNNING) {
+if (LowScriptRunning == NOTRUNNING && !steppers::isRunning()) {
 steppers::definePosition(Point(0,0,0)); //set the position in steps to zero (we are at center of BP)
 currentStep = 0;
 ScriptRunning = NONE;

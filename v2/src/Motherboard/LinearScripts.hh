@@ -66,6 +66,12 @@ void autoHomeStep2();
 
 void autoHomeStep3();
 
+void autoHomeZProbeStep1();
+
+void autoHomeZProbeStep2();
+
+void autoHomeZProbeStep3();
+
 void autoHomeFinalEnd();
 
 }
