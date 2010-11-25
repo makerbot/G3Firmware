@@ -74,6 +74,18 @@ void autoHomeZProbeStep3();
 
 void autoHomeFinalEnd();
 
+//Move carefully subroutines
+
+void moveCarefullyStep1();
+
+void moveCarefullyStep2();
+
+void moveCarefullyStep3();
+
+void moveCarefullyStep4();
+
+void moveCarefullyFinalEnd();
+
 }
 
 #endif // LinearScripts_HH_

@@ -86,6 +86,7 @@ int32_t EEPROM_DATA[4] = {0,0,0,0}; //Array to hold the 32bit read values.
 
 //varibles for the Movecarefully script.
 Point target;
+int32_t Z_Offset; //z offset for the move carefully script.
 
 //varibles for the homecarefully script
 uint8_t homeDirection[STEPPER_COUNT];
@@ -100,7 +101,11 @@ pointer2Subroutine FirstTimeHomeSubroutineFunctionPointer[] = {&firstTimeHomeSte
 //Zero indexed.
 
 pointer2Subroutine AutoHomeSubroutineFunctionPointer[] = {&autoHomeStep1, &autoHomeStep2, &autoHomeStep3, &autoHomeFinalEnd,
-&autoHomeZProbeStep1, &autoHomeZProbeStep2, &autoHomeZProbeStep3,}; //pointer function array of all of the subroutines of AutoHome
+&autoHomeZProbeStep1, &autoHomeZProbeStep2, &autoHomeZProbeStep3}; //pointer function array of all of the subroutines of AutoHome
+
+pointer2Subroutine MoveCarefullySubroutineFunctionPointer[] = {&moveCarefullyStep1, &moveCarefullyStep2, &moveCarefullyStep3,
+&moveCarefullyStep4, &moveCarefullyFinalEnd}; //pointer function array of all of the subroutines of Move Carefully
+
 
 
 bool isRunning() { //program that can be called elsewhere in the firmware to check if the scripts are running or not. (False if not running)
@@ -136,7 +141,7 @@ void StartMoveCarefully(const Point& targetT, int32_t Z_offsetT, uint32_t XYfeed
 lowScriptStep = 1;
 LowScriptRunning = MOVECAREFULLY;
 target = targetT;
-zOffset = Z_offsetT;
+Z_Offset = Z_offsetT;
 feedrateXY = XYfeedrateTemp;
 feedrateZ = ZfeedrateTemp;
 }
@@ -165,64 +170,24 @@ if (ScriptRunning == FIRSTAUTOHOME) {
 switch (lowScriptStep) {
 
 case 1: {
-if (zOffset < 0) { //if the z offset is negative (this should not usually happen). assume we want to Center the XY before Z (as if we are centering the Z stage in the - direction) AKA from the top.
-	Point currentPosition = steppers::getPosition();
-	int32_t x = target[0]; //Move XY
-	int32_t y = target[1];
-	int32_t z = currentPosition[2]; //Leave this alone.
-	int32_t dda = feedrateXY; // max feedrate for XY stage
-	steppers::setTarget(Point(x,y,z),dda); //move XY
-	lowScriptStep = 2;
-} else { //we must be moving in the positive direction so move Z before XY.
-	Point currentPosition = steppers::getPosition();
-	int32_t x = currentPosition[0]; //leave these were they are
-	int32_t y = currentPosition[1];
-	int32_t z = target[2] + zOffset; //move the Z stage back up to a bit above zero to avoid the BP hitting it.
-	int32_t dda = feedrateZ; // max feedrate for Z stage
-	steppers::setTarget(Point(x,y,z),dda);
-	lowScriptStep = 3;
-	}
-
+    //decide whether to move the XY stage first or the Z stage.
+    moveCarefullyStep1();
 break; }
 
-case 2: { //wait for XY stage
-if (!steppers::isRunning()){
-	int32_t x = target[0];
-	int32_t y = target[1];
-	int32_t z = target[2]; //move Z down
-	int32_t dda = feedrateZ; // max feedrate for Z stage
-	steppers::setTarget(Point(x,y,z),dda); //move everything
-	lowScriptStep = 5; //wait to say that you are finished.
-	}
+case 2: { //wait for XY stage to finish homing
+    moveCarefullyStep2();
 break; }
 
 case 3: { //wait for Z
-if (!steppers::isRunning()) {
-	int32_t x = target[0];
-	int32_t y = target[1];
-	int32_t z = target[2] + zOffset; //keep this where it was
-	int32_t dda = feedrateXY; // max feedrate for XY stage
-	steppers::setTarget(Point(x,y,z),dda); //move everything back up
-	lowScriptStep = 4;
-	}
+    moveCarefullyStep3();
 break; }
 
 case 4: { //wait for XY
-if (!steppers::isRunning()) {
-	int32_t x = target[0];
-	int32_t y = target[1];
-	int32_t z = target[2]; //move back down to 000
-	int32_t dda = feedrateZ; // max feedrate for Z stage
-	steppers::setTarget(Point(x,y,z),dda); //move everything back up
-	lowScriptStep = 5; //wait to say that this script is finished
-}
+    moveCarefullyStep4();
 break; }
 
 case 5: { //script finished.
-if (!steppers::isRunning()) {
-lowScriptStep = 0;
-LowScriptRunning = NONE;
-}
+    moveCarefullyFinalEnd();
 }
 
 
@@ -299,12 +264,7 @@ break; }
 }
 }
 
-
-
-
-
-
-	}
+}
 
 
 
@@ -312,6 +272,10 @@ break; }
 	**
 	Start of the individual subroutines for each step.
 	**
+	**/
+
+	/**
+	**First Time Home (calibration) subroutines
 	**/
 
 
@@ -740,7 +704,80 @@ ScriptRunning = NONE;
 }
 
 }
+
+
+
+/**
+**Move carefully subroutine steps
+**/
+
+void moveCarefullyStep1() {
+//check all of the passed varibles and decide whether to center XY first or move Z first.
+
+if (Z_Offset < 0) { //if the z offset is negative (this should not usually happen). assume we want to Center the XY before Z (as if we are centering the Z stage in the - direction) AKA from the top.
+	Point currentPosition = steppers::getPosition();
+	int32_t x = target[0]; //Move XY
+	int32_t y = target[1];
+	int32_t z = currentPosition[2]; //Leave this alone.
+	int32_t dda = feedrateXY; // max feedrate for XY stage
+	steppers::setTarget(Point(x,y,z),dda); //move XY
+	lowScriptStep = 1;
+} else { //we must be moving in the positive direction so move Z before XY.
+	Point currentPosition = steppers::getPosition();
+	int32_t x = currentPosition[0]; //leave these were they are
+	int32_t y = currentPosition[1];
+	int32_t z = target[2] + Z_Offset; //move the Z stage back up to a bit above zero to avoid the BP hitting it.
+	int32_t dda = feedrateZ; // max feedrate for Z stage
+	steppers::setTarget(Point(x,y,z),dda);
+	lowScriptStep = 2;
+	}
+
+
+}
+
+void moveCarefullyStep2() {
+//wait for XY stage to finish moving
+if (!steppers::isRunning()){
+	int32_t x = target[0];
+	int32_t y = target[1];
+	int32_t z = target[2]; //move Z down
+	int32_t dda = feedrateZ; // max feedrate for Z stage
+	steppers::setTarget(Point(x,y,z),dda); //move everything
+	lowScriptStep = 4; //wait to say that you are finished.
+	}
+}
+
+void moveCarefullyStep3() {
+//wait for Z
+if (!steppers::isRunning()) {
+	int32_t x = target[0];
+	int32_t y = target[1];
+	int32_t z = target[2] + Z_Offset; //keep this where it was
+	int32_t dda = feedrateXY; // max feedrate for XY stage
+	steppers::setTarget(Point(x,y,z),dda); //move everything back up
+	lowScriptStep = 3;
+	}
+}
+
+void moveCarefullyStep4() {
+ //wait for XY
+if (!steppers::isRunning()) {
+	int32_t x = target[0];
+	int32_t y = target[1];
+	int32_t z = target[2]; //move back down to 000
+	int32_t dda = feedrateZ; // max feedrate for Z stage
+	steppers::setTarget(Point(x,y,z),dda); //move everything back up
+	lowScriptStep = 4; //wait to say that this script is finished
+}
+}
+
+void moveCarefullyFinalEnd() {
+//script finished. Cleanup time!
+if (!steppers::isRunning()) {
+lowScriptStep = -1;
+LowScriptRunning = NONE;
+}
 }
 
 
-
+}
