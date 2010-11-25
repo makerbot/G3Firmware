@@ -73,7 +73,7 @@ namespace scripts {
 	HOMECAREFULLY
 } ScriptRunning = NONE, LowScriptRunning = NONE;
 
-volatile int currentStep = 0;
+volatile int currentStep = -1;
 volatile int lowScriptStep = 0;
 
 uint8_t direction[STEPPER_COUNT]; //homing directions from ReplicatorG
@@ -92,10 +92,15 @@ uint8_t homeDirection[STEPPER_COUNT];
 uint8_t other_axis_flags[STEPPER_COUNT];
 
 //Function Pointers
-typedef void (*pointer2Subroutine)(); //FirstTimeHome function pointer type
+typedef void (*pointer2Subroutine)(); //function pointer type
+
 pointer2Subroutine FirstTimeHomeSubroutineFunctionPointer[] = {&firstTimeHomeStep1,
 &firstTimeHomeStep2, &firstTimeHomeStep3,&firstTimeHomeFinal, &firstTimeHomeWithZProbeStep1,
 &firstTimeHomeWithZProbeStep2, &firstTimeHomeWithZProbeStep3 }; //pointer function array of all of the subroutines of FirstTimeHome
+//Zero indexed.
+
+pointer2Subroutine AutoHomeSubroutineFunctionPointer[] = {&autoHomeStep1, &autoHomeStep2, &autoHomeStep3, &autoHomeFinalEnd,
+&autoHomeZProbeStep1, &autoHomeZProbeStep2, &autoHomeZProbeStep3,}; //pointer function array of all of the subroutines of AutoHome
 
 
 bool isRunning() { //program that can be called elsewhere in the firmware to check if the scripts are running or not. (False if not running)
@@ -108,7 +113,7 @@ return true;
 
 void StartFirstAutoHome(uint8_t directionTemp[],uint32_t XYfeedrateTemp, uint32_t ZfeedrateTemp, uint16_t timeout_sTemp) {
 //start the FirstAutoHome script
-currentStep = 1; //start at the begining.
+currentStep = 0; //start at the begining.
 ScriptRunning = FIRSTAUTOHOME;
 for (int i = 0; i < STEPPER_COUNT; i++) {
 direction[i] = directionTemp[i];
@@ -120,7 +125,7 @@ timeout_s = timeout_sTemp;
 
 void StartAutoHome(uint32_t XYfeedrateTemp, uint32_t ZfeedrateTemp, uint16_t timeout_sTemp) {
 //start the AutoHome script
-currentStep = 1; //start at the begining.
+currentStep = 0; //start at the begining.
 ScriptRunning = AUTOHOME;
 feedrateXY = XYfeedrateTemp;
 feedrateZ = ZfeedrateTemp;
@@ -149,97 +154,11 @@ feedrateZ = ZfeedrateTemp;
 void RunScripts() { //script that checks if the makerbot can continue a script.
 if (LowScriptRunning == NONE) {
 if (ScriptRunning == FIRSTAUTOHOME) {
-//check if we can advance.
-switch (currentStep) {
-
-case 1: { //Step one. Get directions and decide whether to move up or not before homing.
-	firstTimeHomeStep1();
-break; }
-
-case 2: { //start homing (includes Z-Probe)
-	firstTimeHomeStep2();
-break; }
-
-case 3: { //Homing is done. Save everything is EEPROM
-firstTimeHomeStep3();
-break; }
-
-case 4: {
-firstTimeHomeFinal();
-break;}
-
-case 5: { //wait for XY homing to finish
-//proceed with ZProbe
-//save XY pos then center
-//lower servo
-    firstTimeHomeWithZProbeStep1();
-break; }
-
-
-case 6: { //wait for XY centering to finish
-//proceed with ZProbe
-//Home down
-    firstTimeHomeWithZProbeStep2();
-break; }
-
-case 7: { //wait for zhoming to finish
-//proceed with ZProbe
-//save pos raise servo and center all
-    firstTimeHomeWithZProbeStep3();
-break; }
-
-
-
-//default:
-//nothing to do.
-
-
-}
+    FirstTimeHomeSubroutineFunctionPointer[currentStep](); //run the function based on current step
 
 } else if (ScriptRunning == AUTOHOME) {
-switch (currentStep) {
-case 1: {
-	//Zero current position (to prevent some sort of stepper overflow)
-	//Then read the directions to home from EEPROM
-	//and decide whether the bot should lift before homing (depending on the directions)
-
-	autoHomeStep1();
-break; }
-
-case 2: {
-    //wait 'till step 1 is done, before commencing the homing sequence. (Including for ZProbe)
-    autoHomeStep2();
-break; }
-
-case 3: {
-    //If the previous step is done, then move carefully to the 0,0,0 position.
-    autoHomeStep3();
-break; }
-
-case 4: {
-    //Wait for the end of the script then save the current pos at 000 and reset scripts.
-    autoHomeFinalEnd();
-break; }
-
-case 5: {
-    //ZProbe. Wait till XY is done homing, then center and lower servo.
-    autoHomeZProbeStep1();
-break; }
-
-case 6: {
-    //ZProbe. Home Z down. (After centered)
-    autoHomeZProbeStep2();
-break; }
-
-
-case 7: {
-    //ZProbe. after homing, lift servo and lower by amount saved in EEPROM (the probe is longer than the nozzle)
-    //Center everything and go to last step (quit script)
-    autoHomeZProbeStep3();
-break; }
-
-}
-
+    //run the function based on current step. (using a array of function pointers)
+    AutoHomeSubroutineFunctionPointer[currentStep]();
 }
 
 } else if (LowScriptRunning == MOVECAREFULLY) {
@@ -407,7 +326,7 @@ void firstTimeHomeStep1() {
 	int8_t data8; //temporary varible
 	int16_t offset; //this is where in eeprom we should start saving/reading.
 
-	currentStep = 2;
+	currentStep = 1;
 	//home carefully! We don't want to break anything!
 	if (direction[2] == 1 || direction[2] == 3) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining.
 		offset = AUTOHOMEOFFSET + 0xF; //offset of the saved Z offset amount.
@@ -426,11 +345,11 @@ void firstTimeHomeStep2() {
 		}
 		direction[2] = 0; //don't home Z
 		steppers::startHoming(direction,feedrateXY); //home the others (XY)
-		currentStep = 5; //skip to case 5
+		currentStep = 4; //skip to case 4
 
 	} else { //if zprobe is not is use then proceed as normal
 		StartHomeCarefully(direction, feedrateXY, feedrateZ);
-		currentStep = 3;
+		currentStep = 2;
 	}
 	}
 	}
@@ -466,7 +385,7 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
        } else if (direction[2] == 2) { //if positive then move XY before Z
        StartMoveCarefully(Point(0,0,0), -1, feedrateXY, feedrateZ); // move to 000 with a z offset of -1 (aka none.) Also tells the subroutine to move XY before Z..
                                                }
-       currentStep = 4;
+       currentStep = 3;
                                                }
 
 }
@@ -474,7 +393,7 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 void firstTimeHomeFinal() {
 //wait for the script to finish before finishing the first autohome.
 if (LowScriptRunning == NONE && !steppers::isRunning()) {
-currentStep = 0;
+currentStep = -1;
 ScriptRunning = NONE;
 }
 }
@@ -541,7 +460,7 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 	tool::releaseLock(); //clean up after yourself.
 
 
-	currentStep = 6;
+	currentStep = 5;
 
 }
 }
@@ -556,7 +475,7 @@ if (!steppers::isRunning()) {
 	direction[1] = 0; //don't home Y
     steppers::startHoming(direction,feedrateZ); //home the Z axis.
 
-currentStep = 7;
+currentStep = 6;
 }
 }
 
@@ -605,7 +524,7 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 	int32_t dda = feedrateZ; // max feedrate for Z stage
 	steppers::setTarget(Point(x,y,z),dda); //move everything to 000
 
-	currentStep = 4; //end script
+	currentStep = 3; //end script
 
 
 }
@@ -646,7 +565,7 @@ void autoHomeStep1() {
 
 	}
 	//direction = (EEPROM_direction > 0);
-	currentStep = 2;
+	currentStep = 1;
 
 	if (EEPROM_direction[2] == 1 || EEPROM_direction[2] == 3) { //if we are homing down, it would be a good idea to lift the zstage a bit before begining. (Just in case)
 		steppers::setTarget(Point(0,0,EEPROM_DATA[3]), feedrateZ); // move to zoffset
@@ -668,10 +587,10 @@ void autoHomeStep2() {
             steppers::startHoming(EEPROM_direction, feedrateXY); //home XY
 
             //need to redirect to other current step
-            currentStep = 5; //next ZProbe step
+            currentStep = 4; //next ZProbe step
         } else { //if Z-Probe is not installed then proceed as normal
     StartHomeCarefully(EEPROM_direction, feedrateXY, feedrateZ); //home carefully!
-    currentStep = 3;
+    currentStep = 2;
         }
     }
 }
@@ -724,7 +643,7 @@ if (!steppers::isRunning()) {
 	tool::startTransaction(); //Send!
 	tool::releaseLock(); //clean up after yourself.
 	//go to next command.
-	currentStep = 6;
+	currentStep = 5;
 
 
 }
@@ -738,7 +657,7 @@ if (!steppers::isRunning()) {
     steppers::startHoming(EEPROM_direction, feedrateZ); //home XY
 
     //go to next step
-    currentStep = 7;
+    currentStep = 6;
 }
 }
 
@@ -778,7 +697,7 @@ void autoHomeZProbeStep3() {
 
 	steppers::setTarget(Point(EEPROM_DATA[0],EEPROM_DATA[1],EEPROM_DATA[2]), feedrateZ); // Center all (mainly Z)
     //go to clean up step
-    currentStep = 4;
+    currentStep = 3;
 
     }
 
@@ -807,7 +726,7 @@ if (LowScriptRunning == NONE) {
 }
 
 
-currentStep = 4;
+currentStep = 3;
 
 }
 }
@@ -816,7 +735,7 @@ void autoHomeFinalEnd() {
     //check if the script has ended then end the script.
 if (LowScriptRunning == NONE && !steppers::isRunning()) {
 steppers::definePosition(Point(0,0,0)); //set the position in steps to zero (we are at center of BP)
-currentStep = 0;
+currentStep = -1;
 ScriptRunning = NONE;
 }
 
