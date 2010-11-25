@@ -167,31 +167,9 @@ if (ScriptRunning == FIRSTAUTOHOME) {
 }
 
 } else if (LowScriptRunning == MOVECAREFULLY) {
-switch (lowScriptStep) {
+    //run current step by using a array of function pointers.
+    MoveCarefullySubroutineFunctionPointer[lowScriptStep]();
 
-case 1: {
-    //decide whether to move the XY stage first or the Z stage.
-    moveCarefullyStep1();
-break; }
-
-case 2: { //wait for XY stage to finish homing
-    moveCarefullyStep2();
-break; }
-
-case 3: { //wait for Z
-    moveCarefullyStep3();
-break; }
-
-case 4: { //wait for XY
-    moveCarefullyStep4();
-break; }
-
-case 5: { //script finished.
-    moveCarefullyFinalEnd();
-}
-
-
-}
 } else if (LowScriptRunning == HOMECAREFULLY) { //AUTOHOME subroutine
 switch (lowScriptStep) {
 
