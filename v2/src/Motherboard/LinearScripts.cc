@@ -1,6 +1,6 @@
 
 /*
- * This file was created by Makerbot Industries intern Winter on September 2010.
+ * This file was created by Makerbot Industries Intern Winter on September 2010.
  *
  * Copyright 2010 by Adam Mayer	 <adam@makerbot.com>
  *
@@ -18,9 +18,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
- //This file is for scripts that take a very long time to run (such as homing scripts and nozzle wipes). It contains two levels. The higher script level and the lower script level. The higher level is where the actual program is written, where as the lower level contains all of the subroutines. When a lower script is called, the higher script pauses and waits untill the lower script finishes.
+/*
+This file is for scripts that take a very long time to run (such as homing scripts and nozzle wipes).
+It contains two levels. The higher script level and the lower script level.
+The higher level is where the actual program is written, where as the lower level contains all of the subroutines.
+When a lower script is called, the higher script pauses and waits until the lower script finishes.
+*/
 
- //The scripts in this file repeatedly poll themselves and move on, instead of polling themselves and then just waiting 'till they can move on. This way the motherboard can still attend to the other things it might have to do (like maintaining contact with a connected computer) and not too much time is wasted.
+/*
+The scripts in this file repeatedly poll themselves and move on,
+instead of polling themselves and then just waiting 'till they can move on.
+This way the motherboard can still attend to the other things it might have to do
+(like maintaining contact with a connected computer) and not too much time is wasted.
+*/
+
 
 #define __STDC_LIMIT_MACROS
 #include "LinearScripts.hh"
@@ -35,7 +46,7 @@
                                 //Change this to move the save location for the data.
 
 #define HOST_TOOL_RESPONSE_TIMEOUT_MS 50 //Timeouts for when the Z-Probe is communicating with the extruder.
-#define HOST_TOOL_RESPONSE_TIMEOUT_MICROS (1000L*HOST_TOOL_RESPONSE_TIMEOUT_MS)
+#define HOST_TOOL_RESPONSE_TIMEOUT_MICROS (1000L*HOST_TOOL_RESPONSE_TIMEOUT_MS) //Micros version of the Z-Probe comm timeout
 
 
     /*
@@ -58,36 +69,33 @@ namespace scripts {
 	NONE,
 	FIRSTAUTOHOME,
 	AUTOHOME,
-} ScriptRunning = NONE;
-
- enum { //possible states for the lower script.
-	NOTRUNNING,
 	MOVECAREFULLY,
-	HOMECAREFULLY,
-} LowScriptRunning = NOTRUNNING;
+	HOMECAREFULLY
+} ScriptRunning = NONE, LowScriptRunning = NONE;
 
 volatile int currentStep = 0;
 volatile int lowScriptStep = 0;
 
-uint8_t flags; //varibles for the autohoming scripts.
-uint8_t direction[STEPPER_COUNT];
+uint8_t direction[STEPPER_COUNT]; //homing directions from ReplicatorG
 uint32_t feedrateXY; //ReplicatorG defined feedrate for the XY stage moves
 uint32_t feedrateZ; //Replicatorg defined feedrate for the Z stage moves
-uint16_t timeout_s; //Time 'till abort
-int32_t zOffset; //varible to save the read amount for the Z Offset.s
+uint16_t timeout_s; //TODO: Time 'till abort (not currently used)
+int32_t zOffset; //varible to save the read amount for the Z Offset.
 uint8_t EEPROM_direction[STEPPER_COUNT]; //direction setting saved in EEPROM
 int32_t EEPROM_DATA[4] = {0,0,0,0}; //Array to hold the 32bit read values.
 
 //varibles for the Movecarefully script.
 Point target;
-int32_t Z_offset;
 
 //varibles for the homecarefully script
 uint8_t homeDirection[STEPPER_COUNT];
-uint8_t homeFlags;
-uint32_t XYhomeFeedrate;
-uint32_t ZhomeFeedrate;
 uint8_t other_axis_flags[STEPPER_COUNT];
+
+//Function Pointers
+typedef void (*pointer2Subroutine)(); //FirstTimeHome function pointer type
+pointer2Subroutine FirstTimeHomeSubroutineFunctionPointer[] = {&firstTimeHomeStep1,
+&firstTimeHomeStep2, &firstTimeHomeStep3,&firstTimeHomeFinal, &firstTimeHomeWithZProbeStep1,
+&firstTimeHomeWithZProbeStep2, &firstTimeHomeWithZProbeStep3 }; //pointer function array of all of the subroutines of FirstTimeHome
 
 
 bool isRunning() { //program that can be called elsewhere in the firmware to check if the scripts are running or not. (False if not running)
@@ -123,9 +131,9 @@ void StartMoveCarefully(const Point& targetT, int32_t Z_offsetT, uint32_t XYfeed
 lowScriptStep = 1;
 LowScriptRunning = MOVECAREFULLY;
 target = targetT;
-Z_offset = Z_offsetT;
-XYhomeFeedrate = XYfeedrateTemp;
-ZhomeFeedrate = ZfeedrateTemp;
+zOffset = Z_offsetT;
+feedrateXY = XYfeedrateTemp;
+feedrateZ = ZfeedrateTemp;
 }
 
 void StartHomeCarefully(uint8_t directionTemp[], uint32_t XYfeedrateTemp, uint32_t ZfeedrateTemp) {
@@ -134,12 +142,12 @@ LowScriptRunning = HOMECAREFULLY;
 for (int i = 0; i < STEPPER_COUNT; i++) {
 homeDirection[i] = directionTemp[i];
 }
-XYhomeFeedrate = XYfeedrateTemp;
-ZhomeFeedrate = ZfeedrateTemp;
+feedrateXY = XYfeedrateTemp;
+feedrateZ = ZfeedrateTemp;
 }
 
 void RunScripts() { //script that checks if the makerbot can continue a script.
-if (LowScriptRunning == NOTRUNNING) {
+if (LowScriptRunning == NONE) {
 if (ScriptRunning == FIRSTAUTOHOME) {
 //check if we can advance.
 switch (currentStep) {
@@ -238,20 +246,20 @@ break; }
 switch (lowScriptStep) {
 
 case 1: {
-if (Z_offset < 0) { //if the z offset is negative (this should not usually happen). assume we want to Center the XY before Z (as if we are centering the Z stage in the - direction) AKA from the top.
+if (zOffset < 0) { //if the z offset is negative (this should not usually happen). assume we want to Center the XY before Z (as if we are centering the Z stage in the - direction) AKA from the top.
 	Point currentPosition = steppers::getPosition();
 	int32_t x = target[0]; //Move XY
 	int32_t y = target[1];
 	int32_t z = currentPosition[2]; //Leave this alone.
-	int32_t dda = XYhomeFeedrate; // max feedrate for XY stage
+	int32_t dda = feedrateXY; // max feedrate for XY stage
 	steppers::setTarget(Point(x,y,z),dda); //move XY
 	lowScriptStep = 2;
 } else { //we must be moving in the positive direction so move Z before XY.
 	Point currentPosition = steppers::getPosition();
 	int32_t x = currentPosition[0]; //leave these were they are
 	int32_t y = currentPosition[1];
-	int32_t z = target[2] + Z_offset; //move the Z stage back up to a bit above zero to avoid the BP hitting it.
-	int32_t dda = ZhomeFeedrate; // max feedrate for Z stage
+	int32_t z = target[2] + zOffset; //move the Z stage back up to a bit above zero to avoid the BP hitting it.
+	int32_t dda = feedrateZ; // max feedrate for Z stage
 	steppers::setTarget(Point(x,y,z),dda);
 	lowScriptStep = 3;
 	}
@@ -263,7 +271,7 @@ if (!steppers::isRunning()){
 	int32_t x = target[0];
 	int32_t y = target[1];
 	int32_t z = target[2]; //move Z down
-	int32_t dda = ZhomeFeedrate; // max feedrate for Z stage
+	int32_t dda = feedrateZ; // max feedrate for Z stage
 	steppers::setTarget(Point(x,y,z),dda); //move everything
 	lowScriptStep = 5; //wait to say that you are finished.
 	}
@@ -273,8 +281,8 @@ case 3: { //wait for Z
 if (!steppers::isRunning()) {
 	int32_t x = target[0];
 	int32_t y = target[1];
-	int32_t z = target[2] + Z_offset; //keep this where it was
-	int32_t dda = XYhomeFeedrate; // max feedrate for XY stage
+	int32_t z = target[2] + zOffset; //keep this where it was
+	int32_t dda = feedrateXY; // max feedrate for XY stage
 	steppers::setTarget(Point(x,y,z),dda); //move everything back up
 	lowScriptStep = 4;
 	}
@@ -285,7 +293,7 @@ if (!steppers::isRunning()) {
 	int32_t x = target[0];
 	int32_t y = target[1];
 	int32_t z = target[2]; //move back down to 000
-	int32_t dda = ZhomeFeedrate; // max feedrate for Z stage
+	int32_t dda = feedrateZ; // max feedrate for Z stage
 	steppers::setTarget(Point(x,y,z),dda); //move everything back up
 	lowScriptStep = 5; //wait to say that this script is finished
 }
@@ -294,7 +302,7 @@ break; }
 case 5: { //script finished.
 if (!steppers::isRunning()) {
 lowScriptStep = 0;
-LowScriptRunning = NOTRUNNING;
+LowScriptRunning = NONE;
 }
 }
 
@@ -313,7 +321,7 @@ if (!steppers::isRunning()) {
 					other_axis_flags[i] = homeDirection[i]; //Save a snapshot of the directions
 					}
 					homeDirection[2] = 0; //don't home Z
-					steppers::startHoming(homeDirection,XYhomeFeedrate); //home the others (XY)
+					steppers::startHoming(homeDirection,feedrateXY); //home the others (XY)
 						lowScriptStep = 2;
 
 
@@ -325,10 +333,10 @@ if (!steppers::isRunning()) {
 						}
 
 						homeDirection[2] = 2; // Home Z up.
-					steppers::startHoming(homeDirection,ZhomeFeedrate); //home Z
+					steppers::startHoming(homeDirection,feedrateZ); //home Z
 						lowScriptStep = 3;
 	} else { //If it does not involve the Z axis, no special care is needed.
-						steppers::startHoming(homeDirection, XYhomeFeedrate);
+						steppers::startHoming(homeDirection, feedrateXY);
 							lowScriptStep = 4;
 							}
 				}
@@ -342,7 +350,7 @@ if (!steppers::isRunning()) {
 	}
 	homeDirection[2] = other_axis_flags[2];
 	//Home Z.
-	steppers::startHoming(homeDirection, ZhomeFeedrate);
+	steppers::startHoming(homeDirection, feedrateZ);
 	lowScriptStep = 4;
 break; }
 
@@ -353,7 +361,7 @@ homeDirection[i] = other_axis_flags[i]; //Home the rest of the axis (besides Z).
 }
 	//Home the rest of the axis (besides Z).
 	homeDirection[2] = 0;
-	steppers::startHoming(homeDirection, XYhomeFeedrate);
+	steppers::startHoming(homeDirection, feedrateXY);
 	lowScriptStep = 4;
 }
 break; }
@@ -362,7 +370,7 @@ case 4: {
 //wait till homing is done then reset low scripts.
 if (!steppers::isRunning()) {
 lowScriptStep = 0;
-LowScriptRunning = NOTRUNNING;
+LowScriptRunning = NONE;
 }
 break; }
 
@@ -429,7 +437,7 @@ void firstTimeHomeStep2() {
 
 void firstTimeHomeStep3() {
  //Homing is done.
-if (LowScriptRunning == NOTRUNNING) {
+if (LowScriptRunning == NONE) {
 
 Point currentPosition = steppers::getPosition(); //get position and put in point currentPosition
                                                //Squirrel everything into EEPROM for the long Winter.
@@ -465,7 +473,7 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 
 void firstTimeHomeFinal() {
 //wait for the script to finish before finishing the first autohome.
-if (LowScriptRunning == NOTRUNNING && !steppers::isRunning()) {
+if (LowScriptRunning == NONE && !steppers::isRunning()) {
 currentStep = 0;
 ScriptRunning = NONE;
 }
@@ -778,7 +786,7 @@ void autoHomeZProbeStep3() {
 
 void autoHomeStep3() {
     //If the previous step is done, then move carefully to the 0,0,0 position.
-if (LowScriptRunning == NOTRUNNING) {
+if (LowScriptRunning == NONE) {
 	int32_t x = 0; //set x at zero (we are at endstop)
 	int32_t y = 0; //set y
 	int32_t z = 0; //set z
@@ -806,7 +814,7 @@ currentStep = 4;
 
 void autoHomeFinalEnd() {
     //check if the script has ended then end the script.
-if (LowScriptRunning == NOTRUNNING && !steppers::isRunning()) {
+if (LowScriptRunning == NONE && !steppers::isRunning()) {
 steppers::definePosition(Point(0,0,0)); //set the position in steps to zero (we are at center of BP)
 currentStep = 0;
 ScriptRunning = NONE;
