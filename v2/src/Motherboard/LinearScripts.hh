@@ -86,6 +86,15 @@ void moveCarefullyStep4();
 
 void moveCarefullyFinalEnd();
 
+//Home Carefully subroutines
+
+void homeCarefullyStep1();
+
+void homeCarefullyStep2();
+
+void homeCarefullyStep3();
+
+void homeCarefullyFinalEnd();
 }
 
 #endif // LinearScripts_HH_

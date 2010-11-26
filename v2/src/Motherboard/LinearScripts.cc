@@ -138,7 +138,7 @@ timeout_s = timeout_sTemp;
 }
 
 void StartMoveCarefully(const Point& targetT, int32_t Z_offsetT, uint32_t XYfeedrateTemp, uint32_t ZfeedrateTemp) {
-lowScriptStep = 1;
+lowScriptStep = 0;
 LowScriptRunning = MOVECAREFULLY;
 target = targetT;
 Z_Offset = Z_offsetT;
@@ -147,7 +147,7 @@ feedrateZ = ZfeedrateTemp;
 }
 
 void StartHomeCarefully(uint8_t directionTemp[], uint32_t XYfeedrateTemp, uint32_t ZfeedrateTemp) {
-lowScriptStep = 1;
+lowScriptStep = 0;
 LowScriptRunning = HOMECAREFULLY;
 for (int i = 0; i < STEPPER_COUNT; i++) {
 homeDirection[i] = directionTemp[i];
@@ -174,66 +174,22 @@ if (ScriptRunning == FIRSTAUTOHOME) {
 switch (lowScriptStep) {
 
 case 1: {
-if (!steppers::isRunning()) {
-//proceed with homing.
-
-	if (homeDirection[2] == 1) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction then home carefully.
-					//Don't home Z.
-					for (int i = 0; i < STEPPER_COUNT; i++) {
-					other_axis_flags[i] = homeDirection[i]; //Save a snapshot of the directions
-					}
-					homeDirection[2] = 0; //don't home Z
-					steppers::startHoming(homeDirection,feedrateXY); //home the others (XY)
-						lowScriptStep = 2;
-
-
-	} else if (homeDirection[2] == 2) { //else if we are homing the Z stage up then...
-						//home the z up before homing xy in the positive direction.
-						for (int i = 0; i < STEPPER_COUNT; i++) {
-						other_axis_flags[i] = homeDirection[i]; // Save axis besides Z to home.
-						homeDirection[i] = 0; //reset
-						}
-
-						homeDirection[2] = 2; // Home Z up.
-					steppers::startHoming(homeDirection,feedrateZ); //home Z
-						lowScriptStep = 3;
-	} else { //If it does not involve the Z axis, no special care is needed.
-						steppers::startHoming(homeDirection, feedrateXY);
-							lowScriptStep = 4;
-							}
-				}
+    //start the subroutine
+    homeCarefullyStep1();
 break; }
 
 case 2: {
 //wait till Xy is homed
-if (!steppers::isRunning()) {
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-	homeDirection[i] = 0;
-	}
-	homeDirection[2] = other_axis_flags[2];
-	//Home Z.
-	steppers::startHoming(homeDirection, feedrateZ);
-	lowScriptStep = 4;
+    homeCarefullyStep2();
 break; }
 
 case 3: {//wait till Z is homed
-if (!steppers::isRunning()) {
-for (int i = 0; i < STEPPER_COUNT; i++) {
-homeDirection[i] = other_axis_flags[i]; //Home the rest of the axis (besides Z).
-}
-	//Home the rest of the axis (besides Z).
-	homeDirection[2] = 0;
-	steppers::startHoming(homeDirection, feedrateXY);
-	lowScriptStep = 4;
-}
+    homeCarefullyStep3();
 break; }
 
 case 4: {
 //wait till homing is done then reset low scripts.
-if (!steppers::isRunning()) {
-lowScriptStep = 0;
-LowScriptRunning = NONE;
-}
+    homeCarefullyFinalEnd();
 break; }
 
 
@@ -242,7 +198,7 @@ break; }
 }
 }
 
-}
+
 
 
 
@@ -757,5 +713,76 @@ LowScriptRunning = NONE;
 }
 }
 
+
+/**
+**Home carefully subroutine steps
+**/
+
+void homeCarefullyStep1() {
+//start home carefully
+if (!steppers::isRunning()) {
+//proceed with homing.
+
+	if (homeDirection[2] == 1) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction then home carefully.
+					//Don't home Z.
+					for (int i = 0; i < STEPPER_COUNT; i++) {
+					other_axis_flags[i] = homeDirection[i]; //Save a snapshot of the directions
+					}
+					homeDirection[2] = 0; //don't home Z
+					steppers::startHoming(homeDirection,feedrateXY); //home the others (XY)
+						lowScriptStep = 1;
+
+
+	} else if (homeDirection[2] == 2) { //else if we are homing the Z stage up then...
+						//home the z up before homing xy in the positive direction.
+						for (int i = 0; i < STEPPER_COUNT; i++) {
+						other_axis_flags[i] = homeDirection[i]; // Save axis besides Z to home.
+						homeDirection[i] = 0; //reset
+						}
+
+						homeDirection[2] = 2; // Home Z up.
+					steppers::startHoming(homeDirection,feedrateZ); //home Z
+						lowScriptStep = 2;
+	} else { //If it does not involve the Z axis, no special care is needed.
+						steppers::startHoming(homeDirection, feedrateXY);
+							lowScriptStep = 3;
+							}
+				}
+
+}
+
+void homeCarefullyStep2() {
+//wait till Xy is homed
+if (!steppers::isRunning()) {
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+	homeDirection[i] = 0;
+	}
+	homeDirection[2] = other_axis_flags[2];
+	//Home Z.
+	steppers::startHoming(homeDirection, feedrateZ);
+	lowScriptStep = 3;
+	}
+}
+
+void homeCarefullyStep3() {
+//wait till Z is homed
+if (!steppers::isRunning()) {
+for (int i = 0; i < STEPPER_COUNT; i++) {
+homeDirection[i] = other_axis_flags[i]; //Home the rest of the axis (besides Z).
+}
+	//Home the rest of the axis (besides Z).
+	homeDirection[2] = 0;
+	steppers::startHoming(homeDirection, feedrateXY);
+	lowScriptStep = 3;
+}
+}
+
+void homeCarefullyFinalEnd() {
+//wait till homing is done then reset low scripts.
+if (!steppers::isRunning()) {
+lowScriptStep = -1;
+LowScriptRunning = NONE;
+}
+}
 
 }
