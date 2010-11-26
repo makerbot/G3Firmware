@@ -106,6 +106,9 @@ pointer2Subroutine AutoHomeSubroutineFunctionPointer[] = {&autoHomeStep1, &autoH
 pointer2Subroutine MoveCarefullySubroutineFunctionPointer[] = {&moveCarefullyStep1, &moveCarefullyStep2, &moveCarefullyStep3,
 &moveCarefullyStep4, &moveCarefullyFinalEnd}; //pointer function array of all of the subroutines of Move Carefully
 
+pointer2Subroutine HomeCarefullySubroutineFunctionPointer[] = {&homeCarefullyStep1, &homeCarefullyStep2, &homeCarefullyStep3,
+&homeCarefullyFinalEnd }; //pointer function array of all of the subroutines of Home Carefully
+
 
 
 bool isRunning() { //program that can be called elsewhere in the firmware to check if the scripts are running or not. (False if not running)
@@ -171,35 +174,10 @@ if (ScriptRunning == FIRSTAUTOHOME) {
     MoveCarefullySubroutineFunctionPointer[lowScriptStep]();
 
 } else if (LowScriptRunning == HOMECAREFULLY) { //AUTOHOME subroutine
-switch (lowScriptStep) {
-
-case 1: {
-    //start the subroutine
-    homeCarefullyStep1();
-break; }
-
-case 2: {
-//wait till Xy is homed
-    homeCarefullyStep2();
-break; }
-
-case 3: {//wait till Z is homed
-    homeCarefullyStep3();
-break; }
-
-case 4: {
-//wait till homing is done then reset low scripts.
-    homeCarefullyFinalEnd();
-break; }
-
-
-}
-
+    //run current step by using a array of function pointers.
+    HomeCarefullySubroutineFunctionPointer[lowScriptStep]();
 }
 }
-
-
-
 
 
 	/**
