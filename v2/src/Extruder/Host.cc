@@ -27,7 +27,9 @@
 #include "Version.hh"
 #include "MotorController.hh"
 #include "Main.hh"
+#include "EepromMap.hh"
 
+// Timeout from time first bit recieved until we abort packet reception
 Timeout packet_in_timeout;
 
 #define HOST_PACKET_TIMEOUT_MS 20L
@@ -83,6 +85,15 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			to_host.append8(RC_OK);
 			to_host.append16(firmware_version);
 			return true;
+		case SLAVE_CMD_GET_BUILD_NAME:
+			to_host.append8(RC_OK);
+			{
+			  for (uint8_t idx = 0; idx < 31; idx++) {
+			    to_host.append8(build_name[idx]);
+			    if (build_name[idx] == '\0') { break; }
+			  }
+			}
+			return true;
 		case SLAVE_CMD_INIT:
 			do_host_reset = true;
 			to_host.append8(RC_OK);
@@ -117,6 +128,10 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			motor.setOn((from_host.read8(2) & 0x01) != 0);
 			to_host.append8(RC_OK);
 			return true;
+		case SLAVE_CMD_SET_MOTOR_1_RPM:
+			motor.setRPMSpeed(from_host.read32(2));
+			to_host.append8(RC_OK);
+			return true;
 		case SLAVE_CMD_TOGGLE_FAN:
 			board.setFan((from_host.read8(2) & 0x01) != 0);
 			to_host.append8(RC_OK);
@@ -137,6 +152,7 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			to_host.append8(RC_OK);
 			return true;
 		case SLAVE_CMD_SET_SERVO_1_POS:
+#if HAS_SERVOS
 		{
 			uint8_t v = from_host.read8(2);
 			if (v == 255) {
@@ -147,6 +163,9 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			}
 		}
 			to_host.append8(RC_OK);
+#else
+			to_host.append8(RC_CMD_UNSUPPORTED);
+#endif
 			return true;
 		case SLAVE_CMD_SET_SERVO_2_POS:
 		{
@@ -167,6 +186,10 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 		case SLAVE_CMD_GET_PLATFORM_SP:
 			to_host.append8(RC_OK);
 			to_host.append16(board.getPlatformHeater().get_set_temperature());
+			return true;
+		case SLAVE_CMD_IS_PLATFORM_READY:
+			to_host.append8(RC_OK);
+			to_host.append8(board.getPlatformHeater().hasReachedTargetTemperature()?1:0);
 			return true;
 		}
 	}
@@ -205,20 +228,25 @@ void runHostSlice() {
 	}
 	if (in.isFinished()) {
 		out.reset();
+		const uint8_t slave_id = eeprom::getEeprom8(eeprom::SLAVE_ID, 0);
+		const uint8_t target = in.read8(0);
+		packet_in_timeout.abort();
 		// SPECIAL CASE: we always process debug packets!
 		if (processDebugPacket(in,out)) {
 			// okay, processed
-		} else if (in.read8(0) == DEVICE_ID) {
-			if (processDebugPacket(in, out)) {
-				// okay, processed
-			} else if (processQueryPacket(in, out)) {
+		} else if ( (target == slave_id) || (target == 255) ) {
+			// only process packets for us
+			if (processQueryPacket(in, out)) {
 				// okay, processed
 			} else {
 				// Unrecognized command
 				out.append8(RC_CMD_UNSUPPORTED);
 			}
+		} else {
+			// Not for us-- no response
+			in.reset();
+			return;
 		}
-		packet_in_timeout.abort();
 		in.reset();
 		uart.beginSend();
 	}

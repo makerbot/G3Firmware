@@ -1,15 +1,15 @@
 #
 # HOW TO USE THIS BUILD SCRIPT
 #
-# By default, this script will build the firmware for an atmega644p-based motherboard.
+# By default, this script will build the firmware for an atmega168-based extruder controller.
 # The firmware will be built, but not uploaded.
 #
 # To build for another platform, pass an explicit platform parameter.  For example,
-# $ scons platform=RRMBv12
-# $ scons platform=MBMBv20
+# $ scons platform=ecv22
+# $ scons platform=ecv34
 #
 # To default to stepper rather than DC drive, add "stepper=true".
-# To default to relays rather than PWM heater, add "relays=true".
+# To default to PWM heater rather than relays, add "relays=false".
 #
 # To upload the firmware, specify the "upload" target.  By default, this will use
 # /dev/ttyUSB0 as the serial connection.
@@ -25,7 +25,8 @@ from os.path import dirname
 # Parameters
 platform = ARGUMENTS.get('platform','ecv22')
 stepper = ARGUMENTS.get('stepper','false')
-relays = ARGUMENTS.get('relays','false')
+relays = ARGUMENTS.get('relays','true')
+extstepper = ARGUMENTS.get('extstepper','false')
 f_cpu='16000000L'
 
 default_baud = '19200'
@@ -49,15 +50,15 @@ if (platform == 'ecv22'):
 	has_queue = 0
 	has_psu = 0
 elif (platform == 'ecv34'):
-	default_baud = '57600'
-	mcu='atmega328p'
+	default_baud = '19200'
+	mcu='atmega168'
 	has_queue = 0
 	has_psu = 0
 else:
 	print "Platform "+platform+" is not currently supported.\n"
 	exit()
 
-target_name = "EC-"+platform+"-v"+str(version/100)+"."+str(version%100)
+target_name = "EC-"+platform+"-v"+str(version//100)+"."+str(version%100)
 
 upload_port = ARGUMENTS.get('port','/dev/ttyUSB1')
 upload_baud = ARGUMENTS.get('baud',default_baud)
@@ -77,8 +78,17 @@ flags=[
 	'-ffunction-sections',
 	'-fdata-sections']
 
+if (os.environ.has_key('VERSION')):
+   flags.append('-DVERSION=' + os.environ['VERSION'])
+
+if (os.environ.has_key('BUILD_NAME')):
+   flags.append('-DBUILD_NAME=' + os.environ['BUILD_NAME'])
+
 if (stepper == 'true'):
    flags.append('-DDEFAULT_STEPPER=1')
+
+if (extstepper == 'true'):
+   flags.append('-DDEFAULT_EXTERNAL_STEPPER=1')
 
 if (relays == 'true'):
    flags.append('-DDEFAULT_RELAYS=1')
@@ -106,7 +116,7 @@ env.Elf(elf_name, objs)
 env.Hex(hex_name, elf_name)
 
 avrdude = avr_tools_path+"/avrdude"
-avrdude_flags = "-V -F -p"+mcu # +mcu.replace("atmega","m")
+avrdude_flags = "-V -p"+mcu # +mcu.replace("atmega","m")
 avrdude_flags = avrdude_flags + " -P "+upload_port
 avrdude_flags = avrdude_flags + " -c "+upload_prog
 avrdude_flags = avrdude_flags + " -b "+upload_baud

@@ -56,9 +56,11 @@
 
 // Retrieve the value of a debugging register
 #define HOST_CMD_GET_DBG_REG       19
+// Retrieve the string representing this build
+#define HOST_CMD_GET_BUILD_NAME    20
 
 //write a 32bit integer to EEPROM
-#define HOST_CMD_WRITE_EEPROM32	   20
+#define HOST_CMD_WRITE_EEPROM32	   21
 
 // These are our bufferable commands from the host
 // #define HOST_CMD_QUEUE_POINT_INC   128  // deprecated
@@ -71,6 +73,7 @@
 #define HOST_CMD_WAIT_FOR_TOOL     135
 #define HOST_CMD_TOOL_COMMAND      136
 #define HOST_CMD_ENABLE_AXES       137
+#define HOST_CMD_WAIT_FOR_PLATFORM 141
 
 //Auto home commands (Also bufferable)
 #define HOST_CMD_FIRST_AUTO_RAFT   138
@@ -109,7 +112,10 @@
 
 #define SLAVE_CMD_GET_PLATFORM_TEMP     30
 #define SLAVE_CMD_SET_PLATFORM_TEMP     31
-#define SLAVE_CMD_GET_SP				32
-#define SLAVE_CMD_GET_PLATFORM_SP		33
+#define SLAVE_CMD_GET_SP                32
+#define SLAVE_CMD_GET_PLATFORM_SP       33
+// Retrieve the string representing this build
+#define SLAVE_CMD_GET_BUILD_NAME        34
+#define SLAVE_CMD_IS_PLATFORM_READY     35
 
 #endif // SHARED_COMMANDS_H_

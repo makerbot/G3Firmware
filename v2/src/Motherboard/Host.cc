@@ -37,6 +37,7 @@
 bool processCommandPacket(const InPacket& from_host, OutPacket& to_host);
 bool processQueryPacket(const InPacket& from_host, OutPacket& to_host);
 
+// Timeout from time first bit recieved until we abort packet reception
 Timeout packet_in_timeout;
 
 #define HOST_PACKET_TIMEOUT_MS 20
@@ -58,6 +59,7 @@ void runHostSlice() {
 		do_host_reset = false;
 		// Then, reset local board
 		reset(false);
+		packet_in_timeout.abort();
 		return;
 	}
 	if (in.isStarted() && !in.isFinished()) {
@@ -71,7 +73,11 @@ void runHostSlice() {
 	if (in.hasError()) {
 		// Reset packet quickly and start handling the next packet.
 		// Report error code.
-		Motherboard::getBoard().indicateError(ERR_HOST_PACKET_TIMEOUT);
+		if (in.getErrorCode() == PacketError::PACKET_TIMEOUT) {
+			Motherboard::getBoard().indicateError(ERR_HOST_PACKET_TIMEOUT);
+		} else {
+			Motherboard::getBoard().indicateError(ERR_HOST_PACKET_MISC);
+		}
 		in.reset();
 	}
 	if (in.isFinished()) {
@@ -133,6 +139,14 @@ bool processCommandPacket(const InPacket& from_host, OutPacket& to_host) {
 inline void handleVersion(const InPacket& from_host, OutPacket& to_host) {
 	to_host.append8(RC_OK);
 	to_host.append16(firmware_version);
+}
+
+inline void handleGetBuildName(const InPacket& from_host, OutPacket& to_host) {
+	to_host.append8(RC_OK);
+	for (uint8_t idx = 0; idx < 31; idx++) {
+	  to_host.append8(build_name[idx]);
+	  if (build_name[idx] == '\0') { break; }
+	}
 }
 
 inline void handleGetBufferSize(const InPacket& from_host, OutPacket& to_host) {
@@ -217,7 +231,7 @@ void doToolPause(OutPacket& to_host) {
 	OutPacket& out = tool::getOutPacket();
 	InPacket& in = tool::getInPacket();
 	out.reset();
-	out.append8(0); // TODO: current tool
+	out.append8(tool::tool_index);
 	out.append8(SLAVE_CMD_PAUSE_UNPAUSE);
 	// Timeouts are handled inside the toolslice code; there's no need
 	// to check for timeouts on this loop.
@@ -332,6 +346,9 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			switch (command) {
 			case HOST_CMD_VERSION:
 				handleVersion(from_host,to_host);
+				return true;
+			case HOST_CMD_GET_BUILD_NAME:
+				handleGetBuildName(from_host,to_host);
 				return true;
 			case HOST_CMD_INIT:
 				// There's really nothing we want to do here; we don't want to

@@ -60,50 +60,77 @@ TempTable default_table PROGMEM = {
   {1008, 3}
 };
 
-TempTable thermistor_tables[2];
+bool has_table[2];
+
+typedef struct {
+	int16_t adc;
+	int16_t value;
+} Entry;
+
+inline Entry getEntry(int8_t entryIdx, int8_t which) {
+	Entry rv;
+	if (has_table[which]) {
+		// get from eeprom
+		uint16_t offset;
+		if (which == 0) {
+			offset = eeprom::THERM_TABLE_0 + eeprom::THERM_DATA_OFFSET;
+		}
+		else {
+			offset = eeprom::THERM_TABLE_1 + eeprom::THERM_DATA_OFFSET;
+		}
+		offset += sizeof(Entry) * entryIdx;
+		eeprom_read_block(&rv,(const void*)offset,sizeof(Entry));
+	} else {
+		// get from progmem
+		memcpy_P(&rv, (const void*)&(default_table[entryIdx][0]), sizeof(Entry));
+	}
+	return rv;
+}
 
 int16_t thermistorToCelsius(int16_t reading, int8_t table_idx) {
-  int16_t celsius = 0;
-  int8_t i;
-  const TempTable& table = thermistor_tables[table_idx];
-  for (i=1; i<NUMTEMPS; i++)
-  {
-	  if (table[i][0] > reading)
-	  {
-		  celsius  = table[i-1][1] +
-				  (reading - table[i-1][0]) *
-				  (table[i][1] - table[i-1][1]) /
-				  (table[i][0] - table[i-1][0]);
-		  if (celsius > 255)
-			  celsius = 255;
-		  break;
+  int8_t bottom = 0;
+  int8_t top = NUMTEMPS-1;
+  int8_t mid = (bottom+top)/2;
+  int8_t t;
+  Entry e;
+  while (mid > bottom) {
+	  t = mid;
+	  e = getEntry(mid,table_idx);
+	  if (reading < e.adc) {
+		  top = mid;
+		  mid = (bottom+top)/2;
+	  } else {
+		  bottom = mid;
+		  mid = (bottom+top)/2;
 	  }
   }
-  // Overflow: We just clamp to 255 degrees celsius to ensure
-  // that the heater gets shut down if something goes wrong.
-  if (i == NUMTEMPS) {
-    celsius = 255;
+  Entry eb = getEntry(bottom,table_idx);
+  Entry et = getEntry(top,table_idx);
+  if (bottom == 0 && reading < eb.adc) {
+	  // out of scale; safety mode
+	  return 255;
   }
+  if (top == NUMTEMPS-1 && reading > et.adc) {
+	  // out of scale; safety mode
+	  return 255;
+  }
+
+  int16_t celsius  = eb.value +
+		  ((reading - eb.adc) * (et.value - eb.value)) / (et.adc - eb.adc);
+  if (celsius > 255)
+	  celsius = 255;
   return celsius;
 }
 
-bool isTableSet(const void* offset) {
+bool isTableSet(uint16_t off) {
+	const void* offset = (const void*)off;
 	uint8_t first_byte;
 	eeprom_read_block(&first_byte,offset,1);
 	return first_byte != 0xff;
 }
 
-void initThermTable(TempTable& table, uint16_t offset) {
-	// Check for valid table in eeprom.
-	void* dest = (void*)&table;
-	if (isTableSet((const void*)offset)) {
-		eeprom_read_block(dest,(const void*)offset,sizeof(table));
-	} else {
-		memcpy_P(dest, (const void*)&(default_table[0][0]), sizeof(table));
-	}
-}
 
 void initThermistorTables() {
-	initThermTable(thermistor_tables[0],eeprom::THERM_TABLE_0 + eeprom::THERM_DATA_OFFSET);
-	initThermTable(thermistor_tables[1],eeprom::THERM_TABLE_1 + eeprom::THERM_DATA_OFFSET);
+	has_table[0] = isTableSet(eeprom::THERM_TABLE_0 + eeprom::THERM_DATA_OFFSET);
+	has_table[1] = isTableSet(eeprom::THERM_TABLE_1 + eeprom::THERM_DATA_OFFSET);
 }

@@ -45,6 +45,8 @@
 // Extrusion head heater configuration
 #define HAS_HEATER      1
 
+#define HAS_SERVOS		1
+
 #define HAS_THERMISTOR  1
 // Extruder thermistor analog pin
 #define THERMISTOR_PIN  3
@@ -54,9 +56,13 @@
 // Platform thermistor analog pin
 #define PLATFORM_PIN    6
 
+#define CHANNEL_A				Pin(PortC,1)
+#define CHANNEL_B				Pin(PortB,3)
+#define CHANNEL_C				Pin(PortB,4)
+
 // Fan configuration
 #define HAS_FAN				1
-#define FAN_ENABLE_PIN		Pin(PortB,4)
+#define FAN_ENABLE_PIN		CHANNEL_C
 
 #define HB1_ENABLE_PIN		Pin(PortD,5)
 #define HB1_DIR_PIN			Pin(PortD,7)
@@ -64,8 +70,16 @@
 #define HB2_ENABLE_PIN		Pin(PortD,6)
 #define HB2_DIR_PIN			Pin(PortB,0)
 
-#define MOTOR_ENABLE_PIN	HB1_ENABLE_PIN
-#define MOTOR_DIR_PIN		HB1_DIR_PIN
+// define the tick length, or how often the interrupt is called,
+// for the external stepper, in half microseconds:
+// 200 means 100 us -> 10 KHz
+#define ES_TICK_LENGTH 200
+
+// Enable = "D10"
+#define ES_ENABLE_PIN		Pin(PortB,2)
+// Dir and step are in the quadrature
+#define ES_DIR_PIN			Pin(PortD,2) // Quadrature pin 8
+#define ES_STEP_PIN			Pin(PortD,3) // Quadrature pin 7
 
 #define DEBUG_LED			Pin(PortB,5)
 

@@ -28,9 +28,14 @@
 
 ExtruderBoard ExtruderBoard::extruderBoard;
 
-Pin channel_a(PortC,1);
-Pin channel_b(PortB,3);
-Pin channel_c = FAN_ENABLE_PIN;
+// channel choices
+typedef enum {
+	CHA =0, CHB =1, CHC =2
+} ChannelChoice;
+
+ChannelChoice heater_channel = CHB;
+ChannelChoice hbp_channel = CHA;
+ChannelChoice abp_channel = CHC;
 
 volatile bool using_relays = false;
 
@@ -42,6 +47,11 @@ ExtruderBoard::ExtruderBoard() :
 		platform_heater(platform_thermistor,platform_element,SAMPLE_INTERVAL_MICROS_THERMISTOR,eeprom::HBP_PID_P_TERM),
 		using_platform(true)
 {
+	// Check eeprom map to see if motor has been swapped to other driver chip
+	uint16_t ef = eeprom::getEeprom16(eeprom::EXTRA_FEATURES,eeprom::EF_DEFAULT);
+	heater_channel = (ChannelChoice)((ef >> 2) & 0x03);
+	hbp_channel = (ChannelChoice)((ef >> 4) & 0x03);
+	abp_channel = (ChannelChoice)((ef >> 6) & 0x03);
 }
 
 // Turn on/off PWM for channel A.
@@ -62,7 +72,9 @@ void pwmBOn(bool on) {
 	}
 }
 
-#define SERVO_COUNT 2
+// The external stepper uses D10, which is a servo port.
+// Since the second servo port was never in use, we'll just ignore it from now on.
+#define SERVO_COUNT 1
 
 volatile int servoPos[SERVO_COUNT];
 
@@ -82,17 +94,17 @@ void ExtruderBoard::reset() {
 	TCCR1B = _BV(WGM13) | _BV(WGM12) | _BV(CS10);
 	TCCR1C = 0x00;
 	ICR1 = INTERVAL_IN_MICROSECONDS * 16;
-	TIMSK1 = _BV(ICIE1) | _BV(OCIE1A) | _BV(OCIE1B); // turn on ICR1 match interrupt
+	TIMSK1 = _BV(ICIE1) | _BV(OCIE1A); // turn on ICR1 match interrupt
 	TIMSK2 = 0x00; // turn off channel A PWM by default
 	// TIMER2 is used to PWM mosfet channel B on OC2A, and channel A on
 	// PC1 (using the OC2B register).
 	DEBUG_LED.setDirection(true);
-	channel_a.setValue(false);
-	channel_a.setDirection(true); // set channel A as output
-	channel_b.setValue(false);
-	channel_b.setDirection(true); // set channel B as output
-	channel_c.setValue(false);
-	channel_c.setDirection(true); // set channel C as output
+	CHANNEL_A.setValue(false);
+	CHANNEL_A.setDirection(true); // set channel A as output
+	CHANNEL_B.setValue(false);
+	CHANNEL_B.setDirection(true); // set channel B as output
+	CHANNEL_C.setValue(false);
+	CHANNEL_C.setDirection(true); // set channel C as output
 	TCCR2A = 0b10000011;
 	TCCR2B = 0b00000110; // prescaler 1/256
 	OCR2A = 0;
@@ -103,31 +115,64 @@ void ExtruderBoard::reset() {
 	platform_thermistor.init();
 	extruder_heater.reset();
 	platform_heater.reset();
-	setMotorSpeed(0);
 	getHostUART().enable(true);
 	getHostUART().in.reset();
+
+/*
 	// These are disabled until the newer replicatorg with eeprom path
 	// support has been out for a while.
-//	uint16_t features = getEeprom16(eeprom::FEATURES);
-//	setUsingRelays((features & eeprom::RELAY_BOARD) != 0);
-//	setStepperMode((features & eeprom::HBRIDGE_STEPPER) != 0);
+	uint16_t features = getEeprom16(eeprom::FEATURES);
+	setUsingRelays((features & eeprom::RELAY_BOARD) != 0);
+	setStepperMode((features & (eeprom::HBRIDGE_STEPPER | eeprom::EXTERNAL_STEPPER)) != 0, (features & eeprom::EXTERNAL_STEPPER) != 0);
+
+	if ((features & eeprom::EXTERNAL_STEPPER) == 0) {
+		// Init servo ports: OC1A and OC1B as outputs when not linked to counter.
+		PORTB &= ~_BV(1);
+		DDRB |= _BV(1);
+	} else {
+		// Init servo ports: OC1A and OC1B as outputs when not linked to counter.
+		PORTB &= ~_BV(1) & ~_BV(2);
+		DDRB |= _BV(1) | _BV(2);
+	}
+*/
+	
+#if defined DEFAULT_STEPPER
+#warning Using internal stepper!
+	setStepperMode(true, false);
 	// Init servo ports: OC1A and OC1B as outputs when not linked to counter.
 	PORTB &= ~_BV(1) & ~_BV(2);
 	DDRB |= _BV(1) | _BV(2);
-#ifdef DEFAULT_STEPPER
-	setStepperMode(true);
+#elif defined DEFAULT_EXTERNAL_STEPPER
+#warning Using external stepper!
+	setStepperMode(true, true);
+	// Init servo ports: OC1A and OC1B as outputs when not linked to counter.
+	PORTB &= ~_BV(1); // We don't use D10 for a servo with external steppers, it's the enable pin
+	DDRB |= _BV(1); // but it's still an output
 #else
+#warning Using DC Motor!
 	setStepperMode(false);
+	// Init servo ports: OC1A and OC1B as outputs when not linked to counter.
+	PORTB &= ~_BV(1) & ~_BV(2);
+	DDRB |= _BV(1) | _BV(2);
 #endif
+
 #ifdef DEFAULT_RELAYS
 	setUsingRelays(true);
 #else
 	setUsingRelays(false);
 #endif
+
+	// init after we know what kind of motor we're using
+	setMotorSpeed(0);
+	setMotorSpeedRPM(0, true);
 }
 
 void ExtruderBoard::setMotorSpeed(int16_t speed) {
 	setExtruderMotor(speed);
+}
+
+void ExtruderBoard::setMotorSpeedRPM(uint32_t speed, bool direction) {
+	setExtruderMotorRPM(speed, direction);
 }
 
 micros_t ExtruderBoard::getCurrentMicros() {
@@ -153,25 +198,54 @@ void ExtruderBoard::doInterrupt() {
 			PORTB |= _BV(1);
 			OCR1A = (600*16) + (servoPos[0]*160);
 		}
-		if (servoPos[1] != -1) {
-			PORTB |= _BV(2);
-			OCR1B = (600*16) + (servoPos[1] * 160);
-		}
 	}
 	servo_cycle++;
 	if (servo_cycle > SERVO_CYCLE_LENGTH) { servo_cycle = 0; }
 }
 
-void ExtruderBoard::setFan(bool on) {
-	channel_c.setValue(on);
+
+void setChannel(ChannelChoice c, uint8_t value, bool binary) {
+	if (c == CHA) {
+		ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+			if (binary) {
+				pwmAOn(false);
+				CHANNEL_A.setValue(value != 0);
+			} else if (value == 0 || value == 255) {
+				pwmAOn(false);
+				CHANNEL_A.setValue(value == 255);
+			} else {
+				OCR2B = value;
+				pwmAOn(true);
+			}
+		}
+	} else if (c == CHB) {
+		ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+			if (binary) {
+				pwmBOn(false);
+				CHANNEL_B.setValue(value != 0);
+			} else if (value == 0 || value == 255) {
+				pwmBOn(false);
+				CHANNEL_B.setValue(value == 255);
+			} else {
+				OCR2A = value;
+				pwmBOn(true);
+			}
+		}
+	} else {
+		// channel C -- no pwm
+		CHANNEL_C.setValue(value == 0?false:true);
+	}
 }
 
+void ExtruderBoard::setFan(bool on) {
+	setChannel(abp_channel,on?255:0,true);
+}
+
+// When using as a valve driver, always use channel A, regardless of
+// extruder heat settings.
 void ExtruderBoard::setValve(bool on) {
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-		setUsingPlatform(false);
-		pwmAOn(false);
-		channel_a.setValue(on);
-	}
+	setUsingPlatform(false);
+	setChannel(CHA,on?255:0,true);
 }
 
 void ExtruderBoard::indicateError(int errorCode) {
@@ -191,64 +265,36 @@ ISR(TIMER1_CAPT_vect) {
 	ExtruderBoard::getBoard().doInterrupt();
 }
 
+// D9 - stepper 1
 ISR(TIMER1_COMPA_vect) {
 	PORTB &= ~_BV(1);
 }
 
-ISR(TIMER1_COMPB_vect) {
-	PORTB &= ~_BV(2);
-}
-
 void ExtruderHeatingElement::setHeatingElement(uint8_t value) {
-//	if (value > 128) {
-//		value = 255;
-//	} else if (value > 0) {
-//		value = 128;
-//	}
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-		if (using_relays) {
-			pwmBOn(false);
-			channel_b.setValue(value != 0);
-		} else if (value == 0 || value == 255) {
-			pwmBOn(false);
-			channel_b.setValue(value == 255);
-		} else {
-			OCR2A = value;
-			pwmBOn(true);
-		}
-	}
+	setChannel(heater_channel,value,using_relays);
 }
 
 void BuildPlatformHeatingElement::setHeatingElement(uint8_t value) {
 	// This is a bit of a hack to get the temperatures right until we fix our
 	// PWM'd PID implementation.  We reduce the MV to one bit, essentially.
 	// It works relatively well.
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-		pwmAOn(false);
-		channel_a.setValue(value != 0);
-	}
-	/*
-	if (value > 128) {
-		value = 255;
-	} else if (value > 0) {
-		value = 128;
-	}
-	if (value == 0 || value == 255) {
-		pwmAOn(false);
-		channel_a.setValue(value == 255);
-	} else {
-		OCR2B = value;
-		pwmAOn(true);
-	}
-	*/
+	setChannel(hbp_channel,value,true);
 }
 
 ISR(TIMER2_OVF_vect) {
 	if (OCR2B != 0) {
-		channel_a.setValue(true);
+		CHANNEL_A.setValue(true);
 	}
 }
 
 ISR(TIMER2_COMPB_vect) {
-	channel_a.setValue(false);
+	CHANNEL_A.setValue(false);
 }
+
+#ifdef DEFAULT_EXTERNAL_STEPPER
+void ExtruderBoard::setMotorOn(bool on)
+{
+	setExtruderMotorOn(on);
+}
+#endif
+

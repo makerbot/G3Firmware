@@ -23,7 +23,7 @@
 #
 # To build for another platform, pass an explicit platform parameter.  For example,
 # $ scons platform=rrmbv12
-# $ scons platform=rrmbv22
+# $ scons platform=rrmbv24
 # $ scons platform=mcv10
 #
 # To upload the firmware, specify the "upload" target.  By default, this will use
@@ -61,7 +61,7 @@ if (platform == 'rrmbv12'):
 	mcu='atmega644p'
 	has_queue = 1
 	has_psu = 1
-elif (platform == 'rrmbv22'):
+elif (platform == 'rrmbv24'):
 	default_baud = '57600'
 	mcu='atmega1280'
 	has_queue = 1
@@ -75,7 +75,7 @@ else:
 	print "Platform "+platform+" is not currently supported.\n"
 	exit()
 
-target_name = "MB-"+platform+"-v"+str(version/100)+"."+str(version%100)
+target_name = "MB-"+platform+"-v"+str(version//100)+"."+str(version%100)
 
 upload_port = ARGUMENTS.get('port','/dev/ttyUSB0')
 upload_baud = ARGUMENTS.get('baud',default_baud)
@@ -95,6 +95,12 @@ flags=[
 	'-ffunction-sections',
 	'-fdata-sections']
 
+if (os.environ.has_key('VERSION')):
+   flags.append('-DVERSION=' + os.environ['VERSION'])
+
+if (os.environ.has_key('BUILD_NAME')):
+   flags.append('-DBUILD_NAME=' + os.environ['BUILD_NAME'])
+
 if (os.environ.has_key('AVR_TOOLS_PATH')):
 	avr_tools_path = os.environ['AVR_TOOLS_PATH']
 else:
@@ -111,14 +117,15 @@ objs = env.Object(srcs)
 
 hex_name = target_name + '.hex'
 elf_name = target_name + '.elf'
+map_name = target_name + '.map'
 
-env.Append(BUILDERS={'Elf':Builder(action=avr_tools_path+"/avr-gcc -mmcu="+mcu+" -Os -Wl,--gc-sections -o $TARGET $SOURCES")})
+env.Append(BUILDERS={'Elf':Builder(action=avr_tools_path+"/avr-gcc -mmcu="+mcu+" -Os -Wl,--gc-sections -Wl,-Map,"+map_name+" -o $TARGET $SOURCES")})
 env.Append(BUILDERS={'Hex':Builder(action=avr_tools_path+"/avr-objcopy -O ihex -R .eeprom $SOURCES $TARGET")})
 env.Elf(elf_name, objs) 
 env.Hex(hex_name, elf_name)
 
 avrdude = avr_tools_path+"/avrdude"
-avrdude_flags = "-V -F -p "+mcu.replace("atmega","m")
+avrdude_flags = "-V -p "+mcu.replace("atmega","m")
 avrdude_flags = avrdude_flags + " -P "+upload_port
 avrdude_flags = avrdude_flags + " -c "+upload_prog
 avrdude_flags = avrdude_flags + " -b "+upload_baud
