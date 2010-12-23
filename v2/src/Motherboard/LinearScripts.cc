@@ -39,6 +39,7 @@ This way the motherboard can still attend to the other things it might have to d
 #include "Tool.hh"
 #include "Commands.hh"
 #include "Timeout.hh"
+#include "Types.hh"
 #include <stdint.h>
 #include <avr/eeprom.h>
 
@@ -76,12 +77,12 @@ namespace scripts {
 volatile int currentStep = -1;
 volatile int lowScriptStep = 0;
 
-uint8_t direction[STEPPER_COUNT]; //homing directions from ReplicatorG
+uint8_t direction[AXIS_COUNT]; //homing directions from ReplicatorG
 uint32_t feedrateXY; //ReplicatorG defined feedrate for the XY stage moves
 uint32_t feedrateZ; //Replicatorg defined feedrate for the Z stage moves
 uint16_t timeout_s; //TODO: Time 'till abort (not currently used)
 int32_t zOffset; //varible to save the read amount for the Z Offset.
-uint8_t EEPROM_direction[STEPPER_COUNT]; //direction setting saved in EEPROM
+uint8_t EEPROM_direction[AXIS_COUNT]; //direction setting saved in EEPROM
 int32_t EEPROM_DATA[4] = {0,0,0,0}; //Array to hold the 32bit read values.
 
 //varibles for the Movecarefully script.
@@ -89,8 +90,8 @@ Point target;
 int32_t Z_Offset; //z offset for the move carefully script.
 
 //varibles for the homecarefully script
-uint8_t homeDirection[STEPPER_COUNT];
-uint8_t other_axis_flags[STEPPER_COUNT];
+uint8_t homeDirection[AXIS_COUNT];
+uint8_t other_axis_flags[AXIS_COUNT];
 
 //Function Pointers
 typedef void (*pointer2Subroutine)(); //function pointer type
@@ -123,7 +124,7 @@ void StartFirstAutoHome(uint8_t directionTemp[],uint32_t XYfeedrateTemp, uint32_
 //start the FirstAutoHome script
 currentStep = 0; //start at the begining.
 ScriptRunning = FIRSTAUTOHOME;
-for (int i = 0; i < STEPPER_COUNT; i++) {
+for (int i = 0; i < AXIS_COUNT; i++) {
 direction[i] = directionTemp[i];
 }
 feedrateXY = XYfeedrateTemp;
@@ -152,7 +153,7 @@ feedrateZ = ZfeedrateTemp;
 void StartHomeCarefully(uint8_t directionTemp[], uint32_t XYfeedrateTemp, uint32_t ZfeedrateTemp) {
 lowScriptStep = 0;
 LowScriptRunning = HOMECAREFULLY;
-for (int i = 0; i < STEPPER_COUNT; i++) {
+for (int i = 0; i < AXIS_COUNT; i++) {
 homeDirection[i] = directionTemp[i];
 }
 feedrateXY = XYfeedrateTemp;
@@ -216,7 +217,7 @@ void firstTimeHomeStep2() {
 	if (!steppers::isRunning()) {
 		//proceed with homing.
 		if (direction[2] == 3) { //if using Z probe then...
-		for (int i = 0; i < STEPPER_COUNT; i++) {
+		for (int i = 0; i < AXIS_COUNT; i++) {
 			other_axis_flags[i] = direction[i]; //Save a snapshot of the direction
 		}
 		direction[2] = 0; //don't home Z
@@ -240,7 +241,7 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
        uint8_t data8;
        int32_t dataa;
 
-       for (int i = 0; i < STEPPER_COUNT; i++) {
+       for (int i = 0; i < AXIS_COUNT; i++) {
        offset = AUTOHOMEOFFSET + i;
        data8 = direction[i];
        eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
@@ -285,12 +286,12 @@ Point currentPosition = steppers::getPosition(); //get position and put in point
 	int16_t offset;
 	uint8_t data8;
 	int32_t dataa;
-	for (int i = 0; i < STEPPER_COUNT; i++) {
+	for (int i = 0; i < AXIS_COUNT; i++) {
 		direction[i] = other_axis_flags[i]; //Recover directions from snapshot
 	}
 
 
-	for (int i = 0; i < STEPPER_COUNT; i++) {
+	for (int i = 0; i < AXIS_COUNT; i++) {
 	offset = AUTOHOMEOFFSET + i;
 	data8 = direction[i];
 	eeprom_write_block((const void*)&data8, (void*)offset, 1); //save the set direction in eeprom.
@@ -429,13 +430,13 @@ void autoHomeStep1() {
 
 	int16_t offset; //where to start copying from.
 	uint8_t data8;
-	for (int i = 0; i < STEPPER_COUNT; i++) {
+	for (int i = 0; i < AXIS_COUNT; i++) {
 	offset = AUTOHOMEOFFSET + i;
 	eeprom_read_block((void*)&data8, (const void*)offset, 1); //read direction
 	EEPROM_direction[i] = data8;
 	}
 
-	for (int i = 0; i < (STEPPER_COUNT + 1); i++) { //loop and copy all of the data for all of the axis.
+	for (int i = 0; i < (AXIS_COUNT + 1); i++) { //loop and copy all of the data for all of the axis.
 	offset = AUTOHOMEOFFSET + 0x3 + (i*0x4);
 	eeprom_read_block((void*)&EEPROM_DATA[i], (const void*)offset, 4);
 
@@ -455,7 +456,7 @@ void autoHomeStep2() {
         if (EEPROM_direction[2] == 3) { //if we are using Z-Probe hardware...
             //Home XY then center....
             //save a snapshot.
-            for (int i = 0; i < STEPPER_COUNT; i++) {
+            for (int i = 0; i < AXIS_COUNT; i++) {
             other_axis_flags[i] = EEPROM_direction[i]; //Save a snapshot of the directions.
             }
             EEPROM_direction[2] = 0; //dont home Z
@@ -477,7 +478,7 @@ void autoHomeZProbeStep1() {
 if (!steppers::isRunning()) {
 
     //recover our original directions
-    for (int i = 0; i < STEPPER_COUNT; i++) {
+    for (int i = 0; i < AXIS_COUNT; i++) {
             EEPROM_direction[i] = other_axis_flags[i]; //read a snapshot of the directions.
     }
 
@@ -487,7 +488,7 @@ if (!steppers::isRunning()) {
 	steppers::definePosition(Point(x,y,z)); //set the position in steps
 	//next move back up the read amount (aka build platform center)
 
-	for (int i = 0; i < STEPPER_COUNT; i++) {
+	for (int i = 0; i < AXIS_COUNT; i++) {
 	if (EEPROM_direction[i] == 2 || EEPROM_direction[i] == 3) { //If the direction homed was up, then make the direction to move negative.(this applies to Z_Probes)
 	EEPROM_DATA[i] = -EEPROM_DATA[i];
 	}
@@ -588,7 +589,7 @@ if (LowScriptRunning == NONE) {
 	steppers::definePosition(Point(x,y,z)); //set the position in steps
 	//next move back up the read amount (aka build platform height)
 
-	for (int i = 0; i < STEPPER_COUNT; i++) {
+	for (int i = 0; i < AXIS_COUNT; i++) {
 	if (EEPROM_direction[i] == 2) { //If the direction homed was up, then make the direction to move negative.
 	EEPROM_DATA[i] = -EEPROM_DATA[i];
 	}
@@ -703,7 +704,7 @@ if (!steppers::isRunning()) {
 
 	if (homeDirection[2] == 1) { //if flags says home Z and something else (we don't care what). And it's also in the negative direction then home carefully.
 					//Don't home Z.
-					for (int i = 0; i < STEPPER_COUNT; i++) {
+					for (int i = 0; i < AXIS_COUNT; i++) {
 					other_axis_flags[i] = homeDirection[i]; //Save a snapshot of the directions
 					}
 					homeDirection[2] = 0; //don't home Z
@@ -713,7 +714,7 @@ if (!steppers::isRunning()) {
 
 	} else if (homeDirection[2] == 2) { //else if we are homing the Z stage up then...
 						//home the z up before homing xy in the positive direction.
-						for (int i = 0; i < STEPPER_COUNT; i++) {
+						for (int i = 0; i < AXIS_COUNT; i++) {
 						other_axis_flags[i] = homeDirection[i]; // Save axis besides Z to home.
 						homeDirection[i] = 0; //reset
 						}
@@ -732,7 +733,7 @@ if (!steppers::isRunning()) {
 void homeCarefullyStep2() {
 //wait till Xy is homed
 if (!steppers::isRunning()) {
-	for (int i = 0; i < STEPPER_COUNT; i++) {
+	for (int i = 0; i < AXIS_COUNT; i++) {
 	homeDirection[i] = 0;
 	}
 	homeDirection[2] = other_axis_flags[2];
@@ -745,7 +746,7 @@ if (!steppers::isRunning()) {
 void homeCarefullyStep3() {
 //wait till Z is homed
 if (!steppers::isRunning()) {
-for (int i = 0; i < STEPPER_COUNT; i++) {
+for (int i = 0; i < AXIS_COUNT; i++) {
 homeDirection[i] = other_axis_flags[i]; //Home the rest of the axis (besides Z).
 }
 	//Home the rest of the axis (besides Z).

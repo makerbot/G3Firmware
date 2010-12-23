@@ -259,10 +259,10 @@ void runCommandSlice() {
 					uint16_t timeout_s = pop16();
 					mode = HOMING;
 					homing_timeout.start(timeout_s * 1000L * 1000L);
-					uint8_t direction[STEPPER_COUNT];
+					uint8_t direction[AXIS_COUNT];
 
 					if (command==HOST_CMD_FIND_AXES_MAXIMUM) { //convert flags system to array system.
-						for (int i = 0; i < STEPPER_COUNT; i++) {
+						for (int i = 0; i < AXIS_COUNT; i++) {
 							if ((flags & (1<<i)) != 0) {
 								direction[i] = 2;
 							} else {
@@ -271,7 +271,7 @@ void runCommandSlice() {
 						}
 
 					} else {
-						for (int i = 0; i < STEPPER_COUNT; i++) {
+						for (int i = 0; i < AXIS_COUNT; i++) {
 							if ((flags & (1<<i)) != 0) {
 								direction[i] = 1;
 							} else {
@@ -285,11 +285,11 @@ void runCommandSlice() {
 				}
 
 			} else if (command == HOST_CMD_FIRST_AUTO_RAFT) { //Made by Intern Winter
-				if (command_buffer.getLength() >= (11 + STEPPER_COUNT)) {
+				if (command_buffer.getLength() >= (11 + AXIS_COUNT)) {
 					command_buffer.pop(); // remove the command
 
-					uint8_t direction[STEPPER_COUNT];
-					for (int i = 0; i < STEPPER_COUNT; i++) {
+					uint8_t direction[AXIS_COUNT];
+					for (int i = 0; i < AXIS_COUNT; i++) {
 					direction[i] = pop8(); //get directions for all three axis.
 					}
 
