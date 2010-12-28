@@ -61,6 +61,16 @@
 
 #define HOST_CMD_GET_POSITION_EXT  21
 
+// Set the RPM of axis A or B
+#define HOST_CMD_SET_MOTOR_1_RPM   22
+#define HOST_CMD_SET_MOTOR_2_RPM   23
+#define HOST_CMD_SET_MOTOR_1_DIR   24
+#define HOST_CMD_SET_MOTOR_2_DIR   25
+
+#define HOST_CMD_GET_MOTOR_1_RPM   26
+#define HOST_CMD_GET_MOTOR_2_RPM   27
+
+
 // These are our bufferable commands from the host
 // #define HOST_CMD_QUEUE_POINT_INC   128  // deprecated
 #define HOST_CMD_QUEUE_POINT_ABS   129

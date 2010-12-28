@@ -32,6 +32,7 @@ public:
 
 	/// Set target coordinate and compute delta
 	void setTarget(const int32_t target_in) {
+		free_rotate = false;
 		target = target_in;
 		delta = target - position;
 		direction = true;
@@ -46,13 +47,20 @@ public:
 
 	/// Set homing mode
 	void setHoming(const bool direction_in) {
+		free_rotate = false;
 		direction = direction_in;
 		interface->setEnabled(true);
 		delta = 1;
 	}
+	
+	bool setFreeRotate(int32_t delta_in) {
+		free_rotate = delta_in == 0 ? false : true;
+		delta = delta_in;
+	}
 
 	/// Define current position as the given value
 	void definePosition(const int32_t position_in) {
+		free_rotate = false;
 		position = position_in;
 	}
 
@@ -69,13 +77,23 @@ public:
 		target = 0;
 		counter = 0;
 		delta = 0;
+		free_rotate = false;
 	}
 
 	void doInterrupt(const int32_t intervals) {
-		counter += delta;
+		if (free_rotate) {
+			counter++;
+		} else {
+			counter += delta;
+		}
+
 		if (counter >= 0) {
 			interface->setDirection(direction);
-			counter -= intervals;
+			if (free_rotate) {
+				counter -= delta;
+			} else {
+				counter -= intervals;
+			}
 			if (direction) {
 				if (!interface->isAtMaximum()) interface->step(true);
 				position++;
@@ -131,21 +149,26 @@ public:
 	volatile int32_t delta;
 	/// True for positive, false for negative
 	volatile bool direction;
+	/// Free rotate
+	volatile int32_t free_rotate;
 };
 
 volatile bool is_running;
+volatile bool is_free_running;
 int32_t intervals;
 volatile int32_t intervals_remaining;
 Axis axes[STEPPER_COUNT];
 volatile bool is_homing;
 
 bool isRunning() {
-	return is_running || is_homing;
+	return is_running || is_homing; // intentionally ignore is_free_running here
 }
 
 //public:
 void init(Motherboard& motherboard) {
 	is_running = false;
+	is_homing = false;
+	is_free_running = false;
 	for (int i = 0; i < STEPPER_COUNT; i++) {
 		axes[i] = Axis(motherboard.getStepperInterface(i));
 	}
@@ -154,6 +177,7 @@ void init(Motherboard& motherboard) {
 void abort() {
 	is_running = false;
 	is_homing = false;
+	is_free_running = false;
 }
 
 /// Define current position as given point
@@ -176,6 +200,24 @@ bool holdZ = false;
 
 void setHoldZ(bool holdZ_in) {
 	holdZ = holdZ_in;
+}
+	
+void setSpeed(int axis, const uint32_t us_per_step) {
+	const int32_t d = us_per_step / INTERVAL_IN_MICROSECONDS;
+	axes[axis].setFreeRotate(d);
+	axes[axis].counter = 0;
+	
+	// if we stop one, we need to see if there's still one running...
+	if (d == 0) {
+		is_free_running = false;
+
+		for (int i = 0; i < AXIS_COUNT; i++) {
+			if (axes[i].free_rotate) {
+				is_free_running = true;
+				break;
+			}
+		}
+	}
 }
 
 void setTarget(const Point& target, int32_t dda_interval) {
@@ -229,7 +271,8 @@ bool doInterrupt() {
 			is_running = false;
 		} else {
 			for (int i = 0; i < STEPPER_COUNT; i++) {
-				axes[i].doInterrupt(intervals);
+				if (!axes[i].free_rotate)
+					axes[i].doInterrupt(intervals);
 			}
 		}
 		return is_running;
@@ -241,6 +284,15 @@ bool doInterrupt() {
 		}
 		return is_homing;
 	}
+	
+	if (is_free_running) {
+		for (int i = 0; i < STEPPER_COUNT; i++) {
+			if (axes[i].free_rotate)
+				axes[i].doInterrupt(intervals);
+		}
+		return false;
+	} 
+	
 	return false;
 }
 

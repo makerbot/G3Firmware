@@ -207,6 +207,20 @@ void runCommandSlice() {
 					int32_t dda = pop32();
 					steppers::setTarget(Point(x,y,z,a,b),dda);
 				}
+//			} else if (command == HOST_CMD_SET_MOTOR_1_RPM) {
+//				// check for completion
+//				if (command_buffer.getLength() >= 5) {
+//					command_buffer.pop(); // remove the command code
+//					int32_t rpm = pop32();
+//					steppers::setTarget(Point(x,y,z,a,b),dda);
+//				}
+//			} else if (command == HOST_CMD_SET_MOTOR_1_DIR) {
+//				// check for completion
+//				if (command_buffer.getLength() >= 2) {
+//					command_buffer.pop(); // remove the command code
+//					int8_t rpm = pop8();
+//					steppers::setTarget(Point(x,y,z,a,b),dda);
+//				}
 			} else if (command == HOST_CMD_CHANGE_TOOL) {
 				if (command_buffer.getLength() >= 2) {
 					command_buffer.pop(); // remove the command code
@@ -289,6 +303,22 @@ void runCommandSlice() {
 					uint8_t payload_length = command_buffer[3];
 					if (command_buffer.getLength() >= 4+payload_length) {
 						// command is ready
+#if (STEPPER_COUNT > 3)
+						// intercept commands for extruder motor movement
+						uint8_t tool_id = command_buffer[1];
+						uint8_t	command_id = command_buffer[2];
+						if (/* tool index*/(tool_id == 0 || tool_id == 1) &&
+							/* motor commands*/(
+												command_id == SLAVE_CMD_SET_MOTOR_1_PWM || 
+												command_id == SLAVE_CMD_SET_MOTOR_1_DIR || 
+												command_id == SLAVE_CMD_TOGGLE_MOTOR_1 || 
+												command_id == SLAVE_CMD_SET_MOTOR_2_PWM || 
+												command_id == SLAVE_CMD_SET_MOTOR_2_DIR || 
+												command_id == SLAVE_CMD_TOGGLE_MOTOR_2
+												) {
+						}
+						else
+#endif
 						if (tool::getLock()) {
 							OutPacket& out = tool::getOutPacket();
 							out.reset();
