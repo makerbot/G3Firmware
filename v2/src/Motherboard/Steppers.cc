@@ -53,9 +53,15 @@ public:
 		delta = 1;
 	}
 	
-	bool setFreeRotate(int32_t delta_in) {
-		free_rotate = delta_in == 0 ? false : true;
+	void setFreeRotate(int32_t delta_in) {
 		delta = delta_in;
+		free_rotate = true;
+		interface->setEnabled(delta != 0);
+		counter = -1;
+	}
+	
+	void setFreeRotateDirection(bool direction_in) {
+		direction = direction_in;
 	}
 
 	/// Define current position as the given value
@@ -66,7 +72,11 @@ public:
 
 	/// Enable/disable stepper
 	void enableStepper(bool enable) {
-		interface->setEnabled(enable);
+		// if free rotating, only disable if the rpm is zero 
+		if (free_rotate && !enable)
+			delta = 0;
+		else
+			interface->setEnabled(enable);
 	}
 
 	/// Reset to initial state
@@ -81,7 +91,7 @@ public:
 	}
 
 	void doInterrupt(const int32_t intervals) {
-		if (free_rotate) {
+		if (free_rotate && delta > 0) {
 			counter++;
 		} else {
 			counter += delta;
@@ -202,10 +212,10 @@ void setHoldZ(bool holdZ_in) {
 	holdZ = holdZ_in;
 }
 	
-void setSpeed(int axis, const uint32_t us_per_step) {
+void setSpeed(const int axis, const uint32_t us_per_step) {
 	const int32_t d = us_per_step / INTERVAL_IN_MICROSECONDS;
 	axes[axis].setFreeRotate(d);
-	axes[axis].counter = 0;
+	//axes[axis].counter = 0;
 	
 	// if we stop one, we need to see if there's still one running...
 	if (d == 0) {
@@ -218,6 +228,10 @@ void setSpeed(int axis, const uint32_t us_per_step) {
 			}
 		}
 	}
+}
+	
+void setDirection(const int axis, const bool forward) {
+	axes[axis].setFreeRotateDirection(forward);
 }
 
 void setTarget(const Point& target, int32_t dda_interval) {

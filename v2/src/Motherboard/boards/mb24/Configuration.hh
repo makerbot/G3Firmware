@@ -136,6 +136,9 @@
 // The B stepper enable pin (active low)
 #define B_ENABLE_PIN    Pin(PortH,3)
 
+// Yuck, one setting for all stppers ... FIXME!
+#define ROTATION_STEPS_PER_REV 1600
+
 // --- Debugging configuration ---
 // The pin which controls the debug LED (active high)
 #define DEBUG_PIN       Pin(PortB,7)

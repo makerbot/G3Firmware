@@ -45,6 +45,10 @@ void setTarget(const Point& target, int32_t dda_interval);
 void startHoming(const bool maximums, const uint8_t axes_enabled, const uint32_t us_per_step);
 /// Define current position as given point
 void definePosition(const Point& position);
+/// Set the rotational speed of the axis
+void setSpeed(const int axis, const uint32_t us_per_step);
+/// Set the direction of free rotation of the axis
+void setDirection(const int axis, const bool forward);
 /// Handle interrupt.  Return true if still moving to target; false
 /// if target has been reached.
 bool doInterrupt();

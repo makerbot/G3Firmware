@@ -309,13 +309,28 @@ void runCommandSlice() {
 						uint8_t	command_id = command_buffer[2];
 						if (/* tool index*/(tool_id == 0 || tool_id == 1) &&
 							/* motor commands*/(
-												command_id == SLAVE_CMD_SET_MOTOR_1_PWM || 
+												command_id == SLAVE_CMD_SET_MOTOR_1_RPM || 
 												command_id == SLAVE_CMD_SET_MOTOR_1_DIR || 
-												command_id == SLAVE_CMD_TOGGLE_MOTOR_1 || 
-												command_id == SLAVE_CMD_SET_MOTOR_2_PWM || 
-												command_id == SLAVE_CMD_SET_MOTOR_2_DIR || 
-												command_id == SLAVE_CMD_TOGGLE_MOTOR_2
-												) {
+												command_id == SLAVE_CMD_TOGGLE_MOTOR_1
+												)) {
+								command_buffer.pop(); // remove the command code
+								command_buffer.pop(); // remove the tool index
+								command_buffer.pop(); // remove the tool command code
+								int len = pop8(); // get payload length
+								
+								if (command_id == SLAVE_CMD_SET_MOTOR_1_RPM) {
+									uint32_t rpm = pop32(); // rpm, in microseconds pre rev
+									steppers::setSpeed(tool_id+3, rpm / ROTATION_STEPS_PER_REV); // FIXME!
+								}
+								else if (command_id == SLAVE_CMD_SET_MOTOR_1_DIR) {
+									uint8_t dir = pop8();
+									steppers::setDirection(tool_id+3, dir == 1);
+								}
+								else if (command_id == SLAVE_CMD_TOGGLE_MOTOR_1) {
+									uint8_t flags = pop8();
+									steppers::setDirection(tool_id+3, (flags & 0x02) != 0);
+									steppers::enableAxis(tool_id+3, (flags & 0x01) != 0);
+								}
 						}
 						else
 #endif
