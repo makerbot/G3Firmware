@@ -56,27 +56,39 @@ public:
 	void setFreeRotate(int32_t delta_in) {
 		delta = delta_in;
 		free_rotate = true;
-		interface->setEnabled(delta != 0);
+		if (!free_rotate_stopped && delta > 0) {
+			interface->setEnabled(true);
+		}
+		else if (free_rotate_stopped && delta == 0) {
+			interface->setEnabled(false);
+			free_rotate = false;
+		}
 		counter = -1;
 	}
 	
 	void setFreeRotateDirection(bool direction_in) {
+		free_rotate = true;
 		direction = direction_in;
+	}
+
+	/// Enable/disable stepper
+	void enableStepper(bool enable) {
+		// if free rotating, only disable if the rpm is zero 
+		if (free_rotate) {
+			if ((enable && delta > 0) || delta == 0) {
+				interface->setEnabled(enable);				
+			}
+			free_rotate_stopped = !enable;
+		}
+		else {
+			interface->setEnabled(enable);
+		}
 	}
 
 	/// Define current position as the given value
 	void definePosition(const int32_t position_in) {
 		free_rotate = false;
 		position = position_in;
-	}
-
-	/// Enable/disable stepper
-	void enableStepper(bool enable) {
-		// if free rotating, only disable if the rpm is zero 
-		if (free_rotate && !enable)
-			delta = 0;
-		else
-			interface->setEnabled(enable);
 	}
 
 	/// Reset to initial state
@@ -88,11 +100,13 @@ public:
 		counter = 0;
 		delta = 0;
 		free_rotate = false;
+		free_rotate_stopped = true;
 	}
 
 	void doInterrupt(const int32_t intervals) {
-		if (free_rotate && delta > 0) {
-			counter++;
+		if (free_rotate) {
+			if (!free_rotate_stopped && delta > 0)
+				counter++;
 		} else {
 			counter += delta;
 		}
@@ -160,7 +174,9 @@ public:
 	/// True for positive, false for negative
 	volatile bool direction;
 	/// Free rotate
-	volatile int32_t free_rotate;
+	volatile bool free_rotate;
+	/// Stopped free rotation
+	volatile bool free_rotate_stopped;
 };
 
 volatile bool is_running;
@@ -216,27 +232,21 @@ void setSpeed(const int axis, const uint32_t us_per_step) {
 	const int32_t d = us_per_step / INTERVAL_IN_MICROSECONDS;
 	axes[axis].setFreeRotate(d);
 	//axes[axis].counter = 0;
-	
-	// if we stop one, we need to see if there's still one running...
-	if (d == 0) {
-		is_free_running = false;
-
-		for (int i = 0; i < AXIS_COUNT; i++) {
-			if (axes[i].free_rotate) {
-				is_free_running = true;
-				break;
-			}
-		}
-	}
 }
 	
 void setDirection(const int axis, const bool forward) {
 	axes[axis].setFreeRotateDirection(forward);
+	is_free_running = true; // we have one free running now
 }
 
 void setTarget(const Point& target, int32_t dda_interval) {
 	int32_t max_delta = 0;
+	is_free_running = false;
 	for (int i = 0; i < AXIS_COUNT; i++) {
+		if (axes[i].free_rotate) {
+			is_free_running = true;
+			continue;
+		}
 		axes[i].setTarget(target[i]);
 		const int32_t delta = axes[i].delta;
 		// Only shut z axis on inactivity
@@ -251,7 +261,8 @@ void setTarget(const Point& target, int32_t dda_interval) {
 	intervals_remaining = intervals;
 	const int32_t negative_half_interval = -intervals / 2;
 	for (int i = 0; i < AXIS_COUNT; i++) {
-		axes[i].counter = negative_half_interval;
+		if (!axes[i].free_rotate)
+			axes[i].counter = negative_half_interval;
 	}
 	is_running = true;
 }
@@ -285,8 +296,7 @@ bool doInterrupt() {
 			is_running = false;
 		} else {
 			for (int i = 0; i < STEPPER_COUNT; i++) {
-				if (!axes[i].free_rotate)
-					axes[i].doInterrupt(intervals);
+				axes[i].doInterrupt(intervals);
 			}
 		}
 		return is_running;
@@ -302,7 +312,7 @@ bool doInterrupt() {
 	if (is_free_running) {
 		for (int i = 0; i < STEPPER_COUNT; i++) {
 			if (axes[i].free_rotate)
-				axes[i].doInterrupt(intervals);
+				axes[i].doInterrupt(1);
 		}
 		return false;
 	} 
