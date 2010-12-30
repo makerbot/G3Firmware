@@ -58,9 +58,10 @@
 #define HOST_CMD_GET_DBG_REG       19
 // Retrieve the string representing this build
 #define HOST_CMD_GET_BUILD_NAME    20
+#define HOST_CMD_GET_POSITION_EXT  21
 
 //write a 32bit integer to EEPROM
-#define HOST_CMD_WRITE_EEPROM32	   21
+#define HOST_CMD_WRITE_EEPROM32	   22
 
 // These are our bufferable commands from the host
 // #define HOST_CMD_QUEUE_POINT_INC   128  // deprecated
@@ -73,11 +74,14 @@
 #define HOST_CMD_WAIT_FOR_TOOL     135
 #define HOST_CMD_TOOL_COMMAND      136
 #define HOST_CMD_ENABLE_AXES       137
-#define HOST_CMD_WAIT_FOR_PLATFORM 141
-
 //Auto home commands (Also bufferable)
 #define HOST_CMD_FIRST_AUTO_RAFT   138
 #define HOST_CMD_AUTO_RAFT         139
+
+#define HOST_CMD_QUEUE_POINT_EXT   140
+#define HOST_CMD_SET_POSITION_EXT  141
+#define HOST_CMD_WAIT_FOR_PLATFORM 142
+
 
 #define HOST_CMD_DEBUG_ECHO        0x70
 
