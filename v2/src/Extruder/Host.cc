@@ -168,7 +168,8 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 #endif
 			return true;
 		case SLAVE_CMD_SET_SERVO_2_POS:
-		{
+#if HAS_SERVOS		
+{
 			uint8_t v = from_host.read8(2);
 			if (v == 255) {
 				board.setServo(1,-1);
@@ -178,6 +179,9 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			}
 		}
 			to_host.append8(RC_OK);
+#else
+			to_host.append8(RC_CMD_UNSUPPORTED);
+#endif
 			return true;
 		case SLAVE_CMD_GET_SP:
 			to_host.append8(RC_OK);
