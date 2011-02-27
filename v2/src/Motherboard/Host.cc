@@ -19,6 +19,7 @@
 #include "Command.hh"
 #include "Tool.hh"
 #include "Commands.hh"
+#include "LinearScripts.hh"
 #include "Steppers.hh"
 #include "DebugPacketProcessor.hh"
 #include "Timeout.hh"
@@ -364,6 +365,14 @@ inline void handleWriteEeprom(const InPacket& from_host, OutPacket& to_host) {
 	to_host.append8(length);
 }
 
+inline void handleWriteEeprom32(const InPacket& from_host, OutPacket& to_host) {
+	int16_t offset_from_host = from_host.read16(1);
+	int32_t data;
+	data = from_host.read32(3);
+	eeprom_write_block((const void*)&data, (void*)offset_from_host, 4); //save it!
+	to_host.append8(RC_OK);
+}
+
 enum { // bit assignments
 	ES_STEPPERS = 0, // stop steppers
 	ES_COMMANDS = 1  // clean queue
@@ -442,6 +451,9 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 				return true;
 			case HOST_CMD_WRITE_EEPROM:
 				handleWriteEeprom(from_host,to_host);
+				return true;
+			case HOST_CMD_WRITE_EEPROM32:
+				handleWriteEeprom32(from_host,to_host);
 				return true;
 			case HOST_CMD_EXTENDED_STOP:
 				handleExtendedStop(from_host,to_host);

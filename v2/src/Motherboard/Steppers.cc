@@ -185,7 +185,7 @@ void setHoldZ(bool holdZ_in) {
 void setTarget(const Point& target, int32_t dda_interval) {
 	int32_t max_delta = 0;
 	for (int i = 0; i < AXIS_COUNT; i++) {
-		axes[i].setTarget(target[i], false);
+		axes[i].setTarget(target[i], false); //False = Not relative!
 		const int32_t delta = axes[i].delta;
 		// Only shut z axis on inactivity
 		if (i == 2 && !holdZ) axes[i].enableStepper(delta != 0);
@@ -225,21 +225,32 @@ void setTargetNew(const Point& target, int32_t us, uint8_t relative) {
 	is_running = true;
 }
 
-/// Start homing
-void startHoming(const bool maximums, const uint8_t axes_enabled, const uint32_t us_per_step) {
-	intervals_remaining = INT32_MAX;
-	intervals = us_per_step / INTERVAL_IN_MICROSECONDS;
-	const int32_t negative_half_interval = -intervals / 2;
-	for (int i = 0; i < AXIS_COUNT; i++) {
-		axes[i].counter = negative_half_interval;
-		if ((axes_enabled & (1<<i)) != 0) {
-			axes[i].setHoming(maximums);
-		} else {
-			axes[i].delta = 0;
+	/// Start homing
+	void startHoming(const uint8_t maximums[], const uint32_t us_per_step) {
+		intervals_remaining = INT32_MAX;
+		intervals = us_per_step / INTERVAL_IN_MICROSECONDS;
+		const int32_t negative_half_interval = -intervals / 2;
+		for (int i = 0; i < COORDINATE_AXIS_COUNT; i++) { //only bother with the coordinate axes!
+			axes[i].counter = negative_half_interval;
+			if (maximums[i] != 0) { //if homing this axis
+				
+				if (maximums[i] == 1 || maximums[i] == 3) { //If negative. 
+					axes[i].setHoming(false); //home -
+				} else {
+					axes[i].setHoming(true); //home +
+				}
+			} else {
+				axes[i].delta = 0; //don't home at all
+			}
+			//Now we live in an age of 5 axis'. Lets fill the last two with zeros if necesary
+				#if AXIS_COUNT > 3
+					axes[COORDINATE_AXIS_COUNT].delta = 0;
+					axes[COORDINATE_AXIS_COUNT + 1].delta = 0;
+				#endif
 		}
+		is_homing = true;
 	}
-	is_homing = true;
-}
+	
 
 /// Enable/disable the given axis.
 void enableAxis(uint8_t which, bool enable) {
@@ -260,7 +271,7 @@ bool doInterrupt() {
 		return is_running;
 	} else if (is_homing) {
 		is_homing = false;
-		for (int i = 0; i < STEPPER_COUNT; i++) {
+		for (int i = 0; i < AXIS_COUNT; i++) {
 			bool still_homing = axes[i].doHoming(intervals);
 			is_homing = still_homing || is_homing;
 		}

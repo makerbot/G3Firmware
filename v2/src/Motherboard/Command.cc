@@ -17,6 +17,7 @@
 
 #include "Command.hh"
 #include "Steppers.hh"
+#include "LinearScripts.hh"
 #include "Commands.hh"
 #include "Tool.hh"
 #include "Configuration.hh"
@@ -97,8 +98,11 @@ enum {
 	DELAY,
 	HOMING,
 	WAIT_ON_TOOL,
+	SCRIPTS_RUNNING,
 	WAIT_ON_PLATFORM
 } mode = READY;
+
+bool waiting_to_move_Zstage = false;
 
 Timeout delay_timeout;
 Timeout homing_timeout;
@@ -179,6 +183,16 @@ void runCommandSlice() {
 			tool::releaseLock();
 		}
 	}
+	
+	if (mode == SCRIPTS_RUNNING) {
+		if (scripts::isRunning() == true) {
+			scripts::RunScripts(); //run scripts while there is still something to do.
+			//TODO: have the scripts have a timeout.
+		} else {
+			mode = READY; //reset to ready state and run next command.
+		}
+	}
+	
 	if (mode == READY) {
 		// process next command on the queue.
 		if (command_buffer.getLength() > 0) {
@@ -272,13 +286,66 @@ void runCommandSlice() {
 					uint8_t flags = pop8();
 					uint32_t feedrate = pop32(); // feedrate in us per step
 					uint16_t timeout_s = pop16();
-					bool direction = command == HOST_CMD_FIND_AXES_MAXIMUM;
 					mode = HOMING;
 					homing_timeout.start(timeout_s * 1000L * 1000L);
-					steppers::startHoming(command==HOST_CMD_FIND_AXES_MAXIMUM,
-							flags,
-							feedrate);
+					uint8_t direction[AXIS_COUNT];
+					
+					if (command==HOST_CMD_FIND_AXES_MAXIMUM) { //convert flags system to array system.
+						for (int i = 0; i < AXIS_COUNT; i++) {
+							if ((flags & (1<<i)) != 0) {
+								direction[i] = 2;
+							} else {
+								direction[i] = 0;
+							}
+						}
+						
+					} else {
+						for (int i = 0; i < AXIS_COUNT; i++) {
+							if ((flags & (1<<i)) != 0) {
+								direction[i] = 1;
+							} else {
+								direction[i] = 0;
+							}
+						}
+					}
+					
+					steppers::startHoming(direction, feedrate);
+					
 				}
+				
+			} else if (command == HOST_CMD_SETUP_AUTO_HOME) { 
+					if (command_buffer.getLength() >= (11 + COORDINATE_AXIS_COUNT)) {
+						command_buffer.pop(); // remove the command
+						
+						uint8_t direction[COORDINATE_AXIS_COUNT];
+						for (int i = 0; i < COORDINATE_AXIS_COUNT; i++) {
+							direction[i] = pop8(); //get directions for all three axis.
+						}
+						
+						uint32_t feedrateXY = pop32(); // feedrate in us per step
+						uint32_t feedrateZ = pop32(); // feedrate in us per step
+						uint16_t timeout_s = pop16(); //The time to home for before giving up.
+						mode = SCRIPTS_RUNNING;
+						scripts::StartFirstAutoHome(direction, feedrateXY, feedrateZ, timeout_s);
+					}//end of command buffer if
+					
+					
+					
+			} else if (command == HOST_CMD_AUTO_HOME) { 
+					if (command_buffer.getLength() >= 11) {
+						command_buffer.pop(); // remove the command
+						//axis prefs are saved in EEPROM.
+						
+						uint32_t feedrateXY = pop32(); // feedrate in us per step
+						uint32_t feedrateZ = pop32(); // feedrate in us per step
+						uint16_t timeout_s = pop16(); //The time to home for before giving up.
+						mode = SCRIPTS_RUNNING;
+						scripts::StartAutoHome(feedrateXY, feedrateZ, timeout_s);
+					}//end of command buffer if
+					
+					
+					
+					
 			} else if (command == HOST_CMD_WAIT_FOR_TOOL) {
 				if (command_buffer.getLength() >= 6) {
 					mode = WAIT_ON_TOOL;
@@ -288,6 +355,7 @@ void runCommandSlice() {
 					uint16_t toolTimeout = (uint16_t)pop16();
 					tool_wait_timeout.start(toolTimeout*1000000L);
 				}
+				
 			} else if (command == HOST_CMD_WAIT_FOR_PLATFORM) {
         // FIXME: Almost equivalent to WAIT_FOR_TOOL
 				if (command_buffer.getLength() >= 6) {

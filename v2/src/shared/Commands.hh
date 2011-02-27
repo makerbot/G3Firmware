@@ -62,6 +62,9 @@
 #define HOST_CMD_GET_POSITION_EXT  21
 #define HOST_CMD_EXTENDED_STOP     22
 
+//Not needed, just easier to use than fooling around with Endian-ness.
+#define HOST_CMD_WRITE_EEPROM32			   23 
+
 // These are our bufferable commands from the host
 // #define HOST_CMD_QUEUE_POINT_INC   128  // deprecated
 #define HOST_CMD_QUEUE_POINT_ABS   129
@@ -79,6 +82,9 @@
 #define HOST_CMD_SET_POSITION_EXT  140
 
 #define HOST_CMD_QUEUE_POINT_NEW   142
+
+#define HOST_CMD_SETUP_AUTO_HOME				143
+#define HOST_CMD_AUTO_HOME					144
 
 #define HOST_CMD_DEBUG_ECHO        0x70
 

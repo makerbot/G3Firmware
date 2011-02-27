@@ -23,6 +23,7 @@
 typedef uint32_t micros_t;
 
 #define AXIS_COUNT STEPPER_COUNT
+#define COORDINATE_AXIS_COUNT 3 //Not all axis' are homeable/Movable! Only include the XYZ axis!
 
 class Point {
 private:
