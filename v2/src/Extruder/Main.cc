@@ -23,6 +23,7 @@
 #include "ExtruderMotor.hh"
 #include "ThermistorTable.hh"
 #include <avr/interrupt.h>
+#include <avr/wdt.h>
 #include "EepromMap.hh"
 #include "ExtruderBoard.hh"
 #include "MotorController.hh"
@@ -46,6 +47,9 @@ void reset() {
 int main() {
 	reset();
 	while (1) {
+		// Reset the watchdog timer. WDT is turned on in the board
+		// object reset methods. The standard timeout is 2S.
+		wdt_reset();
 		// Host interaction thread.
 		runHostSlice();
 		// Temperature monitoring thread

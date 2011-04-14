@@ -24,6 +24,7 @@
 #include <util/atomic.h>
 #include <avr/sfr_defs.h>
 #include <avr/io.h>
+#include <avr/wdt.h>
 #include "EepromMap.hh"
 
 ExtruderBoard ExtruderBoard::extruder_board;
@@ -128,6 +129,15 @@ void ExtruderBoard::reset(uint8_t resetFlags) {
 	OCR2A = INTERVAL_IN_MICROSECONDS / 2; // 2uS/tick at 1/32 prescaler
 	TIMSK2 = 0x02; // turn on OCR2A match interrupt
 
+	// Watchdog timer
+	//  Mode: System reset, timeout period: 2S
+	//  The watchdog timer guards against extruder board lockups
+	//  by requiring periodic pings. If the the board does not
+	//  return to the main loop at least once every two seconds,
+	//  we presume a potentially dangerous lockup and reset the
+	//  board.
+	// The watchdog is reset in the main() function in Main.cc.
+	wdt_enable(WDTO_2S);
 
 	extruder_thermocouple.init();
 	platform_thermistor.init();
