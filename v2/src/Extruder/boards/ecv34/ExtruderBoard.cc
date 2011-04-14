@@ -91,14 +91,14 @@ void ExtruderBoard::reset(uint8_t resetFlags) {
 	CHANNEL_C.setDirection(true);
 
 	// Timer 0:
-	//  Mode: Phase-correct PWM (WGM2:0 = 001), cycle freq= 976 Hz
-	//  Prescaler: 1/64 (250 KHz)
+	//  Mode: Phase-correct PWM (WGM2:0 = 001), cycle freq= 61 Hz
+	//  Prescaler: 1/1024 (15.625 KHz)
 	//  Mosfet C (labeled heater, used for extruder heater)
 	//   - uses OCR0A to generate PWM
 	//  H-bridge enable (used for DC motor, or fan on stepstruder:
 	//   - uses OCR0B to generate PWM
 	TCCR0A = 0b00000001;
-	TCCR0B = 0b00000011;
+	TCCR0B = 0b00000101;
 	OCR0A = 0;
 	OCR0B = 0;
 	TIMSK0 = 0b00000000; // no interrupts needed
