@@ -18,6 +18,25 @@
 #include "ExtruderBoard.hh"
 #include "TemperatureThread.hh"
 
+
+/**
+ * Return true if an open loop fault has been detected on the extruder heating
+ * loop.
+ */
+bool hasExtruderOpenLoopFault() {
+  ExtruderBoard& board = ExtruderBoard::getBoard();
+  return board.getExtruderHeater().has_open_loop_fault();
+}
+
+/**
+ * Return true if an open loop fault has been detected on the platform heating
+ * loop.
+ */
+bool hasPlatformOpenLoopFault() {
+  ExtruderBoard& board = ExtruderBoard::getBoard();
+  return board.getPlatformHeater().has_open_loop_fault();
+}
+
 void runTempSlice() {
 	ExtruderBoard& board = ExtruderBoard::getBoard();
 	board.getExtruderHeater().manage_temperature();

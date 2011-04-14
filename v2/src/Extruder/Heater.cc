@@ -39,6 +39,14 @@
 // If we read a temperature higher than this, shut down the heater
 #define HEATER_CUTOFF_TEMPERATURE 280
 
+// The duty level above which we can presume an out-of-control or damaged heater over
+// OPEN_LOOP_TIMEOUT uS
+#define OPEN_LOOP_DUTY 200
+
+// The period, in uS, during which the heater must be over OPEN_LOOP_DUTY to assume an
+// open loop fault.  Default: seventeen minutes.
+#define OPEN_LOOP_TIMEOUT (17L*60L*1000L*1000L)
+
 Heater::Heater(TemperatureSensor& sensor_in, HeatingElement& element_in, micros_t sample_interval_micros_in, uint16_t eeprom_base_in) :
 		sensor(sensor_in),
 		element(element_in),
@@ -58,6 +66,9 @@ void Heater::reset() {
 
 	fail_state = false;
 	fail_count = 0;
+
+	open_loop_fault = false;
+	open_loop_timeout.abort();
 
 	float p = eeprom::getEepromFixed16(eeprom_base,DEFAULT_P);
 	float i = eeprom::getEepromFixed16(eeprom_base+I_OFFSET,DEFAULT_I);
@@ -193,7 +204,23 @@ void Heater::manage_temperature()
 
 void Heater::set_output(uint8_t value)
 {
-	element.setHeatingElement(value);
+	// Failure check of last resort: if the temperature 
+	if (value > OPEN_LOOP_DUTY) {
+		if (!open_loop_timeout.isActive()) {
+			open_loop_timeout.start(OPEN_LOOP_TIMEOUT);
+		} else if (open_loop_timeout.hasElapsed()) {
+			open_loop_fault = true;
+			fail();
+		}
+	} else {
+		open_loop_timeout.abort();
+	}
+
+	if (open_loop_fault) { 
+		element.setHeatingElement(0);
+		return;
+	}
+	element.setHeatingElement(value);	  
 }
 
 void Heater::fail()

@@ -18,6 +18,24 @@
 #ifndef TEMPERATURETHREAD_HH_
 #define TEMPERATURETHREAD_HH_
 
+// The "open loop" faults are the faults of last resort. Essentially, if the
+// system is maintaining the duty cycle above a certain level continuously
+// for more than a time period T, we should assume that there has been a
+// failure in the software, hardware, or connections thereof and shut off
+// the heating mosfet.
+
+/**
+ * Return true if an open loop fault has been detected on the extruder heating
+ * loop.
+ */
+bool hasExtruderOpenLoopFault();
+
+/**
+ * Return true if an open loop fault has been detected on the platform heating
+ * loop.
+ */
+bool hasPlatformOpenLoopFault();
+
 void runTempSlice();
 
 #endif /* TEMPERATURETHREAD_HH_ */

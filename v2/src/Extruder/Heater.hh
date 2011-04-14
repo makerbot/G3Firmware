@@ -43,6 +43,9 @@ class Heater
     bool fail_state;
     uint8_t fail_count;
 
+    bool open_loop_fault;
+    Timeout open_loop_timeout;
+
     // This is the interval between PID calculations.  It doesn't make sense for
     // this to be fast (<1 sec) because of the long system delay between heater
     // and sensor.
@@ -58,7 +61,8 @@ class Heater
     void set_target_temperature(int temp);
     bool has_reached_target_temperature();
     bool has_failed();
-
+    // Return true if the open loop fault has been detected.
+    bool has_open_loop_fault() { return open_loop_fault; }
     // Call once each temperature interval
     void manage_temperature();
 
