@@ -31,6 +31,7 @@
 #define ERR_HOST_PACKET_TIMEOUT		4
 #define ERR_HOST_PACKET_MISC		5
 #define ERR_WDT_TIMEOUT				6
+#define ERR_ESTOP					7
 
 #define ERR_HOST_TRUNCATED_CMD		8
 
