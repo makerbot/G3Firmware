@@ -26,9 +26,17 @@
 #include <avr/io.h>
 #include "EepromMap.hh"
 
+
+//Sin table values
+// from: http://www.meraman.com/uploads/files/public/sinTable.htm
+#define SIN_STEPS 128
+uint8_t sin_vector[] = {127, 133, 139, 146, 152, 158, 164, 170, 176, 181, 187, 192, 198, 203, 208, 212, 217, 221, 225, 229, 233, 236, 239, 242, 244, 247, 249, 250, 252, 253, 253, 254, 254, 254, 253, 253, 252, 250, 249, 247, 244, 242, 239, 236, 233, 229, 225, 221, 217, 212, 208, 203, 198, 192, 187, 181, 176, 170, 164, 158, 152, 146, 139, 133, 127, 121, 115, 108, 102, 96, 90, 84, 78, 73, 67, 62, 56, 51, 46, 42, 37, 33, 29, 25, 21, 18, 15, 12, 10, 7, 5, 4, 2, 1, 1, 0, 0, 0, 1, 1, 2, 4, 5, 7, 10, 12, 15, 18, 21, 25, 29, 33, 37, 42, 46, 51, 56, 62, 67, 73, 78, 84, 90, 96, 102, 108, 115, 121 };
+
 ExtruderBoard ExtruderBoard::extruder_board;
 uint8_t led_current_channel;
 uint16_t led_values[LED_CHANNELS];
+float phasor;		// current angle of the led sine wheel
+float phasor_speed;	// speed to increment the angle
 
 ExtruderBoard::ExtruderBoard() :
 		micros(0L),
@@ -69,9 +77,9 @@ void ExtruderBoard::reset(uint8_t resetFlags) {
 	for(uint8_t i = 0; i < LED_CHANNELS; i++) {
 		led_values[i] = 0;
 	}
-	led_values[14] = 2000;
-	led_values[15] = 4000;
-	led_current_channel = 15;
+	led_current_channel = 0;
+	phasor = 0;
+	phasor_speed = .2;
 
 	initExtruderMotor();
 
@@ -104,13 +112,18 @@ void ExtruderBoard::setMotorSpeed(int16_t speed) {
 }
 
 void ExtruderBoard::setServo(uint8_t index, int value) {
-	if (index == 0) {
-		if(value < LED_CHANNELS) {
+	if (index == 0) {		
+		if(value < LED_CHANNELS + 1) {
 			led_current_channel = value;
 		}
 	}
 	else {
-		led_values[led_current_channel] = value*16;
+		if (led_current_channel < LED_CHANNELS) {
+			led_values[led_current_channel] = value;
+		}
+		else {
+			phasor_speed = (float)value/100;
+		}	
 	}
 /*
 	SoftwareServo* servo;
@@ -179,13 +192,28 @@ void ExtruderBoard::doInterrupt() {
 
 	// Overflow, so refresh the LEDs
 	// TODO: fading, etc...
-	if (led_counter > 10000) {
+	if (led_counter > 1000) {
 		led_counter = 0;
-
+		uint8_t value; 
 		for (uint8_t channel = 0; channel < LED_CHANNELS; channel++) {
-			Tlc.set(channel, led_values[channel]);
+			value = led_values[channel];			
+			// 0...100 means constant color
+			if (value < 101) {
+				Tlc.set(channel, value*40);
+			}
+			// 101...165 means sine wave with a phase offset
+			else {
+				Tlc.set(channel,
+					16*sin_vector[((uint8_t)(phasor + value - 101)) % SIN_STEPS]);
+			}
 		}
 		Tlc.update();
+
+		// TODO: this close enough?
+		phasor = phasor + phasor_speed;
+		if (phasor > SIN_STEPS) {
+			phasor -= SIN_STEPS;
+		}
 	}
 }
 
