@@ -175,6 +175,14 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			to_host.append8(RC_OK);
 			to_host.append16(board.getPlatformHeater().get_set_temperature());
 			return true;
+		case SLAVE_CMD_GET_MOTOR_1_RPM:
+			to_host.append8(RC_OK);
+			to_host.append32(motor.getRPMSpeed());
+			return true;
+		case SLAVE_CMD_GET_MOTOR_1_PWM:
+			to_host.append8(RC_OK);
+			to_host.append8(motor.getSpeed());
+			return true;
 		}
 	}
 	return false;
