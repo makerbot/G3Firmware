@@ -46,6 +46,7 @@ private:
 
     int sp; // set point
 
+    int last_output;
 
 public:
     PID() { reset(); }
@@ -53,14 +54,21 @@ public:
     void setIGain(const float i_gain_in) { i_gain = i_gain_in; }
     void setDGain(const float d_gain_in) { d_gain = d_gain_in; }
 
-    void setTarget(const int target) { sp = target; }
+    void setTarget(const int target);
     const int getTarget() const { return sp; }
 
     /// Reset the PID to board-on values
     void reset();
+
+    // Reset only the PID control loop variables
+    void reset_state();
     /// PV is the process value; that is, the measured value
     /// Returns the new value of the manipulated value; that is, the output
     int calculate(int pv);
+
+    int getErrorTerm();
+    int getDeltaTerm();
+    int getLastOutput();
 };
 
 #endif /* PID_HH_ */

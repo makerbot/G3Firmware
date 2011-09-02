@@ -38,7 +38,11 @@ public:
 
 class ExtruderBoard {
 public:
-	void reset();
+	void reset(uint8_t resetFlags);
+	// Return the processor's reset status flags.  These are useful
+	// for diagnosing what might have triggered the last processor
+	// reset.
+	uint8_t getResetFlags();
 
 	Heater& getExtruderHeater() { return extruder_heater; }
 	Heater& getPlatformHeater() { return platform_heater; }
@@ -52,7 +56,7 @@ public:
 	void setFan(bool on);
 	void setValve(bool on);
 	UART& getHostUART() { return UART::getHostUART(); }
-	static ExtruderBoard& getBoard() { return extruderBoard; }
+	static ExtruderBoard& getBoard() { return extruder_board; }
 	/// Get the number of microseconds that have passed since
 	/// the board was initialized.  This value will wrap after
 	/// 2**16 microseconds; callers should compensate for this.
@@ -61,11 +65,16 @@ public:
 	void doInterrupt();
 	/// Indicate an error by manipulating the debug LED.
 	void indicateError(int errorCode);
+
+        void lightIndicatorLED() {}
+
 	bool isUsingPlatform() { return using_platform; }
 	void setUsingPlatform(bool is_using);
 	void setUsingRelays(bool is_using);
-	// Index 0 = D9, Index 1 = D10.  Value = -1 to turn off, 0-255 to set position.
+	// Index 0 = D9, Index 1 = D10.  Value = -1 to turn off, 0-180 to set position.
 	void setServo(uint8_t index, int value);
+
+        uint8_t getSlaveID() { return slave_id; }
 private:
 	Thermistor extruder_thermistor;
 	Thermistor platform_thermistor;
@@ -77,7 +86,11 @@ private:
 	/// Microseconds since board initialization
 	volatile micros_t micros;
 	ExtruderBoard();
-	static ExtruderBoard extruderBoard;
+	static ExtruderBoard extruder_board;
+
+	uint8_t resetFlags;
+
+        uint8_t slave_id;
 };
 
 #endif // BOARDS_ECV22_EXTRUDER_BOARD_HH_

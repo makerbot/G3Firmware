@@ -38,10 +38,17 @@ class Heater
     uint16_t eeprom_base;
 
     PID pid;
+    bool bypassing_PID;
 
-    // This is the interval between PID calculations.  Longer updates are (counterintuitively)
-    // better since we're using discrete D.
+    bool fail_state;
+    uint8_t fail_count;
+
+    // This is the interval between PID calculations.  It doesn't make sense for
+    // this to be fast (<1 sec) because of the long system delay between heater
+    // and sensor.
     const static micros_t UPDATE_INTERVAL_MICROS = 500L * 1000L;
+
+    void fail();
 
   public:
     Heater(TemperatureSensor& sensor, HeatingElement& element, const micros_t sample_interval_micros, const uint16_t eeprom_base);
@@ -49,7 +56,8 @@ class Heater
     int get_current_temperature();
     int get_set_temperature();
     void set_target_temperature(int temp);
-    bool hasReachedTargetTemperature();
+    bool has_reached_target_temperature();
+    bool has_failed();
 
     // Call once each temperature interval
     void manage_temperature();
@@ -58,6 +66,10 @@ class Heater
 
     // Reset to board-on state
     void reset();
+
+    int getPIDErrorTerm();
+    int getPIDDeltaTerm();
+    int getPIDLastOutput();
 };
 
 #endif // HEATER_H

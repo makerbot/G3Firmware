@@ -23,6 +23,8 @@
 #include "Timeout.hh"
 #include "CircularBuffer.hh"
 #include <util/atomic.h>
+#include <avr/eeprom.h>
+#include "EepromMap.hh"
 #include "SDCard.hh"
 
 namespace command {
@@ -142,14 +144,14 @@ void runCommandSlice() {
 			InPacket& in = tool::getInPacket();
 			out.reset();
 			out.append8(tool::tool_index);
-			out.append8(SLAVE_CMD_IS_TOOL_READY);
+			out.append8(SLAVE_CMD_GET_TOOL_STATUS);
 			tool::startTransaction();
 			// WHILE: bounded by timeout in runToolSlice
 			while (!tool::isTransactionDone()) {
 				tool::runToolSlice();
 			}
 			if (!in.hasError()) {
-				if (in.read8(1) != 0) {
+				if (in.read8(1) & 0x01) {
 					mode = READY;
 				}
 			}
@@ -194,6 +196,33 @@ void runCommandSlice() {
 					int32_t dda = pop32();
 					steppers::setTarget(Point(x,y,z),dda);
 				}
+			} else if (command == HOST_CMD_QUEUE_POINT_EXT) {
+				// check for completion
+				if (command_buffer.getLength() >= 25) {
+					command_buffer.pop(); // remove the command code
+					mode = MOVING;
+					int32_t x = pop32();
+					int32_t y = pop32();
+					int32_t z = pop32();
+					int32_t a = pop32();
+					int32_t b = pop32();
+					int32_t dda = pop32();
+					steppers::setTarget(Point(x,y,z,a,b),dda);
+				}
+			} else if (command == HOST_CMD_QUEUE_POINT_NEW) {
+				// check for completion
+				if (command_buffer.getLength() >= 26) {
+					command_buffer.pop(); // remove the command code
+					mode = MOVING;
+					int32_t x = pop32();
+					int32_t y = pop32();
+					int32_t z = pop32();
+					int32_t a = pop32();
+					int32_t b = pop32();
+					int32_t us = pop32();
+					uint8_t relative = pop8();
+					steppers::setTargetNew(Point(x,y,z,a,b),us,relative);
+				}
 			} else if (command == HOST_CMD_CHANGE_TOOL) {
 				if (command_buffer.getLength() >= 2) {
 					command_buffer.pop(); // remove the command code
@@ -218,6 +247,17 @@ void runCommandSlice() {
 					int32_t y = pop32();
 					int32_t z = pop32();
 					steppers::definePosition(Point(x,y,z));
+				}
+			} else if (command == HOST_CMD_SET_POSITION_EXT) {
+				// check for completion
+				if (command_buffer.getLength() >= 21) {
+					command_buffer.pop(); // remove the command code
+					int32_t x = pop32();
+					int32_t y = pop32();
+					int32_t z = pop32();
+					int32_t a = pop32();
+					int32_t b = pop32();
+					steppers::definePosition(Point(x,y,z,a,b));
 				}
 			} else if (command == HOST_CMD_DELAY) {
 				if (command_buffer.getLength() >= 5) {
@@ -260,6 +300,45 @@ void runCommandSlice() {
 					uint16_t toolTimeout = (uint16_t)pop16();
 					tool_wait_timeout.start(toolTimeout*1000000L);
 				}
+			} else if (command == HOST_CMD_STORE_HOME_POSITION) {
+
+				// check for completion
+				if (command_buffer.getLength() >= 2) {
+					command_buffer.pop();
+					uint8_t axes = pop8();
+
+					// Go through each axis, and if that axis is specified, read it's value,
+					// then record it to the eeprom.
+					for (uint8_t i = 0; i < STEPPER_COUNT; i++) {
+						if ( axes & (1 << i) ) {
+							uint16_t offset = eeprom::AXIS_HOME_POSITIONS + 4*i;
+							uint32_t position = steppers::getPosition()[i];
+							cli();
+							eeprom_write_block(&position, (void*) offset, 4);
+							sei();
+						}
+					}
+				}
+			} else if (command == HOST_CMD_RECALL_HOME_POSITION) {
+				// check for completion
+				if (command_buffer.getLength() >= 2) {
+					command_buffer.pop();
+					uint8_t axes = pop8();
+
+					Point newPoint = steppers::getPosition();
+
+					for (uint8_t i = 0; i < STEPPER_COUNT; i++) {
+						if ( axes & (1 << i) ) {
+							uint16_t offset = eeprom::AXIS_HOME_POSITIONS + 4*i;
+							cli();
+							eeprom_read_block(&(newPoint[i]), (void*) offset, 4);
+							sei();
+						}
+					}
+
+					steppers::definePosition(newPoint);
+				}
+
 			} else if (command == HOST_CMD_TOOL_COMMAND) {
 				if (command_buffer.getLength() >= 4) { // needs a payload
 					uint8_t payload_length = command_buffer[3];
@@ -287,5 +366,4 @@ void runCommandSlice() {
 		}
 	}
 }
-
 }

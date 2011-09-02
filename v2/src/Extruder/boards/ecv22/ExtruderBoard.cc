@@ -26,7 +26,7 @@
 #include <avr/io.h>
 #include "EepromMap.hh"
 
-ExtruderBoard ExtruderBoard::extruderBoard;
+ExtruderBoard ExtruderBoard::extruder_board;
 
 // channel choices
 typedef enum {
@@ -52,6 +52,12 @@ ExtruderBoard::ExtruderBoard() :
 	heater_channel = (ChannelChoice)((ef >> 2) & 0x03);
 	hbp_channel = (ChannelChoice)((ef >> 4) & 0x03);
 	abp_channel = (ChannelChoice)((ef >> 6) & 0x03);
+}
+
+// Get the reset flags from the processor, as a bitfield
+// return: The bitfield looks like this: 0 0 0 0 WDRF BORF EXTRF PORF
+uint8_t ExtruderBoard::getResetFlags() {
+	return resetFlags;
 }
 
 // Turn on/off PWM for channel A.
@@ -83,7 +89,9 @@ void ExtruderBoard::setServo(uint8_t index, int value) {
 	servoPos[index] = value;
 }
 
-void ExtruderBoard::reset() {
+void ExtruderBoard::reset(uint8_t resetFlags) {
+	this->resetFlags = resetFlags;
+
 	for (uint8_t i = 0; i < SERVO_COUNT; i++) {
 		servoPos[i] = -1;
 	}
@@ -165,6 +173,8 @@ void ExtruderBoard::reset() {
 	// init after we know what kind of motor we're using
 	setMotorSpeed(0);
 	setMotorSpeedRPM(0, true);
+
+        slave_id = eeprom::getEeprom8(eeprom::SLAVE_ID, 0);
 }
 
 void ExtruderBoard::setMotorSpeed(int16_t speed) {

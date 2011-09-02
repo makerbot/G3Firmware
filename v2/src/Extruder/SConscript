@@ -25,38 +25,55 @@ from os.path import dirname
 # Parameters
 platform = ARGUMENTS.get('platform','ecv22')
 stepper = ARGUMENTS.get('stepper','false')
-relays = ARGUMENTS.get('relays','true')
 extstepper = ARGUMENTS.get('extstepper','false')
 f_cpu='16000000L'
 
+if platform == 'ec36':
+	platform = 'ecv34'
+	
 default_baud = '19200'
 mcu='atmega168'
 has_queue = 0
 has_psu = 0
 
-def extract_version(f):
-	regex = re.compile(r"const uint16_t firmware_version = ([0-9]+);")
-	for line in f.get_contents().split('\n'):
-		mo = regex.match(line)
-		if mo:
-			return int(mo.group(1))
-	return 0
 
-version = extract_version(File('#/src/Extruder/Version.hh'))
+def parse_version(v):
+    if not v:
+        return 0
+    if v.find(".") != -1:
+       parts = v.split(".")
+       return (int(parts[0]) * 100) + int(parts[1])
+    return int(v)
+
+def get_default_version():
+	regex = re.compile(r"const uint16_t firmware_version = ([0-9]+);")
+	return parse_version(f.get_contents().strip())
+
+vstr = File('#/current_version.txt').get_contents().strip()
+
+vstr = ARGUMENTS.get('version',vstr)
+
+version = parse_version(vstr)
 
 if (platform == 'ecv22'):
 	default_baud = '19200'
 	mcu='atmega168'
 	has_queue = 0
 	has_psu = 0
+	relays_default = 'true'
 elif (platform == 'ecv34'):
 	default_baud = '19200'
 	mcu='atmega168'
 	has_queue = 0
 	has_psu = 0
+	relays_default = 'false'
 else:
-	print "Platform "+platform+" is not currently supported.\n"
+	print "Platform "+platform+" is not currently supported. Supported platforms are:"
+	print "ecv22: Gen 3 extruder controller" 
+	print "ecv34: Gen 4 extruder controller"
 	exit()
+
+relays = ARGUMENTS.get('relays',relays_default)
 
 target_name = "EC-"+platform+"-v"+str(version//100)+"."+str(version%100)
 
@@ -70,6 +87,7 @@ include_paths = ['#/src/shared', 'boards/%s' % platform, '.']
 
 flags=[
 	'-DF_CPU='+str(f_cpu),
+	'-DVERSION='+str(version),
 	'-mmcu='+mcu,
 	'-g',
 	'-Os',
@@ -77,9 +95,6 @@ flags=[
 	'-fno-exceptions',
 	'-ffunction-sections',
 	'-fdata-sections']
-
-if (os.environ.has_key('VERSION')):
-   flags.append('-DVERSION=' + os.environ['VERSION'])
 
 if (os.environ.has_key('BUILD_NAME')):
    flags.append('-DBUILD_NAME=' + os.environ['BUILD_NAME'])
@@ -95,10 +110,13 @@ if (relays == 'true'):
 
 if (os.environ.has_key('AVR_TOOLS_PATH')):
 	avr_tools_path = os.environ['AVR_TOOLS_PATH']
+elif (os.environ.has_key('AVR32_HOME')):
+	avr_tools_path = os.environ['AVR32_HOME'] + '\\bin'
 else:
 	avr_tools_path = dirname(os.popen('/usr/bin/which avr-gcc').readlines()[0])
 
-env=Environment(CC=avr_tools_path+"/avr-gcc",
+env=Environment(tools=['g++', 'gcc'],
+	CC=avr_tools_path+"/avr-gcc",
 	CXX=avr_tools_path+"/avr-g++",
 	CPPPATH=include_paths,
 	CCFLAGS=flags)

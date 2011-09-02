@@ -140,7 +140,7 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			board.setValve((from_host.read8(2) & 0x01) != 0);
 		case SLAVE_CMD_IS_TOOL_READY:
 			to_host.append8(RC_OK);
-			to_host.append8(board.getExtruderHeater().hasReachedTargetTemperature()?1:0);
+			to_host.append8(board.getExtruderHeater().has_reached_target_temperature()?1:0);
 			return true;
 		case SLAVE_CMD_GET_PLATFORM_TEMP:
 			to_host.append8(RC_OK);
@@ -154,13 +154,37 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 		case SLAVE_CMD_SET_SERVO_1_POS:
 #if HAS_SERVOS
 		{
-			uint8_t v = from_host.read8(2);
-			if (v == 255) {
+			uint8_t value = from_host.read8(2);
+			if (value == 255) {
 				board.setServo(0,-1);
-			} else {
-				if (v > 180) v = 180;
-				board.setServo(0,v);
 			}
+			else {
+				if (value > 180) {
+					value = 180;
+				}
+				board.setServo(0,value);
+			}
+
+		}
+			to_host.append8(RC_OK);
+#else
+			to_host.append8(RC_CMD_UNSUPPORTED);
+#endif
+			return true;
+		case SLAVE_CMD_SET_SERVO_2_POS:
+#if HAS_SERVOS
+		{
+			uint8_t value = from_host.read8(2);
+			if (value == 255) {
+				board.setServo(1,-1);
+			}
+			else {
+				if (value > 180) {
+					value = 180;
+				}
+				board.setServo(1,value);
+			}
+
 		}
 			to_host.append8(RC_OK);
 #else
@@ -177,7 +201,34 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			return true;
 		case SLAVE_CMD_IS_PLATFORM_READY:
 			to_host.append8(RC_OK);
-			to_host.append8(board.getPlatformHeater().hasReachedTargetTemperature()?1:0);
+			to_host.append8(board.getPlatformHeater().has_reached_target_temperature()?1:0);
+			return true;
+		case SLAVE_CMD_GET_TOOL_STATUS:
+			to_host.append8(RC_OK);
+			to_host.append8( (board.getExtruderHeater().has_failed()?128:0)
+							| (board.getPlatformHeater().has_failed()?64:0)
+					        | ((board.getResetFlags() & 0x0f) << 2)
+							| (board.getExtruderHeater().has_reached_target_temperature()?1:0));
+			return true;
+		case SLAVE_CMD_GET_PID_STATE:
+			to_host.append8(RC_OK);
+			to_host.append16(board.getExtruderHeater().getPIDErrorTerm());
+			to_host.append16(board.getExtruderHeater().getPIDDeltaTerm());
+			to_host.append16(board.getExtruderHeater().getPIDLastOutput());
+			to_host.append16(board.getPlatformHeater().getPIDErrorTerm());
+			to_host.append16(board.getPlatformHeater().getPIDDeltaTerm());
+			to_host.append16(board.getPlatformHeater().getPIDLastOutput());
+		case SLAVE_CMD_GET_MOTOR_1_RPM:
+			to_host.append8(RC_OK);
+			to_host.append32(motor.getRPMSpeed());
+			return true;
+		case SLAVE_CMD_GET_MOTOR_1_PWM:
+			to_host.append8(RC_OK);
+			to_host.append8(motor.getSpeed());
+			return true;
+                case SLAVE_CMD_LIGHT_INDICATOR_LED:
+			to_host.append8(RC_OK);
+                        board.lightIndicatorLED();
 			return true;
 		}
 	}
@@ -215,14 +266,14 @@ void runHostSlice() {
 		uart.reset();
 	}
 	if (in.isFinished()) {
-		out.reset();
-		const uint8_t slave_id = eeprom::getEeprom8(eeprom::SLAVE_ID, 0);
+                out.reset();
 		const uint8_t target = in.read8(0);
 		packet_in_timeout.abort();
 		// SPECIAL CASE: we always process debug packets!
 		if (processDebugPacket(in,out)) {
 			// okay, processed
-		} else if ( (target == slave_id) || (target == 255) ) {
+                } else if ( (target == ExtruderBoard::getBoard().getSlaveID())
+                            || (target == SLAVE_ID_BROADCAST) ) {
 			// only process packets for us
 			if (processQueryPacket(in, out)) {
 				// okay, processed

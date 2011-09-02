@@ -169,7 +169,7 @@ void LiquidCrystal::home()
 
 void LiquidCrystal::setCursor(uint8_t col, uint8_t row)
 {
-  int row_offsets[] = { 0x00, 0x40, 0x14, 0x54 };
+  int row_offsets[] = { 0x00, 0x40, 0x10, 0x50 };
   if ( row > _numlines ) {
     row = _numlines-1;    // we count rows starting w/0
   }
@@ -259,6 +259,43 @@ inline void LiquidCrystal::write(uint8_t value) {
   send(value, true);
 }
 
+
+void LiquidCrystal::writeInt(uint16_t value, uint8_t digits) {
+
+	uint16_t currentDigit;
+	uint16_t nextDigit;
+
+	switch (digits) {
+	case 1:		currentDigit = 10;		break;
+	case 2:		currentDigit = 100;		break;
+	case 3:		currentDigit = 1000;	break;
+	case 4:		currentDigit = 10000;	break;
+	default: 	return;
+	}
+
+	for (uint8_t i = 0; i < digits; i++) {
+		nextDigit = currentDigit/10;
+		write((value%currentDigit)/nextDigit+'0');
+		currentDigit = nextDigit;
+	}
+}
+
+
+void LiquidCrystal::writeString(char message[]) {
+	char* letter = message;
+	while (*letter != 0) {
+		write(*letter);
+		letter++;
+	}
+}
+
+void LiquidCrystal::writeFromPgmspace(const prog_uchar message[]) {
+	char letter;
+	while (letter = pgm_read_byte(message++)) {
+		write(letter);
+	}
+}
+
 /************ low level data pushing commands **********/
 
 // write either command or data, with automatic 4/8-bit selection
@@ -284,7 +321,7 @@ void LiquidCrystal::pulseEnable(void) {
   _enable_pin.setValue(true);
   _delay_us(1);    // enable pulse must be >450ns
   _enable_pin.setValue(false);
-  _delay_us(100);   // commands need > 37us to settle
+  _delay_us(1);   // commands need > 37us to settle [citation needed]
 }
 
 void LiquidCrystal::write4bits(uint8_t value) {

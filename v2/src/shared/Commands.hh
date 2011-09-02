@@ -59,6 +59,14 @@
 // Retrieve the string representing this build
 #define HOST_CMD_GET_BUILD_NAME    20
 
+#define HOST_CMD_GET_POSITION_EXT  21
+#define HOST_CMD_EXTENDED_STOP     22
+
+//#define HOST_CMD_BUILD_START_NOTIFICATION 24
+//#define HOST_CMD_BUILD_END_NOTIFICATION 25
+
+#define HOST_CMD_GET_COMMUNICATION_STATS 25
+
 // These are our bufferable commands from the host
 // #define HOST_CMD_QUEUE_POINT_INC   128  // deprecated
 #define HOST_CMD_QUEUE_POINT_ABS   129
@@ -71,6 +79,13 @@
 #define HOST_CMD_TOOL_COMMAND      136
 #define HOST_CMD_ENABLE_AXES       137
 #define HOST_CMD_WAIT_FOR_PLATFORM 141
+
+#define HOST_CMD_QUEUE_POINT_EXT   139
+#define HOST_CMD_SET_POSITION_EXT  140
+
+#define HOST_CMD_QUEUE_POINT_NEW   142
+#define HOST_CMD_STORE_HOME_POSITION  143
+#define HOST_CMD_RECALL_HOME_POSITION 144
 
 #define HOST_CMD_DEBUG_ECHO        0x70
 
@@ -92,10 +107,10 @@
 #define SLAVE_CMD_SET_SERVO_1_POS       14
 #define SLAVE_CMD_SET_SERVO_2_POS       15
 #define SLAVE_CMD_FILAMENT_STATUS       16
-#define SLAVE_CMD_GET_MOTOR_1_PWM       17
-#define SLAVE_CMD_GET_MOTOR_2_PWM       18
-#define SLAVE_CMD_GET_MOTOR_1_RPM       19
-#define SLAVE_CMD_GET_MOTOR_2_RPM       20
+#define SLAVE_CMD_GET_MOTOR_1_RPM       17
+#define SLAVE_CMD_GET_MOTOR_2_RPM       18
+#define SLAVE_CMD_GET_MOTOR_1_PWM       19
+#define SLAVE_CMD_GET_MOTOR_2_PWM       20
 #define SLAVE_CMD_SELECT_TOOL           21
 #define SLAVE_CMD_IS_TOOL_READY         22
 #define SLAVE_CMD_PAUSE_UNPAUSE         23
@@ -110,5 +125,7 @@
 // Retrieve the string representing this build
 #define SLAVE_CMD_GET_BUILD_NAME        34
 #define SLAVE_CMD_IS_PLATFORM_READY     35
-
+#define SLAVE_CMD_GET_TOOL_STATUS       36
+#define SLAVE_CMD_GET_PID_STATE         37
+#define SLAVE_CMD_LIGHT_INDICATOR_LED   40
 #endif // SHARED_COMMANDS_H_

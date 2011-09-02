@@ -25,9 +25,12 @@
 #include "Version.hh"
 #include <util/atomic.h>
 #include <avr/eeprom.h>
+#include <avr/pgmspace.h>
 #include "Main.hh"
 #include "Errors.hh"
-#include "SDCard.hh"
+#include "EepromMap.hh"
+
+namespace host {
 
 /// Identify a command packet, and process it.  If the packet is a command
 /// packet, return true, indicating that the packet has been queued and no
@@ -45,20 +48,34 @@ Timeout packet_in_timeout;
 #define HOST_TOOL_RESPONSE_TIMEOUT_MS 50
 #define HOST_TOOL_RESPONSE_TIMEOUT_MICROS (1000L*HOST_TOOL_RESPONSE_TIMEOUT_MS)
 
-bool do_host_reset = false;
+char machineName[MAX_MACHINE_NAME_LEN];
+
+char buildName[MAX_FILE_LEN];
+
+uint32_t buildSteps;
+
+HostState currentState;
+
+bool do_host_reset = true;
 
 void runHostSlice() {
-	InPacket& in = Motherboard::getBoard().getHostUART().in;
-	OutPacket& out = Motherboard::getBoard().getHostUART().out;
+        InPacket& in = UART::getHostUART().in;
+        OutPacket& out = UART::getHostUART().out;
 	if (out.isSending()) {
 		// still sending; wait until send is complete before reading new host packets.
 		return;
 	}
 	if (do_host_reset) {
 		do_host_reset = false;
-		// Then, reset local board
+                // Then, reset local board
 		reset(false);
 		packet_in_timeout.abort();
+
+		// Clear the machine and build names
+		machineName[0] = 0;
+		buildName[0] = 0;
+		currentState = HOST_STATE_READY;
+
 		return;
 	}
 	if (in.isStarted() && !in.isFinished()) {
@@ -73,9 +90,9 @@ void runHostSlice() {
 		// Reset packet quickly and start handling the next packet.
 		// Report error code.
 		if (in.getErrorCode() == PacketError::PACKET_TIMEOUT) {
-			Motherboard::getBoard().indicateError(ERR_HOST_PACKET_TIMEOUT);
+                        Motherboard::getBoard().indicateError(ERR_HOST_PACKET_TIMEOUT);
 		} else {
-			Motherboard::getBoard().indicateError(ERR_HOST_PACKET_MISC);
+                        Motherboard::getBoard().indicateError(ERR_HOST_PACKET_MISC);
 		}
 		in.reset();
 	}
@@ -96,7 +113,7 @@ void runHostSlice() {
 			out.append8(RC_CMD_UNSUPPORTED);
 		}
 		in.reset();
-		Motherboard::getBoard().getHostUART().beginSend();
+                UART::getHostUART().beginSend();
 	}
 }
 
@@ -143,8 +160,8 @@ inline void handleVersion(const InPacket& from_host, OutPacket& to_host) {
 inline void handleGetBuildName(const InPacket& from_host, OutPacket& to_host) {
 	to_host.append8(RC_OK);
 	for (uint8_t idx = 0; idx < 31; idx++) {
-	  to_host.append8(build_name[idx]);
-	  if (build_name[idx] == '\0') { break; }
+	  to_host.append8(buildName[idx]);
+	  if (buildName[idx] == '\0') { break; }
 	}
 }
 
@@ -173,6 +190,33 @@ inline void handleGetPosition(const InPacket& from_host, OutPacket& to_host) {
 	}
 }
 
+inline void handleGetPositionExt(const InPacket& from_host, OutPacket& to_host) {
+	ATOMIC_BLOCK(ATOMIC_FORCEON) {
+		const Point p = steppers::getPosition();
+		to_host.append8(RC_OK);
+		to_host.append32(p[0]);
+		to_host.append32(p[1]);
+		to_host.append32(p[2]);
+#if STEPPER_COUNT > 3
+		to_host.append32(p[3]);
+		to_host.append32(p[4]);
+#else
+		to_host.append32(0);
+		to_host.append32(0);
+#endif
+		// From spec:
+		// endstop status bits: (15-0) : | b max | b min | a max | a min | z max | z min | y max | y min | x max | x min |
+		Motherboard& board = Motherboard::getBoard();
+		uint8_t endstop_status = 0;
+		for (int i = STEPPER_COUNT; i > 0; i--) {
+			StepperInterface& si = board.getStepperInterface(i-1);
+			endstop_status <<= 2;
+			endstop_status |= (si.isAtMaximum()?2:0) | (si.isAtMinimum()?1:0);
+		}
+		to_host.append16(endstop_status);
+	}
+}
+
 inline void handleCaptureToFile(const InPacket& from_host, OutPacket& to_host) {
 	char *p = (char*)from_host.getData() + 1;
 	to_host.append8(RC_OK);
@@ -185,14 +229,14 @@ inline void handleEndCapture(const InPacket& from_host, OutPacket& to_host) {
 }
 
 inline void handlePlayback(const InPacket& from_host, OutPacket& to_host) {
-	const int MAX_FILE_LEN = MAX_PACKET_PAYLOAD-1;
 	to_host.append8(RC_OK);
-	char fnbuf[MAX_FILE_LEN];
 	for (int idx = 1; idx < from_host.getLength(); idx++) {
-		fnbuf[idx-1] = from_host.read8(idx);
+		buildName[idx-1] = from_host.read8(idx);
 	}
-	fnbuf[MAX_FILE_LEN-1] = '\0';
-	to_host.append8(sdcard::startPlayback(fnbuf));
+	buildName[MAX_FILE_LEN-1] = '\0';
+
+	uint8_t response = startBuildFromSD();
+	to_host.append8(response);
 }
 
 inline void handleNextFilename(const InPacket& from_host, OutPacket& to_host) {
@@ -208,7 +252,12 @@ inline void handleNextFilename(const InPacket& from_host, OutPacket& to_host) {
 	}
 	const int MAX_FILE_LEN = MAX_PACKET_PAYLOAD-1;
 	char fnbuf[MAX_FILE_LEN];
-	sdcard::SdErrorCode e = sdcard::directoryNextEntry(fnbuf,MAX_FILE_LEN);
+	sdcard::SdErrorCode e;
+	// Ignore dot-files
+	do {
+		e = sdcard::directoryNextEntry(fnbuf,MAX_FILE_LEN);
+		if (fnbuf[0] == '\0') break;
+	} while (e == sdcard::SD_SUCCESS && fnbuf[0] == '.');
 	to_host.append8(e);
 	uint8_t idx;
 	for (idx = 0; (idx < MAX_FILE_LEN) && (fnbuf[idx] != 0); idx++) {
@@ -223,7 +272,7 @@ void doToolPause(OutPacket& to_host) {
 	while (!tool::getLock()) {
 		if (acquire_lock_timeout.hasElapsed()) {
 			to_host.append8(RC_DOWNSTREAM_TIMEOUT);
-			Motherboard::getBoard().indicateError(ERR_SLAVE_LOCK_TIMEOUT);
+                        Motherboard::getBoard().indicateError(ERR_SLAVE_LOCK_TIMEOUT);
 			return;
 		}
 	}
@@ -255,7 +304,7 @@ inline void handleToolQuery(const InPacket& from_host, OutPacket& to_host) {
 	// (Payload must contain toolhead address and at least one byte)
 	if (from_host.getLength() < 2) {
 		to_host.append8(RC_GENERIC_ERROR);
-		Motherboard::getBoard().indicateError(ERR_HOST_TRUNCATED_CMD);
+                Motherboard::getBoard().indicateError(ERR_HOST_TRUNCATED_CMD);
 		return;
 	}
 	Timeout acquire_lock_timeout;
@@ -263,7 +312,7 @@ inline void handleToolQuery(const InPacket& from_host, OutPacket& to_host) {
 	while (!tool::getLock()) {
 		if (acquire_lock_timeout.hasElapsed()) {
 			to_host.append8(RC_DOWNSTREAM_TIMEOUT);
-			Motherboard::getBoard().indicateError(ERR_SLAVE_LOCK_TIMEOUT);
+                        Motherboard::getBoard().indicateError(ERR_SLAVE_LOCK_TIMEOUT);
 			return;
 		}
 	}
@@ -329,6 +378,48 @@ inline void handleWriteEeprom(const InPacket& from_host, OutPacket& to_host) {
 	to_host.append8(length);
 }
 
+enum { // bit assignments
+	ES_STEPPERS = 0, // stop steppers
+	ES_COMMANDS = 1  // clean queue
+};
+
+inline void handleExtendedStop(const InPacket& from_host, OutPacket& to_host) {
+	uint8_t flags = from_host.read8(1);
+	if (flags & _BV(ES_STEPPERS)) {
+		steppers::abort();
+	}
+	if (flags & _BV(ES_COMMANDS)) {
+		command::reset();
+	}
+	to_host.append8(RC_OK);
+	to_host.append8(0);
+}
+
+//inline void handleBuildStartNotification(const InPacket& from_host, OutPacket& to_host) {
+//	uint8_t flags = from_host.read8(1);
+//
+//	buildSteps = from_host.read32(1);
+//
+//	for (int idx = 4; idx < from_host.getLength(); idx++) {
+//		buildName[idx-4] = from_host.read8(idx);
+//	}
+//	buildName[MAX_FILE_LEN-1] = '\0';
+//
+//	currentState = HOST_STATE_BUILDING;
+//
+//	to_host.append8(RC_OK);
+//}
+
+
+inline void handleGetCommunicationStats(const InPacket& from_host, OutPacket& to_host) {
+        to_host.append8(RC_OK);
+        to_host.append32(0);
+        to_host.append32(tool::getSentPacketCount());
+        to_host.append32(tool::getPacketFailureCount());
+        to_host.append32(tool::getRetryCount());
+        to_host.append32(tool::getNoiseByteCount());
+}
+
 bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 	if (from_host.getLength() >= 1) {
 		uint8_t command = from_host.read8(0);
@@ -349,6 +440,12 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			case HOST_CMD_CLEAR_BUFFER: // equivalent at current time
 			case HOST_CMD_ABORT: // equivalent at current time
 			case HOST_CMD_RESET:
+				// TODO: This is fishy.
+				if (currentState == HOST_STATE_BUILDING
+						|| currentState == HOST_STATE_BUILDING_FROM_SD) {
+					stopBuild();
+				}
+
 				do_host_reset = true; // indicate reset after response has been sent
 				to_host.append8(RC_OK);
 				return true;
@@ -357,6 +454,9 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 				return true;
 			case HOST_CMD_GET_POSITION:
 				handleGetPosition(from_host,to_host);
+				return true;
+			case HOST_CMD_GET_POSITION_EXT:
+				handleGetPositionExt(from_host,to_host);
 				return true;
 			case HOST_CMD_CAPTURE_TO_FILE:
 				handleCaptureToFile(from_host,to_host);
@@ -388,8 +488,71 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			case HOST_CMD_WRITE_EEPROM:
 				handleWriteEeprom(from_host,to_host);
 				return true;
+			case HOST_CMD_EXTENDED_STOP:
+				handleExtendedStop(from_host,to_host);
+				return true;
+//			case HOST_CMD_BUILD_START_NOTIFICATION:
+//				handleBuildStartNotification(from_host,to_host);
+//				return true;
+//			case HOST_CMD_BUILD_STOP_NOTIFICATION	:
+//				handleBuildStopNotification(from_host,to_host);
+//				return true;
+                        case HOST_CMD_GET_COMMUNICATION_STATS:
+                                handleGetCommunicationStats(from_host,to_host);
+                                return true;
 			}
 		}
 	}
 	return false;
+}
+
+char* getMachineName() {
+	// If the machine name hasn't been loaded, load it
+	if (machineName[0] == 0) {
+		for(uint8_t i = 0; i < MAX_MACHINE_NAME_LEN; i++) {
+			machineName[i] = eeprom::getEeprom8(eeprom::MACHINE_NAME+i, 0);
+		}
+	}
+
+	// If it's still zero, load in a default.
+	static PROGMEM prog_uchar defaultMachineName[] =  "Thing-O-Matic";
+
+	if (machineName[0] == 0) {
+		for(uint8_t i = 0; i < 14; i++) {
+			machineName[i] = pgm_read_byte_near(defaultMachineName+i);
+		}
+	}
+
+	return machineName;
+}
+
+char* getBuildName() {
+	return buildName;
+}
+
+HostState getHostState() {
+	return currentState;
+}
+
+// Start a build from SD, if possible.
+sdcard::SdErrorCode startBuildFromSD() {
+	sdcard::SdErrorCode e;
+
+	// Attempt to start build
+	e = sdcard::startPlayback(buildName);
+	if (e != sdcard::SD_SUCCESS) {
+		// TODO: report error
+		return e;
+	}
+
+	currentState = HOST_STATE_BUILDING_FROM_SD;
+
+	return e;
+}
+
+// Stop the current build, if any
+void stopBuild() {
+	do_host_reset = true; // indicate reset after response has been sent
+}
+
 }

@@ -15,8 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-#ifndef BOARDS_RRMBV12_MOTHERBOARD_HH_
-#define BOARDS_RRMBV12_MOTHERBOARD_HH_
+#ifndef BOARDS_MB24_MOTHERBOARD_HH_
+#define BOARDS_MB24_MOTHERBOARD_HH_
 
 //
 // This file describes the Motherboard object, which provides interfaces for
@@ -32,6 +32,7 @@
 #include "Types.hh"
 #include "PSU.hh"
 #include "Configuration.hh"
+#include "Timeout.hh"
 
 class Motherboard {
 private:
@@ -45,16 +46,19 @@ private:
 	Motherboard();
 
 	static Motherboard motherboard;
+
+	Timeout interface_update_timeout;
+
+	// True if we have an interface board attached
+	bool hasInterfaceBoard;
+
 public:
 	/// Reset the motherboard to its initial state.
 	/// This only resets the board, and does not send a reset
 	/// to any attached toolheads.
 	void reset();
 
-	/// Get the UART that communicates with the host.
-	UART& getHostUART() { return UART::getHostUART(); }
-	/// Get the UART that communicates with the toolhead.
-	UART& getSlaveUART() { return UART::getSlaveUART(); }
+	void runMotherboardSlice();
 
 	/// Count the number of steppers available on this board.
 	const int getStepperCount() const { return STEPPERS; }
@@ -66,7 +70,7 @@ public:
 
 	/// Get the number of microseconds that have passed since
 	/// the board was initialized.  This value will wrap after
-	/// 2**16 microseconds; callers should compensate for this.
+	/// 2**32 microseconds (ca. 70 minutes); callers should compensate for this.
 	micros_t getCurrentMicros();
 
 	/// Get the power supply unit interface.
@@ -84,4 +88,4 @@ public:
 	void doInterrupt();
 };
 
-#endif // BOARDS_RRMBV12_MOTHERBOARD_HH_
+#endif // BOARDS_MB24_MOTHERBOARD_HH_

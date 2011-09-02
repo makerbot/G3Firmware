@@ -23,8 +23,8 @@
 #
 # To build for another platform, pass an explicit platform parameter.  For example,
 # $ scons platform=rrmbv12
-# $ scons platform=rrmbv24
-# $ scons platform=mcv10
+# $ scons platform=mb24
+# $ scons platform=mb24-2560
 #
 # To upload the firmware, specify the "upload" target.  By default, this will use
 # /dev/ttyUSB0 as the serial connection.
@@ -38,7 +38,7 @@ import os
 import re
 from os.path import dirname
 # Parameters
-platform = ARGUMENTS.get('platform','rrmbv12')
+platform = ARGUMENTS.get('platform','mb24')
 f_cpu='16000000L'
 
 default_baud = '19200'
@@ -46,43 +46,57 @@ mcu='atmega168'
 has_queue = 0
 has_psu = 0
 
-def extract_version(f):
+
+def parse_version(v):
+    if not v:
+        return 0
+    if v.find(".") != -1:
+       parts = v.split(".")
+       return (int(parts[0]) * 100) + int(parts[1])
+    return int(v)
+
+def get_default_version():
 	regex = re.compile(r"const uint16_t firmware_version = ([0-9]+);")
-	for line in f.get_contents().split('\n'):
-		mo = regex.match(line)
-		if mo:
-			return int(mo.group(1))
-	return 0
+	return parse_version(f.get_contents().strip())
 
-version = extract_version(File('#/src/Motherboard/Version.hh'))
+vstr = File('#/current_version.txt').get_contents().strip()
 
-if (platform == 'rrmbv24'):
-   platform = 'mb24'
+vstr = ARGUMENTS.get('version',vstr)
+
+version = parse_version(vstr)
+
+target_name = "MB-"+platform+"-v"+str(version//100)+"."+str(version%100)
 
 if (platform == 'rrmbv12'):
 	default_baud = '38400'
+	default_programmer = 'stk500v1'
 	mcu='atmega644p'
 	has_queue = 1
 	has_psu = 1
 elif (platform == 'mb24'):
 	default_baud = '57600'
+	default_programmer = 'stk500v1'
 	mcu='atmega1280'
 	has_queue = 1
 	has_psu = 0
-elif (platform == 'mcv10'):
-	default_baud = '57600'
-	mcu='atmega1280'
+elif (platform == 'mb24-2560'):
+	platform = 'mb24'
+	default_baud = '115200'
+	default_programmer = 'stk500v2'
+	mcu='atmega2560'
 	has_queue = 1
-	has_psu = 1
+	has_psu = 0
 else:
-	print "Platform "+platform+" is not currently supported.\n"
+	print "Platform "+platform+" is not currently supported. Supported platforms are:"
+	print "rrmbv12: Gen 3 motherboard"
+	print "mb24: Gen4 motherboard"
+	print "mb24-2560: Gen4 motherboard with Mega 2560"
 	exit()
 
-target_name = "MB-"+platform+"-v"+str(version//100)+"."+str(version%100)
 
 upload_port = ARGUMENTS.get('port','/dev/ttyUSB0')
 upload_baud = ARGUMENTS.get('baud',default_baud)
-upload_prog = ARGUMENTS.get('programmer','stk500v1')
+upload_prog = ARGUMENTS.get('programmer',default_programmer)
 
 srcs = Glob('*.cc') + Glob('lib_sd/*.c') + Glob('boards/%s/*.cc' % platform) + Glob('#/src/shared/*.cc')
 
@@ -90,6 +104,7 @@ include_paths = ['#/src/shared', 'boards/%s' % platform, '.']
 
 flags=[
 	'-DF_CPU='+str(f_cpu),
+	'-DVERSION='+str(version),
 	'-mmcu='+mcu,
 	'-g',
 	'-Os',
@@ -98,18 +113,18 @@ flags=[
 	'-ffunction-sections',
 	'-fdata-sections']
 
-if (os.environ.has_key('VERSION')):
-   flags.append('-DVERSION=' + os.environ['VERSION'])
-
 if (os.environ.has_key('BUILD_NAME')):
    flags.append('-DBUILD_NAME=' + os.environ['BUILD_NAME'])
 
 if (os.environ.has_key('AVR_TOOLS_PATH')):
 	avr_tools_path = os.environ['AVR_TOOLS_PATH']
+elif (os.environ.has_key('AVR32_HOME')):
+	avr_tools_path = os.environ['AVR32_HOME'] + '\\bin'
 else:
 	avr_tools_path = dirname(os.popen('/usr/bin/which avr-gcc').readlines()[0])
 
-env=Environment(CC=avr_tools_path+"/avr-g++",
+env=Environment(tools=['g++', 'gcc'],
+        CC=avr_tools_path+"/avr-g++",
 	CXX=avr_tools_path+"/avr-g++",
 	CPPPATH=include_paths,
 	CCFLAGS=flags)
@@ -128,7 +143,7 @@ env.Elf(elf_name, objs)
 env.Hex(hex_name, elf_name)
 
 avrdude = avr_tools_path+"/avrdude"
-avrdude_flags = "-V -p "+mcu.replace("atmega","m")
+avrdude_flags = "-F -V -p "+mcu.replace("atmega","m")
 avrdude_flags = avrdude_flags + " -P "+upload_port
 avrdude_flags = avrdude_flags + " -c "+upload_prog
 avrdude_flags = avrdude_flags + " -b "+upload_baud

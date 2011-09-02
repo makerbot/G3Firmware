@@ -51,10 +51,7 @@ public:
 	/// to any attached toolheads.
 	void reset();
 
-	/// Get the UART that communicates with the host.
-	UART& getHostUART() { return UART::getHostUART(); }
-	/// Get the UART that communicates with the toolhead.
-	UART& getSlaveUART() { return UART::getSlaveUART(); }
+	void runMotherboardSlice();
 
 	/// Count the number of steppers available on this board.
 	const int getStepperCount() const { return STEPPERS; }

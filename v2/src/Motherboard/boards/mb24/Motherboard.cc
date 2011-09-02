@@ -23,14 +23,17 @@
 #include "Configuration.hh"
 #include "Steppers.hh"
 #include "Command.hh"
-#include "LiquidCrystal.hh"
+#include "Interface.hh"
+#include "Tool.hh"
+#include "Commands.hh"
+
 
 /// Instantiate static motherboard instance
 Motherboard Motherboard::motherboard;
-LiquidCrystal lcd(Pin(PortC,4), Pin(PortC,3), Pin(PortD,7), Pin(PortG,2), Pin(PortG,1), Pin(PortG,0));
 
 /// Create motherboard object
-Motherboard::Motherboard() {
+Motherboard::Motherboard()
+{
 	/// Set up the stepper pins on board creation
 #if STEPPER_COUNT > 0
 	stepper[0] = StepperInterface(X_DIR_PIN,X_STEP_PIN,X_ENABLE_PIN,X_MAX_PIN,X_MIN_PIN);
@@ -64,10 +67,10 @@ void Motherboard::reset() {
 		stepper[i].init(i);
 	}
 	// Initialize the host and slave UARTs
-	getHostUART().enable(true);
-	getHostUART().in.reset();
-	getSlaveUART().enable(true);
-	getSlaveUART().in.reset();
+        UART::getHostUART().enable(true);
+        UART::getHostUART().in.reset();
+        UART::getSlaveUART().enable(true);
+        UART::getSlaveUART().in.reset();
 	// Reset and configure timer 1, the microsecond and stepper
 	// interrupt timer.
 	TCCR1A = 0x00;
@@ -81,14 +84,19 @@ void Motherboard::reset() {
 	TIMSK2 = 0x01; // OVF flag on
 	// Configure the debug pin.
 	DEBUG_PIN.setDirection(true);
-//	lcd.begin(16,4);
-//	lcd.clear();
-//	lcd.home();
-//	lcd.write('H');
-//	lcd.write('e');
-//	lcd.write('l');
-//	lcd.write('l');
-//	lcd.write('o');
+
+	// Check if the interface board is attached
+	hasInterfaceBoard = interfaceboard::isConnected();
+
+	if (hasInterfaceBoard) {
+		// Make sure our interface board is initialized
+		interfaceboard::init();
+
+		interface_update_timeout.start(interfaceboard::getUpdateRate());
+	}
+
+        // Blindly try to reset the toolhead with index 0.
+//        resetToolhead();
 }
 
 /// Get the number of microseconds that have passed since
@@ -101,13 +109,27 @@ micros_t Motherboard::getCurrentMicros() {
 	return micros_snapshot;
 }
 
+
 /// Run the motherboard interrupt
 void Motherboard::doInterrupt() {
+	if (hasInterfaceBoard) {
+		interfaceboard::doInterrupt();
+	}
 	micros += INTERVAL_IN_MICROSECONDS;
 	// Do not move steppers if the board is in a paused state
 	if (command::isPaused()) return;
 	steppers::doInterrupt();
 }
+
+void Motherboard::runMotherboardSlice() {
+	if (hasInterfaceBoard) {
+		if (interface_update_timeout.hasElapsed()) {
+			interfaceboard::doUpdate();
+			interface_update_timeout.start(interfaceboard::getUpdateRate());
+		}
+	}
+}
+
 
 /// Timer one comparator match interrupt
 ISR(TIMER1_COMPA_vect) {

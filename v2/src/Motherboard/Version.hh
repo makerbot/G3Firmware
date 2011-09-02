@@ -21,13 +21,13 @@
 #include <stdint.h>
 
 #ifndef VERSION
-const uint16_t firmware_version = 204;
+#error "Version not defined! Please define the version number for this build."
 #else
 const uint16_t firmware_version = VERSION;
 #endif
 
 #ifndef BUILD_NAME
-const char* const build_name = "Cupcake";
+const char* const build_name = "Makerbot";
 #else
 const char* const build_name = BUILD_NAME;
 #endif
