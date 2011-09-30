@@ -81,12 +81,15 @@ private:
 public:
 	void reset(uint8_t resetFlags);
 
-        void runExtruderSlice();
+	void runExtruderSlice();
 
 	// Return the processor's reset status flags.  These are useful
 	// for diagnosing what might have triggered the last processor
 	// reset.
 	uint8_t getResetFlags();
+
+	int get_current_temperature();
+	void set_target_temperature(int);
 
 	Heater& getExtruderHeater() { return extruder_heater; }
 	Heater& getPlatformHeater() { return platform_heater; }
@@ -96,7 +99,13 @@ public:
 	void setMotorSpeed(int16_t speed);
 	void setMotorSpeedRPM(uint32_t speed, bool direction) {} // Unsupported on 3.4
 
-	void setFan(bool on);
+	/// Enable/Disable the extruder cooling fan
+	void toggleFan(bool state);
+
+	/// Enable/Disable the automatic build platform motor
+	void toggleAutomatedBuildPlatform(bool state);
+
+
 	void setValve(bool on);
 	UART& getHostUART() { return UART::getHostUART(); }
 

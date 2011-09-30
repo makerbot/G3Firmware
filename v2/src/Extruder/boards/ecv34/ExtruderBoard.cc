@@ -162,6 +162,19 @@ void ExtruderBoard::runExtruderSlice() {
         coolingFan.manageCoolingFan();
 }
 
+int ExtruderBoard::get_current_temperature()
+{
+    coolingFan.manageCoolingFan();
+	return extruder_heater.get_current_temperature();
+}
+
+void ExtruderBoard::set_target_temperature(int temp )
+{
+    coolingFan.manageCoolingFan();
+	return extruder_heater.set_target_temperature(temp);
+}
+
+
 void ExtruderBoard::setMotorSpeed(int16_t speed) {
 	// Since the motor and regulated cooling fan share an output, only one can be enabled at a time.
 	// Therefore, we should override the motor speed command if the cooling fan is activated.
@@ -230,12 +243,19 @@ void ExtruderBoard::doInterrupt() {
 	}
 }
 
-void ExtruderBoard::setFan(bool on) {
+//runs the AutoBuildPlatform (connected to 'Extra' screw terms on ECv3.x )
+void ExtruderBoard::toggleAutomatedBuildPlatform(bool state)
+{
+	CHANNEL_A.setValue(state);
+}
+
+//runs the Extruder Cooling Fan (connected to 'A1/B1' screw term on ECv3.x)
+void ExtruderBoard::toggleFan(bool state) {
 	//CHANNEL_A.setValue(on);
 	MOTOR_DIR_PIN.setDirection(true);
 	MOTOR_DIR_PIN.setValue(true);
 	MOTOR_ENABLE_PIN.setDirection(true);
-	MOTOR_ENABLE_PIN.setValue(on);
+	MOTOR_ENABLE_PIN.setValue(state);
 }
 
 void ExtruderBoard::setValve(bool on) {

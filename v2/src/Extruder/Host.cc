@@ -99,11 +99,15 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			to_host.append8(RC_OK);
 			return true;
 		case SLAVE_CMD_GET_TEMP:
+		{
 			to_host.append8(RC_OK);
-			to_host.append16(board.getExtruderHeater().get_current_temperature());
+			to_host.append16(board.get_current_temperature());
+					//was board.ExtruderHeater().get_current_temperature(););
 			return true;
+		}
 		case SLAVE_CMD_SET_TEMP:
-			board.getExtruderHeater().set_target_temperature(from_host.read16(2));
+			board.set_target_temperature(from_host.read16(2));
+					//getExtruderHeater().set_target_temperature(from_host.read16(2));
 			to_host.append8(RC_OK);
 		    return true;
 		case SLAVE_CMD_READ_FROM_EEPROM:
@@ -133,7 +137,7 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			to_host.append8(RC_OK);
 			return true;
 		case SLAVE_CMD_TOGGLE_FAN:
-			board.setFan((from_host.read8(2) & 0x01) != 0);
+			board.toggleFan((from_host.read8(2) & 0x01) != 0);
 			to_host.append8(RC_OK);
 			return true;
 		case SLAVE_CMD_TOGGLE_VALVE:
@@ -230,6 +234,10 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			to_host.append8(RC_OK);
                         board.lightIndicatorLED();
 			return true;
+		case SLAVE_CMD_TOGGLE_ABP:
+			board.toggleAutomatedBuildPlatform((from_host.read8(2) & 0x01) != 0);
+        	to_host.append8(RC_OK);
+
 		}
 	}
 	return false;

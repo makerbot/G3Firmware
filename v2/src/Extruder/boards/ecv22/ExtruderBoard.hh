@@ -85,6 +85,9 @@ public:
 	uint8_t getResetFlags();
 
 
+	int get_current_temperature();
+	void set_target_temperature(int);
+
 	Heater& getExtruderHeater() { return extruder_heater; }
 	Heater& getPlatformHeater() { return platform_heater; }
 
@@ -97,7 +100,8 @@ public:
 	// Stops/starts the motor while holding torque
 	void setMotorOn(bool on);
 #endif
-	void setFan(bool on);
+	void toggleFan(bool state);
+	void toggleAutomatedBuildPlatform(bool state);
 	void setValve(bool on);
 	UART& getHostUART() { return UART::getHostUART(); }
 
