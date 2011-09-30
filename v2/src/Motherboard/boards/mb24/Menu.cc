@@ -15,6 +15,7 @@
 #define HOST_TOOL_RESPONSE_TIMEOUT_MS 50
 #define HOST_TOOL_RESPONSE_TIMEOUT_MICROS (1000L*HOST_TOOL_RESPONSE_TIMEOUT_MS)
 
+#define MAX_ITEMS_PER_SCREEN 4
 
 /// Static instances of our menus
 MonitorMode monitorMode;
@@ -474,6 +475,7 @@ void Menu::handleCancel() {
 }
 
 void Menu::notifyButtonPressed(InterfaceBoardDefinitions::ButtonName button) {
+  uint8_t steps = MAX_ITEMS_PER_SCREEN;
 	switch (button) {
 	case InterfaceBoardDefinitions::ZERO:
 	case InterfaceBoardDefinitions::OK:
@@ -483,18 +485,28 @@ void Menu::notifyButtonPressed(InterfaceBoardDefinitions::ButtonName button) {
 		handleCancel();
 		break;
 	case InterfaceBoardDefinitions::YMINUS:
+		steps = 1;
 	case InterfaceBoardDefinitions::ZMINUS:
 		// increment index
-		if (itemIndex < itemCount - 1) {
-			itemIndex++;
-		}
+		if (itemIndex < itemCount - steps) 
+			itemIndex+=steps;
+		else
+      if(itemIndex==itemCount-1)
+        itemIndex=firstItemIndex;
+      else
+        itemIndex=itemCount-1;
 		break;
 	case InterfaceBoardDefinitions::YPLUS:
+		steps = 1;
 	case InterfaceBoardDefinitions::ZPLUS:
 		// decrement index
-		if (itemIndex > firstItemIndex) {
-			itemIndex--;
-		}
+		if (itemIndex-steps > firstItemIndex)
+			itemIndex-=steps;
+		else
+		  if(itemIndex==firstItemIndex)
+        itemIndex=itemCount - 1;
+      else
+        itemIndex=firstItemIndex;
 		break;
 
 	case InterfaceBoardDefinitions::XMINUS:
@@ -505,7 +517,7 @@ void Menu::notifyButtonPressed(InterfaceBoardDefinitions::ButtonName button) {
 
 
 CancelBuildMenu::CancelBuildMenu() {
-	itemCount = 4;
+	itemCount = MAX_ITEMS_PER_SCREEN;
 	reset();
 }
 
