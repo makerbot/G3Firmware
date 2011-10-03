@@ -102,7 +102,7 @@ void Motherboard::reset() {
 	
 	uint8_t axis_invert = eeprom::getEeprom8(eeprom::AXIS_INVERSION, 0);
 	bool dont_hold_z = (axis_invert & (1<<7)) != 0;
-        if (dont_hold_z)
+        if (!dont_hold_z)
                 steppers::setHoldZ(true);
 
 	for (int i = 0; i < STEPPER_COUNT; i++) {
