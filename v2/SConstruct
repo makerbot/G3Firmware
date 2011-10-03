@@ -1,2 +1,0 @@
-SConscript(['src/Motherboard/SConscript'], variant_dir='build')
-
