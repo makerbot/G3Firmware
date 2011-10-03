@@ -164,14 +164,12 @@ void ExtruderBoard::runExtruderSlice() {
 
 int ExtruderBoard::get_current_temperature()
 {
-    coolingFan.manageCoolingFan();
-	return extruder_heater.get_current_temperature();
+    return extruder_heater.get_current_temperature();
 }
 
 void ExtruderBoard::set_target_temperature(int temp )
 {
-    coolingFan.manageCoolingFan();
-	return extruder_heater.set_target_temperature(temp);
+    return extruder_heater.set_target_temperature(temp);
 }
 
 
