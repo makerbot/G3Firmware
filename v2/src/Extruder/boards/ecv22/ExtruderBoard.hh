@@ -100,8 +100,8 @@ public:
 	// Stops/starts the motor while holding torque
 	void setMotorOn(bool on);
 #endif
-	void toggleFan(bool state);
-	void toggleAutomatedBuildPlatform(bool state);
+	void setFanRunning(bool state);
+	void setAutomatedBuildPlatformRunning(bool state);
 	void setValve(bool on);
 	UART& getHostUART() { return UART::getHostUART(); }
 

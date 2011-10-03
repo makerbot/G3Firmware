@@ -100,10 +100,10 @@ public:
 	void setMotorSpeedRPM(uint32_t speed, bool direction) {} // Unsupported on 3.4
 
 	/// Enable/Disable the extruder cooling fan
-	void toggleFan(bool state);
+	void setFanRunning(bool state);
 
 	/// Enable/Disable the automatic build platform motor
-	void toggleAutomatedBuildPlatform(bool state);
+	void setAutomatedBuildPlatformRunning(bool state);
 
 
 	void setValve(bool on);

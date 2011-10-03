@@ -137,7 +137,7 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			to_host.append8(RC_OK);
 			return true;
 		case SLAVE_CMD_TOGGLE_FAN:
-			board.toggleFan((from_host.read8(2) & 0x01) != 0);
+			board.setFanRunning((from_host.read8(2) & 0x01) != 0);
 			to_host.append8(RC_OK);
 			return true;
 		case SLAVE_CMD_TOGGLE_VALVE:
@@ -235,7 +235,7 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
                         board.lightIndicatorLED();
 			return true;
 		case SLAVE_CMD_TOGGLE_ABP:
-			board.toggleAutomatedBuildPlatform((from_host.read8(2) & 0x01) != 0);
+			board.setAutomatedBuildPlatformRunning((from_host.read8(2) & 0x01) != 0);
         	to_host.append8(RC_OK);
 
 		}

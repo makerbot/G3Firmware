@@ -36,7 +36,7 @@ class CoolingFan {
 private:
 
         /// Enable/Disable the cooling fan, setting it to run at full speed.
-		void toggleFan(bool state);
+		void setFanRunning(bool state);
 
         Heater& heater;  ///<  Heater module to read the current temperature from.
 

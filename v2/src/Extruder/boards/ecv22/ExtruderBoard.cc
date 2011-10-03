@@ -271,12 +271,12 @@ void setChannel(ChannelChoice c, uint8_t value, bool binary) {
 	}
 }
 
-void ExtruderBoard::toggleFan(bool state)
+void ExtruderBoard::setFanRunning(bool state)
 { // The Goggles, they do nothing!
 	// on these board, there is no toggle fan. This is vestigle
 }
 
-void ExtruderBoard::toggleAutomatedBuildPlatform(bool state) {
+void ExtruderBoard::setAutomatedBuildPlatformRunning(bool state) {
 	setChannel(abp_channel,state?255:0,true);
 }
 

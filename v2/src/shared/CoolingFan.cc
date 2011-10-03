@@ -50,25 +50,25 @@ void CoolingFan::enable() {
 
 void CoolingFan::disable() {
 	enabled = false;
-	toggleFan(false);
+	setFanRunning(false);
 }
 
 void CoolingFan::manageCoolingFan() {
 	// TODO: only change the state if necessary
 	if (enabled) {
 		if (heater.get_current_temperature() > setPoint) {
-			toggleFan(true);
+			setFanRunning(true);
 		}
 		else {
-			toggleFan(false);
+			setFanRunning(false);
 		}
 	}
 }
 
-void CoolingFan::toggleFan(bool state)
+void CoolingFan::setFanRunning(bool state)
 {
 #ifdef IS_EXTRUDER_BOARD
-	ExtruderBoard::getBoard().toggleFan(state);
+	ExtruderBoard::getBoard().setFanRunning(state);
 #else
 	#warning cooling fan feature disabled
 #endif

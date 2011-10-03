@@ -244,13 +244,13 @@ void ExtruderBoard::doInterrupt() {
 }
 
 //runs the AutoBuildPlatform (connected to 'Extra' screw terms on ECv3.x )
-void ExtruderBoard::toggleAutomatedBuildPlatform(bool state)
+void ExtruderBoard::setAutomatedBuildPlatformRunning(bool state)
 {
 	CHANNEL_A.setValue(state);
 }
 
 //runs the Extruder Cooling Fan (connected to 'A1/B1' screw term on ECv3.x)
-void ExtruderBoard::toggleFan(bool state) {
+void ExtruderBoard::setFanRunning(bool state) {
 	//CHANNEL_A.setValue(on);
 	MOTOR_DIR_PIN.setDirection(true);
 	MOTOR_DIR_PIN.setValue(true);
