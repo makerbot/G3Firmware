@@ -272,8 +272,8 @@ void setChannel(ChannelChoice c, uint8_t value, bool binary) {
 }
 
 void ExtruderBoard::setFanRunning(bool state)
-{ // The Goggles, they do nothing!
-	// on these board, there is no toggle fan. This is vestigle
+{
+        setFanMotor(state);
 }
 
 void ExtruderBoard::setAutomatedBuildPlatformRunning(bool state) {

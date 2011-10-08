@@ -26,8 +26,14 @@ void initExtruderMotor();
 
 /// Turn the extruder motor on
 /// \param[in] speed Set the motor speed, -255 to 255, where 0 means stop.
+/// \param[in] motor1 true to control motor 1, false to control motor 2 (fan)
 /// \ingroup ECv22
-void setExtruderMotor(int16_t speed);
+void setExtruderMotor(int16_t speed, bool motor1 = true);
+
+/// Turn the extruder fan on (calls setExtruderMotor with motor1 = false)
+/// \param[in] on true to turn the fan on, false to turn it off
+/// \ingroup ECv22
+void setFanMotor(bool on);
 
 /// For extruders with stepper motors: Set the stepper mode.
 /// \param[in] mode true to enable stepper, or false to disable.
