@@ -38,6 +38,9 @@ bool swap_motor = false;
 Pin motor_enable_pin = HB1_ENABLE_PIN;
 Pin motor_dir_pin = HB1_DIR_PIN;
 
+Pin fan_enable_pin = HB2_ENABLE_PIN;
+Pin fan_dir_pin = HB2_DIR_PIN;
+
 Pin external_enable_pin = ES_ENABLE_PIN;
 Pin external_dir_pin = ES_DIR_PIN;
 Pin external_step_pin = ES_STEP_PIN;
@@ -69,6 +72,8 @@ void initExtruderMotor() {
 		swap_motor = true;
 		motor_enable_pin = HB2_ENABLE_PIN;
 		motor_dir_pin = HB2_DIR_PIN;
+		fan_enable_pin = HB1_ENABLE_PIN;
+		fan_dir_pin = HB1_DIR_PIN;
 	}
 }
 
@@ -108,20 +113,24 @@ void setStepperMode(bool mode, bool external/* = false*/) {
 	}
 }
 
-void setExtruderMotor(int16_t speed) {
+void setExtruderMotor(int16_t speed, bool motor1 /*= true*/) {
 	if (speed == last_extruder_speed) return;
 	last_extruder_speed = speed;
+	
+        Pin enable_pin_local = motor1 ? motor_enable_pin : fan_enable_pin;
+        Pin dir_pin_local = motor1 ? motor_dir_pin : fan_dir_pin;
+	
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (!stepper_motor_mode && !external_stepper_motor_mode) {
 			TIMSK0 = 0;
 			if (speed == 0) {
 				TCCR0A = _BV(WGM01) | _BV(WGM00);
-				motor_enable_pin.setValue(false);
+				enable_pin_local.setValue(false);
 			} else if (speed == 255) {
 				TCCR0A = _BV(WGM01) | _BV(WGM00);
-				motor_enable_pin.setValue(true);
+				enable_pin_local.setValue(true);
 			} else {
-				motor_enable_pin.setValue(true);
+				enable_pin_local.setValue(true);
 				if (swap_motor) {
 					TCCR0A = _BV(COM0A1) | _BV(WGM01) | _BV(WGM00);
 				} else {
@@ -131,7 +140,7 @@ void setExtruderMotor(int16_t speed) {
 			bool backwards = speed < 0;
 			if (backwards) { speed = -speed; }
 			if (speed > 255) { speed = 255; }
-			motor_dir_pin.setValue(!backwards);
+			dir_pin_local.setValue(!backwards);
 			if (swap_motor) {
 				OCR0A = speed;
 			} else {
@@ -139,6 +148,10 @@ void setExtruderMotor(int16_t speed) {
 			}
 		}
 	}
+}
+
+void setFanMotor(bool state) {
+        setExtruderMotor(state?255:0, /*motor1 =*/ false);
 }
 
 
