@@ -58,7 +58,8 @@ bool StepperAxis::checkEndstop(const bool isHoming) {
 #if defined(SINGLE_SWITCH_ENDSTOPS) && (SINGLE_SWITCH_ENDSTOPS == 1)
   bool hit_endstop = direction ? interface->isAtMaximum() : interface->isAtMinimum();
   // We must move at least ENDSTOP_DEBOUNCE from where we hit the endstop before we declare traveling
-  if (hit_endstop || ((endstop_play < ENDSTOP_DEFAULT_PLAY - ENDSTOP_DEBOUNCE) && endstop_status != ESS_TRAVELING)) {
+  if (hit_endstop || ((endstop_play < ENDSTOP_DEFAULT_PLAY - ENDSTOP_DEBOUNCE) && endstop_status == (direction?ESS_AT_MAXIMUM:ESS_AT_MINIMUM))) {
+    hit_endstop = true;
     // Did we *just* hit the endstop?
     if (endstop_status == ESS_TRAVELING || (isHoming && endstop_status == ESS_UNKNOWN)) {
       endstop_play   = ENDSTOP_DEFAULT_PLAY;
