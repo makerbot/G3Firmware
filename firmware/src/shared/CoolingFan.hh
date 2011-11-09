@@ -34,11 +34,9 @@
 /// \ingroup SoftwareLibraries
 class CoolingFan {
 private:
-        /// Enable the cooling fan, setting it to run at full speed.
-        void enableFan();
 
-        /// Disable the cooling fan, halting it immediately.
-        void disableFan();
+        /// Enable/Disable the cooling fan, setting it to run at full speed.
+		void setFanRunning(bool state);
 
         Heater& heater;  ///<  Heater module to read the current temperature from.
 

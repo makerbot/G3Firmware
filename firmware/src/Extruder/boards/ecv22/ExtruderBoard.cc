@@ -190,6 +190,17 @@ void ExtruderBoard::runExtruderSlice() {
         }
 }
 
+int ExtruderBoard::get_current_temperature()
+{
+	return extruder_heater.get_current_temperature();
+}
+
+void ExtruderBoard::set_target_temperature(int temp )
+{
+	return extruder_heater.set_target_temperature(temp);
+}
+
+
 void ExtruderBoard::setMotorSpeed(int16_t speed) {
 	setExtruderMotor(speed);
 }
@@ -260,8 +271,13 @@ void setChannel(ChannelChoice c, uint8_t value, bool binary) {
 	}
 }
 
-void ExtruderBoard::setFan(bool on) {
-	setChannel(abp_channel,on?255:0,true);
+void ExtruderBoard::setFanRunning(bool state)
+{ // The Goggles, they do nothing!
+	// on these board, there is no toggle fan. This is vestigle
+}
+
+void ExtruderBoard::setAutomatedBuildPlatformRunning(bool state) {
+	setChannel(abp_channel,state?255:0,true);
 }
 
 // When using as a valve driver, always use channel A, regardless of

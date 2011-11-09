@@ -170,8 +170,9 @@ bool void handleVersion2(uint16 host_driver_version) {
 // puts fw version into a reply packet, and send it back
 inline void handleVersion(const InPacket& from_host, OutPacket& to_host) {
 
-    // Case to give an error on Replicator G versions older than 0025. See footnote 1
-    if(from_host.read16(1)  <=  25   ) {
+    // Case to give an error on Replicator G versions older than 0027.
+	// See footnote 1, footnote 2
+    if(from_host.read16(1)  <=  26 ) {
         to_host.append8(RC_OK);
         to_host.append16(0x0000);
     }
@@ -179,7 +180,6 @@ inline void handleVersion(const InPacket& from_host, OutPacket& to_host) {
         to_host.append8(RC_OK);
         to_host.append16(firmware_version);
     }
-
 }
 
 inline void handleGetBuildName(const InPacket& from_host, OutPacket& to_host) {
@@ -586,4 +586,9 @@ void stopBuild() {
  * if our firmware is 3.0 or newer, *AND* the connecting replicatorG is 25 or older, we
  * lie, and reply with firmware 0.00 to case ReplicatorG to display a 'null version' error
  * so users will know to upgrade.
+ */
+/* footnote 2: due to an overlap in control between Automated Build Platform, and
+ * fan control, firmware 3.01 and newer only works with replicatorG 0027 or newer.
+ * Long story short, some fw 2.8 -> fw 3.0 refactoring did not work as expected, and
+ * broke running ABP and Mk6/Mk7 extruder Fan on the same machine
  */

@@ -3,8 +3,9 @@
 //#include "ExtruderMotor.hh"
 #include "Eeprom.hh"
 #include "EepromMap.hh"
+
 #ifdef IS_EXTRUDER_BOARD
-#include "ExtruderBoard.hh"
+	#include "ExtruderBoard.hh"
 #endif
 
 #define FAN_ENABLED 1
@@ -49,34 +50,28 @@ void CoolingFan::enable() {
 
 void CoolingFan::disable() {
 	enabled = false;
-	disableFan();
+	setFanRunning(false);
 }
 
 void CoolingFan::manageCoolingFan() {
 	// TODO: only change the state if necessary
 	if (enabled) {
 		if (heater.get_current_temperature() > setPoint) {
-			enableFan();
+			setFanRunning(true);
 		}
 		else {
-			disableFan();
+			setFanRunning(false);
 		}
 	}
 }
 
-void CoolingFan::enableFan() {
+void CoolingFan::setFanRunning(bool state)
+{
 #ifdef IS_EXTRUDER_BOARD
-	ExtruderBoard::getBoard().setFan(true);
+	ExtruderBoard::getBoard().setFanRunning(state);
 #else
 	#warning cooling fan feature disabled
 #endif
 }
 
-void CoolingFan::disableFan() {
-#ifdef IS_EXTRUDER_BOARD
-//#warning cooling fan feature disabled
-	ExtruderBoard::getBoard().setFan(false);
-#else
-	#warning cooling fan feature disabled
-#endif
-}
+
