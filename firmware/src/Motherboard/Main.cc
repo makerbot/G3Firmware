@@ -37,21 +37,24 @@ void reset(bool hard_reset) {
 		command::reset();
 		eeprom::init();
 		board.reset();
-		sei();
-		// If we've just come from a hard reset, wait for 2.5 seconds before
-		// trying to ping an extruder.  This gives the extruder time to boot
-		// before we send it a packet.
-		if (hard_reset) {
-			Timeout t;
-			t.start(1000L*2500L); // wait for 2500 ms
-			while (!t.hasElapsed());
-			tool::test(); // Run test
-		}
-		if (!tool::reset())
-		{
-			// Fail, but let it go; toggling the PSU is dangerous.
-		}
+    }
+
+	// If we've just come from a hard reset, wait for 2.5 seconds before
+	// trying to ping an extruder.  This gives the extruder time to boot
+	// before we send it a packet.
+	if (hard_reset) {
+		Timeout t;
+		t.start(1000L*2500L); // wait for 2500 ms
+		while (!t.hasElapsed());
+		tool::test(); // Run test
 	}
+
+	ATOMIC_BLOCK(ATOMIC_FORCEON) {
+	    if (!tool::reset())
+	    {
+		    // Fail, but let it go; toggling the PSU is dangerous.
+	    }
+    }
 }
 
 int main() {
@@ -59,7 +62,6 @@ int main() {
 	Motherboard& board = Motherboard::getBoard();
 	steppers::init(Motherboard::getBoard());
 	reset(true);
-	sei();
 	while (1) {
 		// Toolhead interaction thread.
 		tool::runToolSlice();

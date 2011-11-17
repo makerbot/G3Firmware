@@ -33,13 +33,11 @@ ExtruderBoard ExtruderBoard::extruder_board;
 
 ExtruderBoard::ExtruderBoard() :
 		micros(0L),
-		extruder_thermocouple(),//THERMOCOUPLE_CS,THERMOCOUPLE_SCK,THERMOCOUPLE_SO),
+		extruder_thermocouple(),
 		platform_thermistor(PLATFORM_PIN,1),
                 extruder_heater(extruder_thermocouple,extruder_element,SAMPLE_INTERVAL_MICROS_THERMOCOUPLE,eeprom::EXTRUDER_PID_BASE),
                 platform_heater(platform_thermistor,platform_element,SAMPLE_INTERVAL_MICROS_THERMISTOR,eeprom::HBP_PID_BASE),
 		using_platform(true),
-		//servoA(SERVO0),
-		//servoB(SERVO1),
 		coolingFan(extruder_heater, eeprom::COOLING_FAN_BASE)
 {
 }

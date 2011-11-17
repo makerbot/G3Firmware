@@ -48,12 +48,12 @@ void setExtruderMotor(int16_t speed) {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (speed == 0 || speed == 255) {
 			TCCR0A &= 0b11001111;
-			MOTOR_ENABLE_PIN::setValue(speed==255);
+			MOTOR_ENABLE_PIN::setValue(speed==255,false);
 		} else {
-			MOTOR_ENABLE_PIN::setValue(true);
+			MOTOR_ENABLE_PIN::setValue(true,false);
 			TCCR0A |= 0b00100000;
 		}
-		MOTOR_DIR_PIN::setValue(!backwards);
+		MOTOR_DIR_PIN::setValue(!backwards,false);
 		OCR0B = speed;
 	}
 }
