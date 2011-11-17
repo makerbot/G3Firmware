@@ -14,20 +14,17 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
-
+#if defined PSU_PIN
 #include "PSU.hh"
 
-PSU::PSU(const Pin& psu) :
-    psu_pin(psu)
-{
-}
 
 void PSU::init() {
-        psu_pin.setDirection(true);
+        PSU_PIN::setDirection(true);
         turnOn(true);
 }
 
 void PSU::turnOn(bool on) {
 	// PSU pin is pulled low to turn on power supply
-        psu_pin.setValue(!on);
+        PSU_PIN::setValue(!on);
 }
+#endif

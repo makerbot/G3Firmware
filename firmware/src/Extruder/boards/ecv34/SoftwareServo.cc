@@ -1,3 +1,4 @@
+/*
 #include "SoftwareServo.hh"
 
 SoftwareServo::SoftwareServo(Pin pin) :
@@ -27,3 +28,4 @@ void SoftwareServo::disable() {
 	enabled = false;
 	pin.setValue(false);
 }
+*/

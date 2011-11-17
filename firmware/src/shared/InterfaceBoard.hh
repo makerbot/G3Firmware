@@ -20,7 +20,8 @@
 #define INTERFACE_BOARD_HH_
 
 #include "Configuration.hh"
-#include "Pin.hh"
+#if defined HAS_INTERFACE_BOARD
+#include "PinTmplt.hh"
 #include "ButtonArray.hh"
 #include "Menu.hh"
 
@@ -30,8 +31,6 @@
 /// Character LCD screen geometry
 ///
 /// Porting Note: Screens may need to be rewritten to support different sizes.
-#define LCD_SCREEN_WIDTH        16
-#define LCD_SCREEN_HEIGHT       4
 
 
 /// The InterfaceBoard module provides support for the MakerBot Industries
@@ -56,9 +55,6 @@ private:
         Screen* screenStack[SCREEN_STACK_DEPTH];
         int8_t screenIndex;             ///< Stack index of the current screen.
 
-        Pin foo_pin;                    ///< Pin connected to the 'foo' LED
-        Pin bar_pin;                    ///< Pin connected to the 'bar' LED
-
         /// TODO: Delete this.
         bool building;                  ///< True if the bot is building
 
@@ -72,8 +68,6 @@ public:
         /// \param[in] Screen to display while building
         InterfaceBoard(ButtonArray& buttons_in,
                        LiquidCrystal& lcd_in,
-                       const Pin& foo_pin_in,
-                       const Pin& bar_pin_in,
                        Screen* mainScreen_in,
                        Screen* buildScreen_in);
 
@@ -102,5 +96,5 @@ public:
 
 	void showMonitorMode();
 };
-
+#endif
 #endif

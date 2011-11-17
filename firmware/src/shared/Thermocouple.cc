@@ -16,9 +16,10 @@
  */
 
 
-
+#include "Configuration.hh"
 #include "Thermocouple.hh"
 
+#if HAS_THERMOCOUPLE > 0
 
 // We'll throw in nops to get the timing right (if necessary)
 inline void nop() {
@@ -29,18 +30,15 @@ inline void nop() {
         asm volatile("nop"::);
 }
 
+#define cs_pin  THERMOCOUPLE_CS  ///< Chip select pin (output)
+#define sck_pin THERMOCOUPLE_SCK ///< Clock pin (output)
+#define so_pin  THERMOCOUPLE_SO  ///< Data pin (input)
 
-Thermocouple::Thermocouple(const Pin& cs,const Pin& sck,const Pin& so) :
-        cs_pin(cs),
-        sck_pin(sck),
-        so_pin(so)
-{
-}
 
 void Thermocouple::init() {
-	cs_pin.setDirection(true);
-	sck_pin.setDirection(true);
-	so_pin.setDirection(false);
+	cs_pin::setDirection(true);
+	sck_pin::setDirection(true);
+	so_pin::setDirection(false);
 
 //	cs_pin.setValue(true);   // Clock select is active low
 //	sck_pin.setValue(false); // TODO: Is this a good idea?
@@ -49,33 +47,35 @@ void Thermocouple::init() {
 
 Thermocouple::SensorState Thermocouple::update() {
 	// TODO: Check timing against datasheet.
-	cs_pin.setValue(false);
+	cs_pin::setValue(false);
 	nop();
-	sck_pin.setValue(false);
+	sck_pin::setValue(false);
 	nop();
 
 	int raw = 0;
 	for (int i = 0; i < 16; i++) {
-		sck_pin.setValue(true);
+		sck_pin::setValue(true);
 		nop();
 		if (i >= 1 && i < 11) { // data bit... skip LSBs
 			raw = raw << 1;
-			if (so_pin.getValue()) { raw = raw | 0x01; }
+			if (so_pin::getValue()) { raw = raw | 0x01; }
 		}
 		if (i == 13) { // Safety check: Check for open thermocouple input
-			if (so_pin.getValue()) {
+			if (so_pin::getValue()) {
 				current_temp = BAD_TEMPERATURE;	// Set the temperature to 1024 as an error condition
 				return SS_ERROR_UNPLUGGED;
 			}
 		}
-		sck_pin.setValue(false);
+		sck_pin::setValue(false);
 		nop();
 	}
 
-	cs_pin.setValue(true);
+	cs_pin::setValue(true);
 	nop();
-	sck_pin.setValue(false);
+	sck_pin::setValue(false);
 
 	current_temp = raw;
 	return SS_OK;
 }
+
+#endif

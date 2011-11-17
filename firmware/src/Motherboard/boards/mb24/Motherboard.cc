@@ -33,22 +33,29 @@
 /// Instantiate static motherboard instance
 Motherboard Motherboard::motherboard;
 
+
 /// Create motherboard object
 Motherboard::Motherboard() :
-        lcd(LCD_RS_PIN,
+        lcd(
+/*
+            LCD_RS_PIN,
             LCD_ENABLE_PIN,
             LCD_D0_PIN,
             LCD_D1_PIN,
             LCD_D2_PIN,
-            LCD_D3_PIN),
+            LCD_D3_PIN
+*/
+            ),
         interfaceBoard(buttonArray,
             lcd,
-            INTERFACE_FOO_PIN,
-            INTERFACE_BAR_PIN,
+//            INTERFACE_FOO_PIN,
+//            INTERFACE_BAR_PIN,
             &mainMenu,
             &monitorMode)
 
 {
+#if 0
+/*    
 	/// Set up the stepper pins on board creation
 #if STEPPER_COUNT > 0
         stepper[0] = StepperInterface(X_DIR_PIN,
@@ -90,7 +97,44 @@ Motherboard::Motherboard() :
                                       Pin(),
                                       eeprom::AXIS_INVERSION);
 #endif
+*/
+#endif
 }
+
+#if STEPPER_COUNT > 0
+StepperTmpltEndstops<0, X_DIR_PIN,X_STEP_PIN,X_ENABLE_PIN,X_MAX_PIN,X_MIN_PIN> Motherboard::stepperX;
+#endif
+#if STEPPER_COUNT > 1
+StepperTmpltEndstops<1, Y_DIR_PIN,Y_STEP_PIN,Y_ENABLE_PIN,Y_MAX_PIN,Y_MIN_PIN> Motherboard::stepperY;
+#endif
+#if STEPPER_COUNT > 2
+StepperTmpltEndstops<2, Z_DIR_PIN,Z_STEP_PIN,Z_ENABLE_PIN,Z_MAX_PIN,Z_MIN_PIN> Motherboard::stepperZ;
+#endif
+#if STEPPER_COUNT > 3
+StepperTmplt<3, B_DIR_PIN,B_STEP_PIN,B_ENABLE_PIN> Motherboard::stepperB;
+#endif
+#if STEPPER_COUNT > 4
+StepperTmplt<4, A_DIR_PIN,A_STEP_PIN,A_ENABLE_PIN> Motherboard::stepperA;
+#endif
+const StepperInterface* Motherboard::stepper[STEPPER_COUNT] =
+{
+	/// Set up the stepper pins on board creation
+#if STEPPER_COUNT > 0
+	&stepperX
+#endif
+#if STEPPER_COUNT > 1
+	,&stepperY
+#endif
+#if STEPPER_COUNT > 2
+	,&stepperZ
+#endif
+#if STEPPER_COUNT > 3
+	,&stepperB // swap B for extruder before of lower port usage
+#endif
+#if STEPPER_COUNT > 4
+	,&stepperA
+#endif
+};
 
 /// Reset the motherboard to its initial state.
 /// This only resets the board, and does not send a reset
@@ -110,10 +154,23 @@ void Motherboard::reset() {
 	bool hold_z = (axis_invert & (1<<7)) == 0;
 	steppers::setHoldZ(hold_z);
 
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-		stepper[i].init(i);
-	}
-	// Initialize the host and slave UARTs
+#if STEPPER_COUNT > 0
+	stepperX.init();
+#endif
+#if STEPPER_COUNT > 1
+	stepperY.init();
+#endif
+#if STEPPER_COUNT > 2
+	stepperZ.init();
+#endif
+#if STEPPER_COUNT > 3
+	stepperB.init(); // swap B for extruder before of lower port usage
+#endif
+#if STEPPER_COUNT > 4
+	stepperA.init();
+#endif
+
+    // Initialize the host and slave UARTs
         UART::getHostUART().enable(true);
         UART::getHostUART().in.reset();
         UART::getSlaveUART().enable(true);
@@ -130,7 +187,7 @@ void Motherboard::reset() {
 	TCCR2B = 0x07; // prescaler at 1/1024
 	TIMSK2 = 0x01; // OVF flag on
 	// Configure the debug pin.
-	DEBUG_PIN.setDirection(true);
+	DEBUG_PIN::setDirection(true);
 
 	// Check if the interface board is attached
         hasInterfaceBoard = interface::isConnected();
@@ -204,7 +261,7 @@ enum {
 void Motherboard::indicateError(int error_code) {
 	if (error_code == 0) {
 		blink_state = BLINK_NONE;
-		DEBUG_PIN.setValue(false);
+		DEBUG_PIN::setValue(false);
 	}
 	else if (blink_count != error_code) {
 		blink_state = BLINK_OFF;
@@ -238,7 +295,7 @@ ISR(TIMER2_OVF_vect) {
 			blinked_so_far++;
 			blink_state = BLINK_OFF;
 			blink_ovfs_remaining = OVFS_OFF;
-			DEBUG_PIN.setValue(false);
+			DEBUG_PIN::setValue(false);
 		} else if (blink_state == BLINK_OFF) {
 			if (blinked_so_far >= blink_count) {
 				blink_state = BLINK_PAUSE;
@@ -246,13 +303,13 @@ ISR(TIMER2_OVF_vect) {
 			} else {
 				blink_state = BLINK_ON;
 				blink_ovfs_remaining = OVFS_ON;
-				DEBUG_PIN.setValue(true);
+				DEBUG_PIN::setValue(true);
 			}
 		} else if (blink_state == BLINK_PAUSE) {
 			blinked_so_far = 0;
 			blink_state = BLINK_ON;
 			blink_ovfs_remaining = OVFS_ON;
-			DEBUG_PIN.setValue(true);
+			DEBUG_PIN::setValue(true);
 		}
 	}
 }

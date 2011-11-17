@@ -21,7 +21,7 @@
 #include "UART.hh"
 #include "StepperInterface.hh"
 #include "Types.hh"
-#include "PSU.hh"
+//#include "PSU.hh"
 #include "Configuration.hh"
 #include "Timeout.hh"
 #include "Menu.hh"
@@ -44,8 +44,25 @@ public:
         static Motherboard& getBoard() { return motherboard; }
 
 private:
-        /// Collection of stepper controllers that are on this board
-        StepperInterface stepper[STEPPER_COUNT];
+#if STEPPER_COUNT > 0
+	static StepperTmpltEndstops<0, X_DIR_PIN,X_STEP_PIN,X_ENABLE_PIN,X_MAX_PIN,X_MIN_PIN> stepperX;
+#endif
+#if STEPPER_COUNT > 1
+	static StepperTmpltEndstops<1, Y_DIR_PIN,Y_STEP_PIN,Y_ENABLE_PIN,Y_MAX_PIN,Y_MIN_PIN> stepperY;
+#endif
+#if STEPPER_COUNT > 2
+	static StepperTmpltEndstops<2, Z_DIR_PIN,Z_STEP_PIN,Z_ENABLE_PIN,Z_MAX_PIN,Z_MIN_PIN> stepperZ;
+#endif
+#if STEPPER_COUNT > 3
+    // we're using B over A because of the assigned AVR Port which gets us a performance win using it over A
+	static StepperTmplt<3, B_DIR_PIN,B_STEP_PIN,B_ENABLE_PIN> stepperB;
+#endif
+#if STEPPER_COUNT > 4
+	static StepperTmplt<4, A_DIR_PIN,A_STEP_PIN,A_ENABLE_PIN> stepperA;
+#endif
+
+    /// Collection of stepper controllers that are on this board
+	static const StepperInterface* stepper[STEPPER_COUNT];
 
 	/// Microseconds since board initialization
 	volatile micros_t micros;
@@ -78,7 +95,7 @@ public:
 	/// Count the number of steppers available on this board.
         const int getStepperCount() const { return STEPPER_COUNT; }
 	/// Get the stepper interface for the nth stepper.
-	StepperInterface& getStepperInterface(int n)
+	const StepperInterface* getStepperInterface(int n)
 	{
 		return stepper[n];
 	}

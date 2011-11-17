@@ -19,11 +19,11 @@
 
 #ifndef INTERFACE_HH_
 #define INTERFACE_HH_
-
-#include "Menu.hh"
+#if defined HAS_INTERFACE_BOARD
 #include "InterfaceBoard.hh"
-#include "LiquidCrystal.hh"
 #include "Types.hh"
+#include "Menu.hh"
+#include "LiquidCrystal.hh"
 
 // TODO: This style interface is weird; find a way to replace it.
 namespace interface {
@@ -64,5 +64,7 @@ void doUpdate();
 micros_t getUpdateRate();
 
 }
+
+#endif
 
 #endif

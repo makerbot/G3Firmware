@@ -1,5 +1,5 @@
 /*
- * Copyright 2010 by Adam Mayer	 <adam@makerbot.com>
+ * Copyright 2011 by Craig Link craig@moonrock.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,63 +18,128 @@
 #ifndef STEPPERINTERFACE_HH_
 #define STEPPERINTERFACE_HH_
 
-#include <Pin.hh>
+#include <PinTmplt.hh>
+#include "Eeprom.hh"
+#include "EepromMap.hh"
+#include "Configuration.hh"
 
-/// The StepperInterface module represents a connection to a single stepper controller.
-/// \ingroup SoftwareLibraries
+/// StepperInterface instances encapsulate the low-level communication
+/// with a stepper board.
 class StepperInterface {
-private:
-    /// Default constructor
-    StepperInterface() {}
-    StepperInterface(const Pin& dir,
-                    const Pin& step,
-                    const Pin& enable,
-                    const Pin& max,
-                    const Pin& min,
-                    uint16_t eeprom_base_in);
-
-        friend class Motherboard;
-
-private:
-        /// Initialize the pins for the interface
-        /// \param[in] idx Stepper index that this interface refers to (used to look up
-        ///                it's settings in the EEPROM)
-        void init(uint8_t idx);
-
-
-
-        Pin dir_pin;                ///< Pin (output) that the direction line is connected to
-        Pin step_pin;               ///< Pin (output) that the step line is connected to
-        Pin enable_pin;             ///< Pin (output) that the enable line is connected to
-        Pin max_pin;                ///< Pin (input) that the maximum endstop is connected to.
-        Pin min_pin;                ///< Pin (input) that the minimum endstop is connected to.
-        bool invert_endstops;       ///< True if endstops input polarity is inverted for
-                                    ///< this axis.
-        bool invert_axis;           ///< True if motions for this axis should be inverted
-
-        uint16_t eeprom_base;       ///< Base address to read EEPROM configuration from
-
 public:
 	/// Set the direction for the stepper to move
-        /// \param[in] forward True to move the stepper forward, false otherwise.
-	void setDirection(bool forward);
+	virtual void setDirection(bool forward) const = 0;
+	
+    /// Set the value of the step line
+    virtual void step(bool value) const = 0;
 
-	/// Set the value of the step line
-        /// \param[in] value True to enable, false to disable. This should be toggled
-        ///                  back and fourth to effect stepping.
-	void step(bool value);
+	/// Enable or disable this axis
+	virtual void setEnabled(bool enabled) const = 0;
 
-        /// Enable or disable the stepper motor on this axis
-        /// \param[in] True to enable the motor
-	void setEnabled(bool enabled);
+	/// True if the axis has triggered its maximum endstop
+	virtual bool isAtMaximum() const = 0;
+	/// True if the axis has triggered its minimum endstop
+	virtual bool isAtMinimum() const = 0;
 
-        /// Check if the maximum endstop has been triggered for this axis.
-        /// \return True if the axis has triggered its maximum endstop
-	bool isAtMaximum();
+};
 
-        /// Check if the minimum endstop has been triggered for this axis.
-        /// \return True if the axis has triggered its minimum endstop
-	bool isAtMinimum();
+template < uint8_t offset, class dir_pin, class step_pin, class enable_pin > class StepperTmplt : public StepperInterface {
+
+public:
+
+	/// Set the direction for the stepper to move
+	virtual void setDirection(bool forward) const { dir_pin::setValue(invert_axis ? !forward : forward, false); }
+	
+    /// Set the value of the step line
+    virtual void step(bool value) const {step_pin::setValue(value, false);}
+
+	/// Enable or disable this axis
+	virtual void setEnabled(bool enabled) const
+    {
+    	// The A3982 stepper driver chip has an inverted enable.
+    	enable_pin::setValue(!enabled, false);
+    }
+
+
+	/// True if the axis has triggered its maximum endstop
+	virtual bool isAtMaximum() const 
+    {
+        return false;
+    }
+	/// True if the axis has triggered its minimum endstop
+	virtual bool isAtMinimum() const
+    {
+        return false;
+    }
+
+protected:
+
+	friend class Motherboard;
+
+	bool invert_axis;
+	/// Default constructor
+	//StepperInterface() {}
+	StepperTmplt() : invert_axis(false) {}
+
+    void init() 
+    {
+	    dir_pin::setDirection(true);
+	    step_pin::setDirection(true);
+	    enable_pin::setDirection(true);
+
+	    enable_pin::setValue(true);
+	    // get inversion characteristics
+	    uint8_t axes_invert = eeprom::getEeprom8(eeprom::AXIS_INVERSION, 1<<1);
+	    invert_axis = (axes_invert & (1<<offset)) != 0;
+    }
+};
+
+template < uint8_t offset, class dir_pin, class step_pin, class enable_pin, class max_pin, class min_pin  > class StepperTmpltEndstops
+    : public  StepperTmplt< offset, dir_pin, step_pin, enable_pin >
+{
+
+public:
+
+	/// True if the axis has triggered its maximum endstop
+	virtual bool isAtMaximum() const 
+    {
+	    bool v = max_pin::getValue();
+	    if (invert_endstops) v = !v;
+	    return v;
+    }
+	/// True if the axis has triggered its minimum endstop
+	virtual bool isAtMinimum() const
+    {
+	    bool v = min_pin::getValue();
+	    if (invert_endstops) v = !v;
+	    return v;
+    }
+
+protected:
+
+	friend class Motherboard;
+
+	bool invert_endstops;
+
+	StepperTmpltEndstops() : invert_endstops(true) {}
+
+    void init() 
+    {
+        StepperTmplt< offset, dir_pin, step_pin, enable_pin >::init();
+	    uint8_t endstops_invert = eeprom::getEeprom8(eeprom::ENDSTOP_INVERSION, 0);
+	    bool endstops_present = (endstops_invert & (1<<7)) != 0;
+    	// If endstops are not present, then we consider them inverted, since they will
+    	// always register as high (pulled up).
+	    invert_endstops = !endstops_present || ((endstops_invert & (1<<offset)) != 0);
+	    // pull pins up to avoid triggering when using inverted endstops
+
+		max_pin::setDirection(false);
+		max_pin::setValue(invert_endstops);
+
+		min_pin::setDirection(false);
+		min_pin::setValue(invert_endstops);
+    }
+
 };
 
 #endif // STEPPERINTERFACE_HH_

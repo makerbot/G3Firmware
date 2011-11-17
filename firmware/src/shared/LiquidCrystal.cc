@@ -1,8 +1,49 @@
-#include "LiquidCrystal.hh"
 
 #include <stdio.h>
 #include <string.h>
 #include <util/delay.h>
+#include "configuration.hh"
+
+#if defined(LCD_ENABLE_PIN)
+#include "LiquidCrystal.hh"
+
+#define _rs_pin     LCD_RS_PIN
+#define _enable_pin LCD_ENABLE_PIN
+#define _d0_pin     LCD_D0_PIN
+#define _d1_pin     LCD_D1_PIN
+#define _d2_pin     LCD_D2_PIN
+#define _d3_pin     LCD_D3_PIN
+
+// commands
+#define LCD_CLEARDISPLAY 0x01
+#define LCD_RETURNHOME 0x02
+#define LCD_ENTRYMODESET 0x04
+#define LCD_DISPLAYCONTROL 0x08
+#define LCD_CURSORSHIFT 0x10
+#define LCD_FUNCTIONSET 0x20
+#define LCD_SETCGRAMADDR 0x40
+#define LCD_SETDDRAMADDR 0x80
+
+// flags for display entry mode
+#define LCD_ENTRYRIGHT 0x00
+#define LCD_ENTRYLEFT 0x02
+#define LCD_ENTRYSHIFTINCREMENT 0x01
+#define LCD_ENTRYSHIFTDECREMENT 0x00
+
+// flags for display on/off control
+#define LCD_DISPLAYON 0x04
+#define LCD_DISPLAYOFF 0x00
+#define LCD_CURSORON 0x02
+#define LCD_CURSOROFF 0x00
+#define LCD_BLINKON 0x01
+#define LCD_BLINKOFF 0x00
+
+// flags for display/cursor shift
+#define LCD_DISPLAYMOVE 0x08
+#define LCD_CURSORMOVE 0x00
+#define LCD_MOVERIGHT 0x04
+#define LCD_MOVELEFT 0x00
+
 
 // When the display powers up, it is configured as follows:
 //
@@ -23,61 +64,74 @@
 // can't assume that its in that state when a sketch starts (and the
 // LiquidCrystal constructor is called).
 
-LiquidCrystal::LiquidCrystal(Pin rs, Pin rw, Pin enable,
-			     Pin d0, Pin d1, Pin d2, Pin d3,
-			     Pin d4, Pin d5, Pin d6, Pin d7)
+LiquidCrystal::LiquidCrystal()
 {
-  init(0, rs, rw, enable, d0, d1, d2, d3, d4, d5, d6, d7);
-}
 
-LiquidCrystal::LiquidCrystal(Pin rs, Pin enable,
-			     Pin d0, Pin d1, Pin d2, Pin d3,
-			     Pin d4, Pin d5, Pin d6, Pin d7)
-{
-  init(0, rs, Pin(), enable, d0, d1, d2, d3, d4, d5, d6, d7);
-}
+  _rs_pin::setDirection(true);
+  _enable_pin::setDirection(true);
 
-LiquidCrystal::LiquidCrystal(Pin rs, Pin rw, Pin enable,
-			     Pin d0, Pin d1, Pin d2, Pin d3)
-{
-  init(1, rs, rw, enable, d0, d1, d2, d3, Pin(), Pin(), Pin(), Pin());
-}
+  _rs_pin::setValue(false);
+  _enable_pin::setValue(false);
 
-LiquidCrystal::LiquidCrystal(Pin rs,  Pin enable,
-			     Pin d0, Pin d1, Pin d2, Pin d3)
-{
-  init(1, rs, Pin(), enable, d0, d1, d2, d3, Pin(), Pin(), Pin(), Pin());
-}
+  _d0_pin::setDirection(true);
+  _d1_pin::setDirection(true);
+  _d2_pin::setDirection(true);
+  _d3_pin::setDirection(true);
 
-void LiquidCrystal::init(uint8_t fourbitmode, Pin rs, Pin rw, Pin enable,
-			 Pin d0, Pin d1, Pin d2, Pin d3,
-			 Pin d4, Pin d5, Pin d6, Pin d7)
-{
-  _rs_pin = rs;
-  _rw_pin = rw;
-  _enable_pin = enable;
-  
-  _data_pins[0] = d0;
-  _data_pins[1] = d1;
-  _data_pins[2] = d2;
-  _data_pins[3] = d3; 
-  _data_pins[4] = d4;
-  _data_pins[5] = d5;
-  _data_pins[6] = d6;
-  _data_pins[7] = d7; 
+  _d0_pin::setValue(false);
+  _d1_pin::setValue(false);
+  _d2_pin::setValue(false);
+  _d3_pin::setValue(false);
 
-  _rs_pin.setDirection(true);
-  // we can save 1 pin by not using RW. Indicate by passing 255 instead of pin#
-  if (!_rw_pin.isNull()) { _rw_pin.setDirection(true); }
- _enable_pin.setDirection(true);
-  
-  if (fourbitmode)
     _displayfunction = LCD_4BITMODE | LCD_1LINE | LCD_5x8DOTS;
-  else 
-    _displayfunction = LCD_8BITMODE | LCD_1LINE | LCD_5x8DOTS;
   
-  begin(16, 1);  
 }
+
+void LiquidCrystal::init()
+{
+	begin(LCD_SCREEN_WIDTH, LCD_SCREEN_HEIGHT);
+    clear();
+    home();
+}
+
+
+/************ low level data pushing commands **********/
+static inline void _delay_248ns(void)
+{
+    __asm__ __volatile__ ("nop \n\tnop \n\tnop \n\tnop \n\t");
+}
+
+inline void LiquidCrystal::pulseEnable(void) {
+  _enable_pin::setValue(true);
+    _delay_248ns();
+  _enable_pin::setValue(false);
+}
+
+inline void LiquidCrystal::write4bits(uint8_t value) {
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) 
+    {
+        _d0_pin::setValue(((value >> 0) & 0x01) != 0, false);
+        _d1_pin::setValue(((value >> 1) & 0x01) != 0, false);
+        _d2_pin::setValue(((value >> 2) & 0x01) != 0, false);
+        _d3_pin::setValue(((value >> 3) & 0x01) != 0, false);
+    }
+
+  pulseEnable();
+}
+
+// write either command or data, with automatic 4/8-bit selection
+void LiquidCrystal::send(uint8_t value, bool mode) {
+  _rs_pin::setValue(mode);
+
+    write4bits(value>>4);
+    _delay_248ns(); // delay to keep enable_pin low before half a cycle time.
+    write4bits(value);
+
+    _delay_us(41);   // commands need > 37us to settle [citation needed]
+}
+
+
+
 
 void LiquidCrystal::begin(uint8_t cols, uint8_t lines, uint8_t dotsize) {
   if (lines > 1) {
@@ -93,49 +147,28 @@ void LiquidCrystal::begin(uint8_t cols, uint8_t lines, uint8_t dotsize) {
 
   // SEE PAGE 45/46 FOR INITIALIZATION SPECIFICATION!
   // according to datasheet, we need at least 40ms after power rises above 2.7V
-  // before sending commands. Arduino can turn on way befer 4.5V so we'll wait 50
+  // before sending commands. Arduino can turn on way before 4.5V so we'll wait 50
   _delay_us(50000);
-  // Now we pull both RS and R/W low to begin commands
-  _rs_pin.setValue(false);
-  _enable_pin.setValue(false);
-  if (!_rw_pin.isNull()) {
-    _rw_pin.setValue(false);
-  }
+
   
-  //put the LCD into 4 bit or 8 bit mode
-  if (! (_displayfunction & LCD_8BITMODE)) {
+  //put the LCD into 4 bit o
     // this is according to the hitachi HD44780 datasheet
     // figure 24, pg 46
 
     // we start in 8bit mode, try to set 4 bit mode
     write4bits(0x03);
-    _delay_us(4500); // wait min 4.1ms
+    _delay_us(4100); // wait min 4.1ms
 
     // second try
     write4bits(0x03);
-    _delay_us(4500); // wait min 4.1ms
+    _delay_us(4100); // wait min 4.1ms
     
     // third go!
     write4bits(0x03); 
     _delay_us(150);
 
-    // finally, set to 8-bit interface
+    // finally, set to 8=4-bit interface
     write4bits(0x02); 
-  } else {
-    // this is according to the hitachi HD44780 datasheet
-    // page 45 figure 23
-
-    // Send function set command sequence
-    command(LCD_FUNCTIONSET | _displayfunction);
-    _delay_us(4500);  // wait more than 4.1ms
-
-    // second try
-    command(LCD_FUNCTIONSET | _displayfunction);
-    _delay_us(150);
-
-    // third go
-    command(LCD_FUNCTIONSET | _displayfunction);
-  }
 
   // finally, set # lines, font size, etc.
   command(LCD_FUNCTIONSET | _displayfunction);  
@@ -251,14 +284,6 @@ void LiquidCrystal::createChar(uint8_t location, uint8_t charmap[]) {
 
 /*********** mid level commands, for sending data/cmds */
 
-inline void LiquidCrystal::command(uint8_t value) {
-  send(value, false);
-}
-
-inline void LiquidCrystal::write(uint8_t value) {
-  send(value, true);
-}
-
 
 void LiquidCrystal::writeInt(uint16_t value, uint8_t digits) {
 
@@ -275,69 +300,25 @@ void LiquidCrystal::writeInt(uint16_t value, uint8_t digits) {
 
 	for (uint8_t i = 0; i < digits; i++) {
 		nextDigit = currentDigit/10;
-		write((value%currentDigit)/nextDigit+'0');
+		write(uint8_t((value%currentDigit)/nextDigit)+'0');
 		currentDigit = nextDigit;
 	}
 }
 
 
-void LiquidCrystal::writeString(char message[]) {
-	char* letter = message;
+void LiquidCrystal::writeString(const char message[]) {
+	const char* letter = message;
 	while (*letter != 0) {
 		write(*letter);
 		letter++;
 	}
 }
 
-void LiquidCrystal::writeFromPgmspace(const prog_uchar message[]) {
+void LiquidCrystal::writeFromPgmspace(const prog_char message[]) {
 	char letter;
-	while (letter = pgm_read_byte(message++)) {
+	while ((letter = pgm_read_byte(message++))) {
 		write(letter);
 	}
 }
 
-/************ low level data pushing commands **********/
-
-// write either command or data, with automatic 4/8-bit selection
-void LiquidCrystal::send(uint8_t value, bool mode) {
-  _rs_pin.setValue(mode);
-
-  // if there is a RW pin indicated, set it low to Write
-  if (!_rw_pin.isNull()) {
-    _rw_pin.setValue(false);
-  }
-  
-  if (_displayfunction & LCD_8BITMODE) {
-    write8bits(value); 
-  } else {
-    write4bits(value>>4);
-    write4bits(value);
-  }
-}
-
-void LiquidCrystal::pulseEnable(void) {
-  _enable_pin.setValue(false);
-  _delay_us(1);
-  _enable_pin.setValue(true);
-  _delay_us(1);    // enable pulse must be >450ns
-  _enable_pin.setValue(false);
-  _delay_us(1);   // commands need > 37us to settle [citation needed]
-}
-
-void LiquidCrystal::write4bits(uint8_t value) {
-  for (int i = 0; i < 4; i++) {
-    _data_pins[i].setDirection(true);
-    _data_pins[i].setValue(((value >> i) & 0x01) != 0);
-  }
-
-  pulseEnable();
-}
-
-void LiquidCrystal::write8bits(uint8_t value) {
-  for (int i = 0; i < 8; i++) {
-    _data_pins[i].setDirection(true);
-    _data_pins[i].setValue(((value >> i) & 0x01) != 0);
-  }
-  
-  pulseEnable();
-}
+#endif

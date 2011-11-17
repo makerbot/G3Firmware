@@ -1,3 +1,4 @@
+#if 0
 /*
  * Copyright 2010 by Adam Mayer	 <adam@makerbot.com>
  *
@@ -88,3 +89,4 @@ void StepperInterface::init(uint8_t idx) {
                 min_pin.setValue(invert_endstops);
         }
 }
+#endif

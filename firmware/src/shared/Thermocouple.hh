@@ -18,26 +18,24 @@
 #ifndef THERMOCOUPLE_HH_
 #define THERMOCOUPLE_HH_
 
+
+#if HAS_THERMOCOUPLE > 0
 #include "TemperatureSensor.hh"
-#include "Pin.hh"
+#include "PinTmplt.hh"
 
 /// The thermocouple module provides a bitbanging driver that can read the
 /// temperature from (chip name) sensor, and also report on any error conditions.
 /// \ingroup SoftwareLibraries
 class Thermocouple : public TemperatureSensor {
-private:
-        Pin cs_pin;  ///< Chip select pin (output)
-        Pin sck_pin; ///< Clock pin (output)
-        Pin so_pin;  ///< Data pin (input)
 public:
         /// Create a new thermocouple instance, and attach it to the given pins.
         /// \param [in] cs Chip Select (output).
         /// \param [in] sck Clock Pin (output). Can be shared with other thermocouples.
         /// \param [in] so Data Pin (input)
-	Thermocouple(const Pin& cs,const Pin& sck,const Pin& so);
 
-	void init();
+	virtual void init();
 
-	SensorState update();
+	virtual SensorState update();
 };
+#endif
 #endif // THERMOCOUPLE_HH_

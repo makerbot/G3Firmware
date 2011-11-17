@@ -18,7 +18,7 @@
 #include <avr/io.h>
 #include <util/atomic.h>
 #include "Configuration.hh"
-#include "Pin.hh"
+#include "PinTmplt.hh"
 
 // Enable pin D5 is also OC0B.
 
@@ -30,9 +30,9 @@ int16_t last_extruder_speed;
 // Timer0 has a duty cycle of 1/16 ms.
 void initExtruderMotor() {
 	last_extruder_speed = 0;
-	MOTOR_ENABLE_PIN.setDirection(true);
-	MOTOR_ENABLE_PIN.setValue(false);
-	MOTOR_DIR_PIN.setDirection(true);
+	MOTOR_ENABLE_PIN::setDirection(true);
+	MOTOR_ENABLE_PIN::setValue(false);
+	MOTOR_DIR_PIN::setDirection(true);
 }
 
 
@@ -48,12 +48,12 @@ void setExtruderMotor(int16_t speed) {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (speed == 0 || speed == 255) {
 			TCCR0A &= 0b11001111;
-			MOTOR_ENABLE_PIN.setValue(speed==255);
+			MOTOR_ENABLE_PIN::setValue(speed==255);
 		} else {
-			MOTOR_ENABLE_PIN.setValue(true);
+			MOTOR_ENABLE_PIN::setValue(true);
 			TCCR0A |= 0b00100000;
 		}
-		MOTOR_DIR_PIN.setValue(!backwards);
+		MOTOR_DIR_PIN::setValue(!backwards);
 		OCR0B = speed;
 	}
 }

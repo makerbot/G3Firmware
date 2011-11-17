@@ -20,7 +20,7 @@
 
 #include "Configuration.hh"
 #include <stdint.h>
-#include "Pin.hh"
+#include "PinTmplt.hh"
 #include "Command.hh"
 #include "Point.hh"
 

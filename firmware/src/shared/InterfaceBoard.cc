@@ -1,20 +1,20 @@
 #include "InterfaceBoard.hh"
 #include "Configuration.hh"
-#include "LiquidCrystal.hh"
 #include "Host.hh"
 
 #if defined HAS_INTERFACE_BOARD
 
+#include "LiquidCrystal.hh"
+
+#define foo_pin INTERFACE_FOO_PIN
+#define bar_pin INTERFACE_BAR_PIN
+
 InterfaceBoard::InterfaceBoard(ButtonArray& buttons_in,
                                LiquidCrystal& lcd_in,
-                               const Pin& foo_pin_in,
-                               const Pin& bar_pin_in,
                                Screen* mainScreen_in,
                                Screen* buildScreen_in) :
         lcd(lcd_in),
-        buttons(buttons_in),
-        foo_pin(foo_pin_in),
-        bar_pin(bar_pin_in)
+        buttons(buttons_in)
 {
         buildScreen = buildScreen_in;
         mainScreen = mainScreen_in;
@@ -23,14 +23,12 @@ InterfaceBoard::InterfaceBoard(ButtonArray& buttons_in,
 void InterfaceBoard::init() {
         buttons.init();
 
-        lcd.begin(LCD_SCREEN_WIDTH, LCD_SCREEN_HEIGHT);
-        lcd.clear();
-        lcd.home();
+        lcd.init();
 
-        foo_pin.setValue(false);
-        foo_pin.setDirection(true);
-        bar_pin.setValue(false);
-        bar_pin.setDirection(true);
+        foo_pin::setValue(false);
+        foo_pin::setDirection(true);
+        bar_pin::setValue(false);
+        bar_pin::setDirection(true);
 
         building = false;
 

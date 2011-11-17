@@ -207,9 +207,9 @@ inline void handleGetPosition(const InPacket& from_host, OutPacket& to_host) {
 		Motherboard& board = Motherboard::getBoard();
 		uint8_t endstop_status = 0;
 		for (int i = 3; i > 0; i--) {
-			StepperInterface& si = board.getStepperInterface(i-1);
+			const StepperInterface* si = board.getStepperInterface(i-1);
 			endstop_status <<= 2;
-			endstop_status |= (si.isAtMaximum()?2:0) | (si.isAtMinimum()?1:0);
+			endstop_status |= (si->isAtMaximum()?2:0) | (si->isAtMinimum()?1:0);
 		}
 		to_host.append8(endstop_status);
 	}
@@ -234,9 +234,9 @@ inline void handleGetPositionExt(const InPacket& from_host, OutPacket& to_host) 
 		Motherboard& board = Motherboard::getBoard();
 		uint8_t endstop_status = 0;
 		for (int i = STEPPER_COUNT; i > 0; i--) {
-			StepperInterface& si = board.getStepperInterface(i-1);
+			const StepperInterface* si = board.getStepperInterface(i-1);
 			endstop_status <<= 2;
-			endstop_status |= (si.isAtMaximum()?2:0) | (si.isAtMinimum()?1:0);
+			endstop_status |= (si->isAtMaximum()?2:0) | (si->isAtMinimum()?1:0);
 		}
 		to_host.append16(endstop_status);
 	}
