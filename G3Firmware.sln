@@ -145,7 +145,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ecv34", "ecv34", "{489403D6
 		firmware\src\Extruder\boards\ecv34\ExtruderBoard.hh = firmware\src\Extruder\boards\ecv34\ExtruderBoard.hh
 		firmware\src\Extruder\boards\ecv34\ExtruderMotor.cc = firmware\src\Extruder\boards\ecv34\ExtruderMotor.cc
 		firmware\src\Extruder\boards\ecv34\ExtruderMotor.hh = firmware\src\Extruder\boards\ecv34\ExtruderMotor.hh
-		firmware\src\Extruder\boards\ecv34\SoftwareServo.cc = firmware\src\Extruder\boards\ecv34\SoftwareServo.cc
 		firmware\src\Extruder\boards\ecv34\SoftwareServo.hh = firmware\src\Extruder\boards\ecv34\SoftwareServo.hh
 	EndProjectSection
 EndProject
