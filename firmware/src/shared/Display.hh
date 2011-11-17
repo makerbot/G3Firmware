@@ -5,7 +5,7 @@
 
 #include <stdint.h>
 #include <avr/pgmspace.h>
-#include "AvrPort.hh"
+#include "PinTmplt.hh"
 
 class Display {
 public:

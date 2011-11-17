@@ -5,7 +5,6 @@
 
 #include <stdint.h>
 #include <avr/pgmspace.h>
-#include "AvrPort.hh"
 #include "Display.hh"
 #include "LiquidCrystal.hh"
 #include "ModtronixLCD2S.hh"
