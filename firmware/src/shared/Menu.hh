@@ -4,8 +4,6 @@
 #if HAS_INTERFACE_BOARD > 0
 
 #include "Types.hh"
-#include "ButtonArray.hh"
-#include "LiquidCrystal.hh"
 
 /// The screen class defines a standard interface for anything that should
 /// be displayed on the LCD.
@@ -23,7 +21,7 @@ public:
         /// \param[in] lcd LCD to write to
         /// \param[in] forceRedraw if true, redraw the entire screen. If false,
         ///                        only updated sections need to be redrawn.
-	virtual void update(LiquidCrystal& lcd, bool forceRedraw);
+	virtual void update(Display& display, bool forceRedraw);
 
         /// Reset the screen to it's default state
 	virtual void reset();
@@ -47,7 +45,7 @@ class Menu: public Screen {
 public:
 	micros_t getUpdateRate() {return 500L * 1000L;}
 
-	void update(LiquidCrystal& lcd, bool forceRedraw);
+	void update(Display& display, bool forceRedraw);
 
 	void reset();
 
@@ -67,7 +65,7 @@ protected:
         /// Draw an item at the current cursor position.
         /// \param[in] index Index of the item to draw
         /// \param[in] LCD screen to draw onto
-	virtual void drawItem(uint8_t index, LiquidCrystal& lcd);
+	virtual void drawItem(uint8_t index, Display& display);
 
         /// Handle selection of a menu item
         /// \param[in] index Index of the menu item that was selected
@@ -84,7 +82,7 @@ class SplashScreen: public Screen {
 public:
 	micros_t getUpdateRate() {return 50L * 1000L;}
 
-	void update(LiquidCrystal& lcd, bool forceRedraw);
+	void update(Display& display, bool forceRedraw);
 
 	void reset();
 
@@ -107,7 +105,7 @@ private:
 public:
 	micros_t getUpdateRate() {return 50L * 1000L;}
 
-	void update(LiquidCrystal& lcd, bool forceRedraw);
+	void update(Display& display, bool forceRedraw);
 
 	void reset();
 
@@ -142,6 +140,7 @@ private:
 	bool snakeAlive;					// The state of our snake
 	direction_t snakeDirection;			// The direction the snake is heading
 	coord_t applePosition;				// Location of the apple
+    bool    appleReset;
 	uint8_t applesEaten;				// Number of apples that have been eaten
 //	int gameSpeed = START_SPEED;		// Speed of the game (in ms per turn)
 
@@ -150,7 +149,7 @@ public:
 	micros_t getUpdateRate() {return updateRate;}
 
 	// Refresh the display information
-	void update(LiquidCrystal& lcd, bool forceRedraw);
+	void update(Display& display, bool forceRedraw);
 
 	void reset();
 
@@ -171,7 +170,7 @@ protected:
                          char buffer[],
                          uint8_t buffer_size);
 
-	void drawItem(uint8_t index, LiquidCrystal& lcd);
+	void drawItem(uint8_t index, Display& display);
 
 	void handleSelect(uint8_t index);
 };
@@ -183,7 +182,7 @@ public:
 
 	void resetState();
 protected:
-	void drawItem(uint8_t index, LiquidCrystal& lcd);
+	void drawItem(uint8_t index, Display& display);
 
 	void handleSelect(uint8_t index);
 };
@@ -198,7 +197,7 @@ private:
 public:
 	micros_t getUpdateRate() {return 500L * 1000L;}
 
-	void update(LiquidCrystal& lcd, bool forceRedraw);
+	void update(Display& display, bool forceRedraw);
 
 	void reset();
 
@@ -211,7 +210,7 @@ public:
 	MainMenu();
 
 protected:
-	void drawItem(uint8_t index, LiquidCrystal& lcd);
+	void drawItem(uint8_t index, Display& display);
 
 	void handleSelect(uint8_t index);
 

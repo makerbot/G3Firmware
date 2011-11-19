@@ -147,9 +147,18 @@
 // Define as 1 if debugging packets are honored; 0 if not.
 #define HONOR_DEBUG_PACKETS     1
 
-#define HAS_INTERFACE_BOARD     0
+#define HAS_INTERFACE_BOARD     1
 #if HAS_INTERFACE_BOARD > 0
-/// Pin mappings for the LCD connection.
+
+#define DISPLAY_TYPE_LIQUIDCRYSTAL 1
+#define DISPLAY_TYPE_MODTRONIXLCD2S 2
+#define DISPLAY_TYPE_DUAL 3
+
+#define DISPLAY_TYPE DISPLAY_TYPE_LIQUIDCRYSTAL
+//#define DISPLAY_TYPE DISPLAY_TYPE_MODTRONIXLCD2S
+//#define DISPLAY_TYPE DISPLAY_TYPE_DUAL
+
+/// Pin mappings for the LiquidCrystal class connection.
 #define LCD_RS_PIN		Pin(PortC,4)
 #define LCD_ENABLE_PIN          Pin(PortC,3)
 #define LCD_D0_PIN		Pin(PortD,7)

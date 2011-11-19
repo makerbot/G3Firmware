@@ -2,18 +2,28 @@
 #if HAS_INTERFACE_BOARD > 0
 #include "Host.hh"
 
-
+#if DISPLAY_TYPE == DISPLAY_TYPE_LIQUIDCRYSTAL
 #include "LiquidCrystal.hh"
+static LiquidCrystal globalDisplay;
+
+#elif DISPLAY_TYPE == DISPLAY_TYPE_MODTRONIXLCD2S
+#include "ModtronixLCD2S.hh"
+static ModtronixLCD2S globalDisplay;
+
+#elif DISPLAY_TYPE == DISPLAY_TYPE_DUAL
+#include "DualDisplay.hh"
+static DualDisplay globalDisplay;
+#endif
+
 
 #define foo_pin INTERFACE_FOO_PIN
 #define bar_pin INTERFACE_BAR_PIN
 
-InterfaceBoard::InterfaceBoard(ButtonArray& buttons_in,
-                               LiquidCrystal& lcd_in,
-                               Screen* mainScreen_in,
+
+
+InterfaceBoard::InterfaceBoard(Screen* mainScreen_in,
                                Screen* buildScreen_in) :
-        buttons(buttons_in),
-        lcd(lcd_in)
+    display(globalDisplay)
 {
         buildScreen = buildScreen_in;
         mainScreen = mainScreen_in;
@@ -22,7 +32,7 @@ InterfaceBoard::InterfaceBoard(ButtonArray& buttons_in,
 void InterfaceBoard::init() {
         buttons.init();
 
-        lcd.init();
+        display.init();
 
 #if HAS_INTERFACE_BUTTONS > 0
         foo_pin::setValue(false);
@@ -74,7 +84,7 @@ void InterfaceBoard::doUpdate() {
 		screenStack[screenIndex]->notifyButtonPressed(button);
 	}
 
-	screenStack[screenIndex]->update(lcd, false);
+	screenStack[screenIndex]->update(display, false);
 }
 
 void InterfaceBoard::pushScreen(Screen* newScreen) {
@@ -83,7 +93,7 @@ void InterfaceBoard::pushScreen(Screen* newScreen) {
 		screenStack[screenIndex] = newScreen;
 	}
 	screenStack[screenIndex]->reset();
-	screenStack[screenIndex]->update(lcd, true);
+	screenStack[screenIndex]->update(display, true);
 }
 
 void InterfaceBoard::popScreen() {
@@ -92,7 +102,7 @@ void InterfaceBoard::popScreen() {
 		screenIndex--;
 	}
 
-	screenStack[screenIndex]->update(lcd, true);
+	screenStack[screenIndex]->update(display, true);
 }
 
 #endif // HAS_INTERFACE_BOARD > 0

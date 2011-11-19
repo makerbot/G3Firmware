@@ -39,8 +39,6 @@ Motherboard::Motherboard()
 #if HAS_INTERFACE_BOARD > 0
     :
         interfaceBoard(
-            buttonArray,
-            lcd,
             &mainMenu,
             &monitorMode)
 
@@ -147,7 +145,7 @@ void Motherboard::reset() {
                 interfaceBoard.pushScreen(&splashScreen);
 
                 // Finally, set up the *** interface
-                interface::init(&interfaceBoard, &lcd);
+                interface::init(&interfaceBoard);
 
                 interface_update_timeout.start(interfaceBoard.getUpdateRate());
 	}

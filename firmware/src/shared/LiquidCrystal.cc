@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <util/delay.h>
-#include "configuration.hh"
+#include "InterfaceBoard.hh"
 
 #if HAS_INTERFACE_BOARD > 0
 #include "LiquidCrystal.hh"
@@ -89,7 +89,7 @@ LiquidCrystal::LiquidCrystal()
 
 void LiquidCrystal::init()
 {
-	begin(LCD_SCREEN_WIDTH, LCD_SCREEN_HEIGHT);
+	begin(width(), height());
     clear();
     home();
 }

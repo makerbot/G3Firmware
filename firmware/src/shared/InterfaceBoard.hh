@@ -22,6 +22,7 @@
 #include "Configuration.hh"
 #include "ButtonArray.hh"
 #if HAS_INTERFACE_BOARD > 0
+#include "Display.hh"
 #include "Menu.hh"
 
 /// Maximum number of screens that can be active at once.
@@ -38,10 +39,10 @@
 /// \ingroup HardwareLibraries
 class InterfaceBoard {
 public:
-        LiquidCrystal& lcd;              ///< LCD to write to
+        Display& display;              ///< LCD to write to
 private:
 
-        ButtonArray& buttons;            ///< Button array to read from
+        ButtonArray buttons;            ///< Button array to read from
 
         // TODO: Drop this?
         Screen* buildScreen;            ///< Screen to display while building
@@ -60,16 +61,9 @@ private:
 
 public:
         /// Construct an interface board.
-        /// \param[in] button array to read from
-        /// \param[in] LCD to display on
-        /// \param[in] Pin connected to the foo LED
-        /// \param[in] Pin connected to the bar LED
         /// \param[in] Main screen, shown as root display
         /// \param[in] Screen to display while building
-        InterfaceBoard(
-                       ButtonArray& buttons_in,
-                       LiquidCrystal& lcd_in,
-                       Screen* mainScreen_in,
+        InterfaceBoard(Screen* mainScreen_in,
                        Screen* buildScreen_in);
 
         /// Initialze the interface board. This needs to be called once

@@ -4,7 +4,6 @@
 // TODO: Proper attribution
 
 #include <stdint.h>
-#include <avr/pgmspace.h>
 #include "Display.hh"
 #include "LiquidCrystal.hh"
 #include "ModtronixLCD2S.hh"
@@ -14,6 +13,8 @@ public:
     DualDisplay() {}
   virtual void init();
   virtual void clear();
+  virtual size_t width() const { return 16; }
+  virtual size_t height() const { return 4; }
   virtual void setCursor(uint8_t col, uint8_t row); 
   virtual void write(uint8_t);
 
@@ -22,8 +23,8 @@ public:
   virtual void writeFromPgmspace(const prog_char message[]);
 
 private:
-    Display lcd; // provide a NULL display
-//    LiquidCrystal lcd;
+//    Display lcd; // provide a NULL display
+    LiquidCrystal lcd;
     ModtronixLCD2S lcd2s;
 };
 

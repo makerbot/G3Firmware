@@ -24,10 +24,7 @@
 //#include "PSU.hh"
 #include "Configuration.hh"
 #include "Timeout.hh"
-#include "Menu.hh"
 #include "InterfaceBoard.hh"
-#include "LiquidCrystal.hh"
-#include "ButtonArray.hh"
 
 
 /// Main class for Motherboard version 2.4+ (Gen4 electronics)
@@ -77,8 +74,6 @@ private:
         /// True if we have an interface board attached
 	bool hasInterfaceBoard;
 
-    ButtonArray buttonArray;
-    LiquidCrystal lcd;
     InterfaceBoard interfaceBoard;
 
     MainMenu mainMenu;              ///< Main system menu

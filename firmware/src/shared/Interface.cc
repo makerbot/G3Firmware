@@ -9,7 +9,6 @@
 namespace interface {
 
 
-LiquidCrystal* lcd;
 InterfaceBoard* board;
 
 bool isConnected() {
@@ -43,9 +42,8 @@ bool isConnected() {
 
 }
 
-void init(InterfaceBoard* board_in, LiquidCrystal* lcd_in) {
+void init(InterfaceBoard* board_in) {
     board = board_in;
-    lcd = lcd_in;
 }
 
 void pushScreen(Screen* newScreen) {

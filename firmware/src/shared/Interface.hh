@@ -22,15 +22,13 @@
 #include "InterfaceBoard.hh"
 #if HAS_INTERFACE_BOARD > 0
 #include "Types.hh"
-#include "Menu.hh"
-#include "LiquidCrystal.hh"
 
 // TODO: This style interface is weird; find a way to replace it.
 namespace interface {
 
 /// Set the current interface board and lcd. This *must* be called before using
 /// any of the functions in this interface.
-void init(InterfaceBoard* board_in, LiquidCrystal* lcd_in);
+void init(InterfaceBoard* board_in);
 
 /// Returns true if the interface board is connected
 bool isConnected();
