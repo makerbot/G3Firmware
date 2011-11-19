@@ -66,10 +66,10 @@ bool queryExtruderParameter(uint8_t parameter, OutPacket& responsePacket) {
 }
 
 void SplashScreen::update(Display& display, bool forceRedraw) {
-	static PROGMEM prog_char splash1[] = "                ";
-	static PROGMEM prog_char splash2[] = " Thing-O-Matic  ";
-	static PROGMEM prog_char splash3[] = "   ---------    ";
-	static PROGMEM prog_char splash4[] = "                ";
+	static PROGMEM prog_char splash1[] = "    CraigBot    ";
+	static PROGMEM prog_char splash2[] = "   ----------   ";
+	static PROGMEM prog_char splash3[] = "  Cupcake  CNC  ";
+    static PROGMEM prog_char splash4[] = "      #545      ";
 
 
 	if (forceRedraw) {

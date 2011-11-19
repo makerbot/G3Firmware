@@ -78,8 +78,8 @@
 
 // --- Axis configuration ---
 // Define the number of stepper axes supported by the board.  The axes are
-// denoted by X, Y, Z, A and B.
-#define STEPPER_COUNT           5
+// denoted by X, Y, Z, B and A.
+#define STEPPER_COUNT           4
 
 
 // --- Stepper and endstop configuration ---
