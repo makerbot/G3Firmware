@@ -4,7 +4,7 @@
 #include <util/delay.h>
 #include "configuration.hh"
 
-#if defined(LCD_ENABLE_PIN)
+#if HAS_INTERFACE_BOARD > 0
 #include "LiquidCrystal.hh"
 
 #define _rs_pin     LCD_RS_PIN
@@ -321,4 +321,4 @@ void LiquidCrystal::writeFromPgmspace(const prog_char message[]) {
 	}
 }
 
-#endif
+#endif // HAS_INTERFACE_BOARD > 0

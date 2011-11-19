@@ -1,6 +1,8 @@
 #ifndef MENU_HH_
 #define MENU_HH_
 
+#if HAS_INTERFACE_BOARD > 0
+
 #include "Types.hh"
 #include "ButtonArray.hh"
 #include "LiquidCrystal.hh"
@@ -220,5 +222,7 @@ private:
         JogMode jogger;
         SnakeMode snake;
 };
+
+#endif // HAS_INTERFACE_BOARD > 0
 
 #endif

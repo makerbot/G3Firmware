@@ -1,7 +1,5 @@
-#include "Configuration.hh"
-
-// TODO: Kill this, should be hanlded by build system.
-#ifdef HAS_INTERFACE_BOARD
+#include "InterfaceBoard.hh"
+#if HAS_INTERFACE_BOARD > 0
 #include "Menu.hh"
 
 #include "Steppers.hh"
@@ -10,7 +8,6 @@
 #include "Tool.hh"
 #include "Host.hh"
 #include "Timeout.hh"
-#include "InterfaceBoard.hh"
 #include "Interface.hh"
 #include <util/delay.h>
 #include <stdlib.h>

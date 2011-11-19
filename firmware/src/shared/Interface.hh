@@ -19,8 +19,8 @@
 
 #ifndef INTERFACE_HH_
 #define INTERFACE_HH_
-#if defined HAS_INTERFACE_BOARD
 #include "InterfaceBoard.hh"
+#if HAS_INTERFACE_BOARD > 0
 #include "Types.hh"
 #include "Menu.hh"
 #include "LiquidCrystal.hh"
@@ -65,6 +65,6 @@ micros_t getUpdateRate();
 
 }
 
-#endif
+#endif // HAS_INTERFACE_BOARD > 0
 
 #endif

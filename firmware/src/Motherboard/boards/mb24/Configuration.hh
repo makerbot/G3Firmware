@@ -18,6 +18,7 @@
 #ifndef BOARDS_MB24_CONFIGURATION_HH_
 #define BOARDS_MB24_CONFIGURATION_HH_
 
+#include "PinTmplt.hh"
 
 /// This file details the pin assignments and features of the
 /// Makerbot Motherboard v2.x
@@ -146,9 +147,8 @@
 // Define as 1 if debugging packets are honored; 0 if not.
 #define HONOR_DEBUG_PACKETS     1
 
-#define HAS_INTERFACE_BOARD     1
-
-
+#define HAS_INTERFACE_BOARD     0
+#if HAS_INTERFACE_BOARD > 0
 /// Pin mappings for the LCD connection.
 #define LCD_RS_PIN		Pin(PortC,4)
 #define LCD_ENABLE_PIN          Pin(PortC,3)
@@ -163,6 +163,8 @@
 /// modified, the #scanButtons() function _must_ be updated to reflect this.
 ///
 /// TLDR: These are here for decoration only, actual pins defined in #scanButtons()
+#define HAS_INTERFACE_BUTTONS   0
+#if HAS_INTERFACE_BUTTONS > 0
 #define INTERFACE_X+_PIN        Pin(PortL,7)
 #define INTERFACE_X-_PIN        Pin(PortL,6)
 #define INTERFACE_Y+_PIN        Pin(PortL,5)
@@ -177,5 +179,11 @@
 #define INTERFACE_FOO_PIN       Pin(PortC,0)
 #define INTERFACE_BAR_PIN       Pin(PortL,0)
 #define INTERFACE_DEBUG_PIN     Pin(PortB,7)
+#endif // HAS_INTERFACE_BUTTONS > 0
+
+#else
+#define HAS_INTERFACE_BUTTONS 0
+#endif // HAS_INTERFACE_BOARD > 0
+
 
 #endif // BOARDS_RRMBV12_CONFIGURATION_HH_

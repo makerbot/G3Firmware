@@ -1,8 +1,7 @@
 #include "InterfaceBoard.hh"
-#include "Configuration.hh"
+#if HAS_INTERFACE_BOARD > 0
 #include "Host.hh"
 
-#if defined HAS_INTERFACE_BOARD
 
 #include "LiquidCrystal.hh"
 
@@ -13,8 +12,8 @@ InterfaceBoard::InterfaceBoard(ButtonArray& buttons_in,
                                LiquidCrystal& lcd_in,
                                Screen* mainScreen_in,
                                Screen* buildScreen_in) :
-        lcd(lcd_in),
-        buttons(buttons_in)
+        buttons(buttons_in),
+        lcd(lcd_in)
 {
         buildScreen = buildScreen_in;
         mainScreen = mainScreen_in;
@@ -25,10 +24,12 @@ void InterfaceBoard::init() {
 
         lcd.init();
 
+#if HAS_INTERFACE_BUTTONS > 0
         foo_pin::setValue(false);
         foo_pin::setDirection(true);
         bar_pin::setValue(false);
         bar_pin::setDirection(true);
+#endif HAS_INTERFACE_BUTTONS > 0
 
         building = false;
 
@@ -53,7 +54,7 @@ void InterfaceBoard::doUpdate() {
 	case host::HOST_STATE_BUILDING:
 	case host::HOST_STATE_BUILDING_FROM_SD:
 		if (!building) {
-                        pushScreen(buildScreen);
+            pushScreen(buildScreen);
 			building = true;
 		}
 		break;
@@ -66,7 +67,7 @@ void InterfaceBoard::doUpdate() {
 	}
 
 
-        static ButtonArray::ButtonName button;
+    static ButtonArray::ButtonName button;
 
 
 	if (buttons.getButton(button)) {
@@ -94,4 +95,4 @@ void InterfaceBoard::popScreen() {
 	screenStack[screenIndex]->update(lcd, true);
 }
 
-#endif
+#endif // HAS_INTERFACE_BOARD > 0

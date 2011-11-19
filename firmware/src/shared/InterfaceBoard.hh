@@ -20,9 +20,8 @@
 #define INTERFACE_BOARD_HH_
 
 #include "Configuration.hh"
-#if defined HAS_INTERFACE_BOARD
-#include "PinTmplt.hh"
 #include "ButtonArray.hh"
+#if HAS_INTERFACE_BOARD > 0
 #include "Menu.hh"
 
 /// Maximum number of screens that can be active at once.
@@ -41,6 +40,7 @@ class InterfaceBoard {
 public:
         LiquidCrystal& lcd;              ///< LCD to write to
 private:
+
         ButtonArray& buttons;            ///< Button array to read from
 
         // TODO: Drop this?
@@ -66,7 +66,8 @@ public:
         /// \param[in] Pin connected to the bar LED
         /// \param[in] Main screen, shown as root display
         /// \param[in] Screen to display while building
-        InterfaceBoard(ButtonArray& buttons_in,
+        InterfaceBoard(
+                       ButtonArray& buttons_in,
                        LiquidCrystal& lcd_in,
                        Screen* mainScreen_in,
                        Screen* buildScreen_in);

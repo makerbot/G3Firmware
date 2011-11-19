@@ -19,7 +19,7 @@
 #define LCD_5x10DOTS 0x04
 #define LCD_5x8DOTS 0x00
 
-#if defined(LCD_ENABLE_PIN)
+#if HAS_INTERFACE_BOARD > 0
 
 class LiquidCrystal : public Display {
 public:
@@ -76,6 +76,7 @@ private:
 
   uint8_t _numlines,_currline;
 };
-#endif
+
+#endif //HAS_INTERFACE_BOARD > 0
 
 #endif // LIQUID_CRYSTAL_HH

@@ -35,13 +35,13 @@
 /// \ingroup MBv24
 class Motherboard {
 private:
-        // TODO: Declare this in main, drop the singleton.
-        /// Static instance of the motherboard
-        static Motherboard motherboard;
+    // TODO: Declare this in main, drop the singleton.
+    /// Static instance of the motherboard
+    static Motherboard motherboard;
 
 public:
-        /// Get the motherboard instance.
-        static Motherboard& getBoard() { return motherboard; }
+    /// Get the motherboard instance.
+    static Motherboard& getBoard() { return motherboard; }
 
 private:
 #if STEPPER_COUNT > 0
@@ -70,19 +70,21 @@ private:
 	/// Private constructor; use the singleton
 	Motherboard();
 
+#if HAS_INTERFACE_BOARD > 0
         // TODO: Move this to an interface board slice.
 	Timeout interface_update_timeout;
 
         /// True if we have an interface board attached
 	bool hasInterfaceBoard;
 
-        ButtonArray buttonArray;
-        LiquidCrystal lcd;
-        InterfaceBoard interfaceBoard;
+    ButtonArray buttonArray;
+    LiquidCrystal lcd;
+    InterfaceBoard interfaceBoard;
 
-        MainMenu mainMenu;              ///< Main system menu
-        SplashScreen splashScreen;      ///< Displayed at startup
-        MonitorMode monitorMode;        ///< Displayed during build
+    MainMenu mainMenu;              ///< Main system menu
+    SplashScreen splashScreen;      ///< Displayed at startup
+    MonitorMode monitorMode;        ///< Displayed during build
+#endif // HAS_INTERFACE_BOARD > 0
 
 public:
 	/// Reset the motherboard to its initial state.
