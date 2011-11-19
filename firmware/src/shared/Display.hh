@@ -5,7 +5,6 @@
 
 #include <stdint.h>
 #include <avr/pgmspace.h>
-#include "PinTmplt.hh"
 
 class Display {
 public:
@@ -13,6 +12,8 @@ public:
 
     virtual void init() {};
     virtual void clear() {};
+    virtual size_t width() const { return 1; }
+    virtual size_t height() const { return 1; }
     virtual void setCursor(uint8_t, uint8_t) {}; 
     virtual void write(uint8_t) {};
 

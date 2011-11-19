@@ -35,70 +35,15 @@ Motherboard Motherboard::motherboard;
 
 
 /// Create motherboard object
-Motherboard::Motherboard() :
-        lcd(
-/*
-            LCD_RS_PIN,
-            LCD_ENABLE_PIN,
-            LCD_D0_PIN,
-            LCD_D1_PIN,
-            LCD_D2_PIN,
-            LCD_D3_PIN
-*/
-            ),
-        interfaceBoard(buttonArray,
-            lcd,
-//            INTERFACE_FOO_PIN,
-//            INTERFACE_BAR_PIN,
+Motherboard::Motherboard() 
+#if HAS_INTERFACE_BOARD > 0
+    :
+        interfaceBoard(
             &mainMenu,
             &monitorMode)
 
+#endif // HAS_INTERFACE_BOARD > 0
 {
-#if 0
-/*    
-	/// Set up the stepper pins on board creation
-#if STEPPER_COUNT > 0
-        stepper[0] = StepperInterface(X_DIR_PIN,
-                                      X_STEP_PIN,
-                                      X_ENABLE_PIN,
-                                      X_MAX_PIN,
-                                      X_MIN_PIN,
-                                      eeprom::AXIS_INVERSION);
-#endif
-#if STEPPER_COUNT > 1
-        stepper[1] = StepperInterface(Y_DIR_PIN,
-                                      Y_STEP_PIN,
-                                      Y_ENABLE_PIN,
-                                      Y_MAX_PIN,
-                                      Y_MIN_PIN,
-                                      eeprom::AXIS_INVERSION);
-#endif
-#if STEPPER_COUNT > 2
-        stepper[2] = StepperInterface(Z_DIR_PIN,
-                                      Z_STEP_PIN,
-                                      Z_ENABLE_PIN,
-                                      Z_MAX_PIN,
-                                      Z_MIN_PIN,
-                                      eeprom::AXIS_INVERSION);
-#endif
-#if STEPPER_COUNT > 3
-        stepper[3] = StepperInterface(A_DIR_PIN,
-                                      A_STEP_PIN,
-                                      A_ENABLE_PIN,
-                                      Pin(),
-                                      Pin(),
-                                      eeprom::AXIS_INVERSION);
-#endif
-#if STEPPER_COUNT > 4
-        stepper[4] = StepperInterface(B_DIR_PIN,
-                                      B_STEP_PIN,
-                                      B_ENABLE_PIN,
-                                      Pin(),
-                                      Pin(),
-                                      eeprom::AXIS_INVERSION);
-#endif
-*/
-#endif
 }
 
 #if STEPPER_COUNT > 0
@@ -189,9 +134,9 @@ void Motherboard::reset() {
 	// Configure the debug pin.
 	DEBUG_PIN::setDirection(true);
 
+#if HAS_INTERFACE_BOARD > 0
 	// Check if the interface board is attached
-        hasInterfaceBoard = interface::isConnected();
-
+    hasInterfaceBoard = interface::isConnected();
 	if (hasInterfaceBoard) {
 		// Make sure our interface board is initialized
                 interfaceBoard.init();
@@ -200,10 +145,11 @@ void Motherboard::reset() {
                 interfaceBoard.pushScreen(&splashScreen);
 
                 // Finally, set up the *** interface
-                interface::init(&interfaceBoard, &lcd);
+                interface::init(&interfaceBoard);
 
                 interface_update_timeout.start(interfaceBoard.getUpdateRate());
 	}
+#endif // HAS_INTERFACE_BOARD > 0
 
         // Blindly try to reset the toolhead with index 0.
 //        resetToolhead();
@@ -222,9 +168,13 @@ micros_t Motherboard::getCurrentMicros() {
 
 /// Run the motherboard interrupt
 void Motherboard::doInterrupt() {
+
+#if HAS_INTERFACE_BOARD > 0
 	if (hasInterfaceBoard) {
-                interfaceBoard.doInterrupt();
+        interfaceBoard.doInterrupt();
 	}
+#endif // HAS_INTERFACE_BOARD > 0
+
 	micros += INTERVAL_IN_MICROSECONDS;
 	// Do not move steppers if the board is in a paused state
 	if (command::isPaused()) return;
@@ -232,12 +182,15 @@ void Motherboard::doInterrupt() {
 }
 
 void Motherboard::runMotherboardSlice() {
+
+#if HAS_INTERFACE_BOARD > 0
 	if (hasInterfaceBoard) {
 		if (interface_update_timeout.hasElapsed()) {
-                        interfaceBoard.doUpdate();
-                        interface_update_timeout.start(interfaceBoard.getUpdateRate());
+            interfaceBoard.doUpdate();
+            interface_update_timeout.start(interfaceBoard.getUpdateRate());
 		}
 	}
+#endif
 }
 
 

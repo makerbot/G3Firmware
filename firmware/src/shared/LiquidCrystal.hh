@@ -4,12 +4,7 @@
 // TODO: Proper attribution
 
 #include <stdint.h>
-#include <avr/pgmspace.h>
-#include "PinTmplt.hh"
 #include"Display.hh"
-
-#define LCD_SCREEN_WIDTH        16
-#define LCD_SCREEN_HEIGHT       4
 
 // flags for function set
 #define LCD_8BITMODE 0x10
@@ -19,7 +14,7 @@
 #define LCD_5x10DOTS 0x04
 #define LCD_5x8DOTS 0x00
 
-#if defined(LCD_ENABLE_PIN)
+#if HAS_INTERFACE_BOARD > 0
 
 class LiquidCrystal : public Display {
 public:
@@ -30,8 +25,10 @@ public:
   void begin(uint8_t cols, uint8_t rows, uint8_t charsize = LCD_5x8DOTS);
 
   virtual void init();
-
   virtual void clear();
+  virtual size_t width() const { return 16; }
+  virtual size_t height() const { return 4; }
+
   void home();
 
   void noDisplay();
@@ -76,6 +73,7 @@ private:
 
   uint8_t _numlines,_currline;
 };
-#endif
+
+#endif //HAS_INTERFACE_BOARD > 0
 
 #endif // LIQUID_CRYSTAL_HH

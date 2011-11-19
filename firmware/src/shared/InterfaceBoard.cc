@@ -1,20 +1,29 @@
 #include "InterfaceBoard.hh"
-#include "Configuration.hh"
+#if HAS_INTERFACE_BOARD > 0
 #include "Host.hh"
 
-#if defined HAS_INTERFACE_BOARD
-
+#if DISPLAY_TYPE == DISPLAY_TYPE_LIQUIDCRYSTAL
 #include "LiquidCrystal.hh"
+static LiquidCrystal globalDisplay;
+
+#elif DISPLAY_TYPE == DISPLAY_TYPE_MODTRONIXLCD2S
+#include "ModtronixLCD2S.hh"
+static ModtronixLCD2S globalDisplay;
+
+#elif DISPLAY_TYPE == DISPLAY_TYPE_DUAL
+#include "DualDisplay.hh"
+static DualDisplay globalDisplay;
+#endif
+
 
 #define foo_pin INTERFACE_FOO_PIN
 #define bar_pin INTERFACE_BAR_PIN
 
-InterfaceBoard::InterfaceBoard(ButtonArray& buttons_in,
-                               LiquidCrystal& lcd_in,
-                               Screen* mainScreen_in,
+
+
+InterfaceBoard::InterfaceBoard(Screen* mainScreen_in,
                                Screen* buildScreen_in) :
-        lcd(lcd_in),
-        buttons(buttons_in)
+    display(globalDisplay)
 {
         buildScreen = buildScreen_in;
         mainScreen = mainScreen_in;
@@ -23,12 +32,14 @@ InterfaceBoard::InterfaceBoard(ButtonArray& buttons_in,
 void InterfaceBoard::init() {
         buttons.init();
 
-        lcd.init();
+        display.init();
 
+#if HAS_INTERFACE_BUTTONS > 0
         foo_pin::setValue(false);
         foo_pin::setDirection(true);
         bar_pin::setValue(false);
         bar_pin::setDirection(true);
+#endif HAS_INTERFACE_BUTTONS > 0
 
         building = false;
 
@@ -53,7 +64,7 @@ void InterfaceBoard::doUpdate() {
 	case host::HOST_STATE_BUILDING:
 	case host::HOST_STATE_BUILDING_FROM_SD:
 		if (!building) {
-                        pushScreen(buildScreen);
+            pushScreen(buildScreen);
 			building = true;
 		}
 		break;
@@ -66,14 +77,14 @@ void InterfaceBoard::doUpdate() {
 	}
 
 
-        static ButtonArray::ButtonName button;
+    static ButtonArray::ButtonName button;
 
 
 	if (buttons.getButton(button)) {
 		screenStack[screenIndex]->notifyButtonPressed(button);
 	}
 
-	screenStack[screenIndex]->update(lcd, false);
+	screenStack[screenIndex]->update(display, false);
 }
 
 void InterfaceBoard::pushScreen(Screen* newScreen) {
@@ -82,7 +93,7 @@ void InterfaceBoard::pushScreen(Screen* newScreen) {
 		screenStack[screenIndex] = newScreen;
 	}
 	screenStack[screenIndex]->reset();
-	screenStack[screenIndex]->update(lcd, true);
+	screenStack[screenIndex]->update(display, true);
 }
 
 void InterfaceBoard::popScreen() {
@@ -91,7 +102,7 @@ void InterfaceBoard::popScreen() {
 		screenIndex--;
 	}
 
-	screenStack[screenIndex]->update(lcd, true);
+	screenStack[screenIndex]->update(display, true);
 }
 
-#endif
+#endif // HAS_INTERFACE_BOARD > 0

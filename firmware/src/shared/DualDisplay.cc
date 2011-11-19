@@ -1,3 +1,6 @@
+#include "InterfaceBoard.hh"
+
+#if HAS_INTERFACE_BOARD > 0
 #include "DualDisplay.hh"
 
 #include <stdio.h>
@@ -46,3 +49,4 @@ void DualDisplay::writeFromPgmspace(const prog_char message[]) {
     lcd2s.writeFromPgmspace(message);
 }
 
+#endif // HAS_INTERFACE_BOARD > 0

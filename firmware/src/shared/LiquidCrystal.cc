@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <util/delay.h>
-#include "configuration.hh"
+#include "InterfaceBoard.hh"
 
-#if defined(LCD_ENABLE_PIN)
+#if HAS_INTERFACE_BOARD > 0
 #include "LiquidCrystal.hh"
 
 #define _rs_pin     LCD_RS_PIN
@@ -89,7 +89,7 @@ LiquidCrystal::LiquidCrystal()
 
 void LiquidCrystal::init()
 {
-	begin(LCD_SCREEN_WIDTH, LCD_SCREEN_HEIGHT);
+	begin(width(), height());
     clear();
     home();
 }
@@ -321,4 +321,4 @@ void LiquidCrystal::writeFromPgmspace(const prog_char message[]) {
 	}
 }
 
-#endif
+#endif // HAS_INTERFACE_BOARD > 0

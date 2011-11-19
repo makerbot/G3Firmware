@@ -3,7 +3,6 @@
 
 #ifndef _MODTRONIXLCD2S_H
 #define _MODTRONIXLCD2S_H
-#include <avr/pgmspace.h>
 #include "display.hh"
 
 class ModtronixLCD2S : public Display {
@@ -15,6 +14,9 @@ public:
 
   virtual void init();
   virtual void clear();
+  virtual size_t width() const { return 16; }
+  virtual size_t height() const { return 4; }
+
   virtual void setCursor(uint8_t col, uint8_t row) { return set_position(row+1,col+1); }
   virtual void write(uint8_t value) { return write_char(value); }
 
