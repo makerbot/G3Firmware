@@ -172,7 +172,7 @@
 /// modified, the #scanButtons() function _must_ be updated to reflect this.
 ///
 /// TLDR: These are here for decoration only, actual pins defined in #scanButtons()
-#define HAS_INTERFACE_BUTTONS   1
+#define HAS_INTERFACE_BUTTONS   0
 #if HAS_INTERFACE_BUTTONS > 0
 #define INTERFACE_X+_PIN        Pin(PortL,7)
 #define INTERFACE_X-_PIN        Pin(PortL,6)
