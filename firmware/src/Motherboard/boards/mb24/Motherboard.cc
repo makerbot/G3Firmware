@@ -39,7 +39,11 @@ Motherboard::Motherboard()
 #if HAS_INTERFACE_BOARD > 0
     :
         interfaceBoard(
+#if HAS_INTERFACE_BUTTONS > 0
             &mainMenu,
+#else
+            &monitorMode,
+#endif // HAS_INTERFACE_BUTTONS > 0
             &monitorMode)
 
 #endif // HAS_INTERFACE_BOARD > 0
