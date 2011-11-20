@@ -14,7 +14,7 @@ public:
 
   virtual void init();
   virtual void clear();
-  virtual size_t width() const { return 16; }
+  virtual size_t width() const { return 20; }
   virtual size_t height() const { return 4; }
 
   virtual void setCursor(uint8_t col, uint8_t row) { return set_position(row+1,col+1); }

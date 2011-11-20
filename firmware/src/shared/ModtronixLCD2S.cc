@@ -44,7 +44,8 @@ ModtronixLCD2S::ModtronixLCD2S(uint8_t addr)
 void ModtronixLCD2S::init()
 {
   twi_init();
-  //write_string("\fhello\nZeus");
+//  clear();
+//  home();
 }
 
 void ModtronixLCD2S::remember()
