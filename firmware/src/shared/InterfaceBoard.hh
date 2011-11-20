@@ -90,6 +90,8 @@ public:
 	void doUpdate();
 
 	void showMonitorMode();
+
+    static void Debug(const char message[]);
 };
 #endif
 #endif
