@@ -87,6 +87,8 @@ public:
 	/// to any attached toolheads.
 	void reset();
 
+	void initInterfaceBoard();
+
 	void runMotherboardSlice();
 
 	/// Count the number of steppers available on this board.

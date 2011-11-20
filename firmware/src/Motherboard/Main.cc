@@ -30,14 +30,16 @@
 #include "EepromMap.hh"
 
 void reset(bool hard_reset) {
+	Motherboard& board = Motherboard::getBoard();
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
-		Motherboard& board = Motherboard::getBoard();
 		sdcard::reset();
 		steppers::abort();
 		command::reset();
 		eeprom::init();
 		board.reset();
     }
+
+    board.initInterfaceBoard();
 
 	// If we've just come from a hard reset, wait for 2.5 seconds before
 	// trying to ping an extruder.  This gives the extruder time to boot
@@ -49,12 +51,11 @@ void reset(bool hard_reset) {
 		tool::test(); // Run test
 	}
 
-	ATOMIC_BLOCK(ATOMIC_FORCEON) {
-	    if (!tool::reset())
-	    {
-		    // Fail, but let it go; toggling the PSU is dangerous.
-	    }
-    }
+	if (!tool::reset())
+	{
+		// Fail, but let it go; toggling the PSU is dangerous.
+	}
+
 }
 
 int main() {
@@ -71,6 +72,7 @@ int main() {
 		command::runCommandSlice();
 		// Motherboard slice
 		board.runMotherboardSlice();
+
 	}
 	return 0;
 }

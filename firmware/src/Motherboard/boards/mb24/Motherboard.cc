@@ -137,7 +137,9 @@ void Motherboard::reset() {
 	TIMSK2 = 0x01; // OVF flag on
 	// Configure the debug pin.
 	DEBUG_PIN::setDirection(true);
+}
 
+void Motherboard::initInterfaceBoard() {
 #if HAS_INTERFACE_BOARD > 0
 	// Check if the interface board is attached
     hasInterfaceBoard = interface::isConnected();
@@ -154,9 +156,6 @@ void Motherboard::reset() {
                 interface_update_timeout.start(interfaceBoard.getUpdateRate());
 	}
 #endif // HAS_INTERFACE_BOARD > 0
-
-        // Blindly try to reset the toolhead with index 0.
-//        resetToolhead();
 }
 
 /// Get the number of microseconds that have passed since

@@ -2,7 +2,11 @@
 #if HAS_INTERFACE_BOARD > 0
 #include "Host.hh"
 
-#if DISPLAY_TYPE == DISPLAY_TYPE_LIQUIDCRYSTAL
+#if DISPLAY_TYPE == DISPLAY_TYPE_NONE
+#include "Display.hh"
+static Display globalDisplay;
+
+#elif DISPLAY_TYPE == DISPLAY_TYPE_LIQUIDCRYSTAL
 #include "LiquidCrystal.hh"
 static LiquidCrystal globalDisplay;
 
@@ -19,7 +23,14 @@ static DualDisplay globalDisplay;
 #define foo_pin INTERFACE_FOO_PIN
 #define bar_pin INTERFACE_BAR_PIN
 
-
+void InterfaceBoard::Debug(const char message[])
+{
+    static uint16_t row = 0;
+    globalDisplay.setCursor(0,row++%globalDisplay.height()); 
+    globalDisplay.writeInt(row,4);
+    globalDisplay.write(' ');
+    globalDisplay.writeString(message);
+}
 
 InterfaceBoard::InterfaceBoard(Screen* mainScreen_in,
                                Screen* buildScreen_in) :
@@ -28,6 +39,7 @@ InterfaceBoard::InterfaceBoard(Screen* mainScreen_in,
         buildScreen = buildScreen_in;
         mainScreen = mainScreen_in;
 }
+
 
 void InterfaceBoard::init() {
         buttons.init();

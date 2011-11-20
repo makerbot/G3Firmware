@@ -22,7 +22,6 @@ public:
     virtual void writeFromPgmspace(const prog_char message[]) {};
 
     // note: the base interface provides a NULL Display implementation which does nothing.
-
 };
 
 #endif // LIQUID_CRYSTAL_HH
