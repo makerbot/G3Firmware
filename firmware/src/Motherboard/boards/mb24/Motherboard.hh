@@ -93,6 +93,13 @@ public:
 	/// Get the current error being displayed.
 	uint8_t getCurrentError();
 
+	/// Enqueue some data to the debug buffer, returns false on overflow
+	bool enqueueDebugData(const uint8_t data);
+	/// gets one uint8_t of data from the buffer
+	/// and stores it in the given pointer offset by 'offset'
+	/// returns false on underflow
+	bool getBufferData(uint8_t& data, uint8_t offset);
+
 	/// Perform the timer interrupt routine.
 	void doInterrupt();
 };

@@ -217,6 +217,23 @@ uint8_t Motherboard::getCurrentError() {
 	return blink_count;
 }
 
+// the debug buffer, should be no bigger than the max packet payload
+#define DEBUG_BUFFER_SIZE 32
+uint8_t buffer_data[DEBUG_BUFFER_SIZE];
+CircularBuffer debug_buffer(DEBUG_BUFFER_SIZE, buffer_data);
+
+bool Motherboard::enqueueDebugData(uint8_t data)
+{
+	debug_buffer.push(data);
+	return ! debug_buffer.hasOverflow();
+}
+
+bool Motherboard::getBufferData(uint8_t& data, uint8_t offset)
+{
+	data[offset] = debug_buffer.pop();
+	return ! debug_buffer.hasUnderflow();
+}
+
 /// Timer2 overflow cycles that the LED remains on while blinking
 #define OVFS_ON 18
 /// Timer2 overflow cycles that the LED remains off while blinking

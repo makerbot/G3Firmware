@@ -34,6 +34,7 @@ enum {
 	DEBUG_NO_SUCH_COMMAND = 0x75,
 	DEBUG_SET_DEBUG_CODE = 0x76,
 	DEBUG_GET_DEBUG_CODE = 0x77,
+	DEBUG_GET_DEBUG_BUFFER = 0x78,
 	DEBUG_COMMAND_QUEUE_FILLER = 0xF0
 };
 }
@@ -139,6 +140,13 @@ bool processDebugPacket(const InPacket& from_host, OutPacket& to_host) {
 				to_host.append8(Motherboard::getBoard().getCurrentError());
 			} else {
 				to_host.append8(0);
+			}
+		} else if(command == CommandCode::DEBUG_GET_DEBUG_BUFFER ) {
+			to_host.append8(RC_OK);
+			uint8_t value = 0;
+			while(Motherboard::getBoard().getBufferData(value, 0))
+			{
+				to_host.append8(value);
 			}
 		}
 		return false;
