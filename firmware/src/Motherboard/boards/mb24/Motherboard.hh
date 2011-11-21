@@ -98,7 +98,7 @@ public:
 	/// gets one uint8_t of data from the buffer
 	/// and stores it in the given pointer offset by 'offset'
 	/// returns false on underflow
-	bool getBufferData(uint8_t& data, uint8_t offset);
+	bool getBufferData(uint8_t* data, uint8_t offset);
 
 	/// Perform the timer interrupt routine.
 	void doInterrupt();

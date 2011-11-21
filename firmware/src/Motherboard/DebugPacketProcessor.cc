@@ -144,7 +144,7 @@ bool processDebugPacket(const InPacket& from_host, OutPacket& to_host) {
 		} else if(command == CommandCode::DEBUG_GET_DEBUG_BUFFER ) {
 			to_host.append8(RC_OK);
 			uint8_t value = 0;
-			while(Motherboard::getBoard().getBufferData(value, 0))
+			while(Motherboard::getBoard().getBufferData(&value, 0))
 			{
 				to_host.append8(value);
 			}

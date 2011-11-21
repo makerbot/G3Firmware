@@ -21,6 +21,7 @@
 #include <util/atomic.h>
 #include "Motherboard.hh"
 #include "Configuration.hh"
+#include "CircularBuffer.hh"
 #include "Steppers.hh"
 #include "Command.hh"
 #include "Interface.hh"
@@ -228,7 +229,7 @@ bool Motherboard::enqueueDebugData(uint8_t data)
 	return ! debug_buffer.hasOverflow();
 }
 
-bool Motherboard::getBufferData(uint8_t& data, uint8_t offset)
+bool Motherboard::getBufferData(uint8_t* data, uint8_t offset)
 {
 	data[offset] = debug_buffer.pop();
 	return ! debug_buffer.hasUnderflow();
