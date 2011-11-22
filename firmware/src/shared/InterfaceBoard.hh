@@ -20,8 +20,9 @@
 #define INTERFACE_BOARD_HH_
 
 #include "Configuration.hh"
-#include "Pin.hh"
 #include "ButtonArray.hh"
+#if HAS_INTERFACE_BOARD > 0
+#include "Display.hh"
 #include "Menu.hh"
 
 /// Maximum number of screens that can be active at once.
@@ -30,8 +31,6 @@
 /// Character LCD screen geometry
 ///
 /// Porting Note: Screens may need to be rewritten to support different sizes.
-#define LCD_SCREEN_WIDTH        16
-#define LCD_SCREEN_HEIGHT       4
 
 
 /// The InterfaceBoard module provides support for the MakerBot Industries
@@ -40,9 +39,10 @@
 /// \ingroup HardwareLibraries
 class InterfaceBoard {
 public:
-        LiquidCrystal& lcd;              ///< LCD to write to
+        Display& display;              ///< LCD to write to
 private:
-        ButtonArray& buttons;            ///< Button array to read from
+
+        ButtonArray buttons;            ///< Button array to read from
 
         // TODO: Drop this?
         Screen* buildScreen;            ///< Screen to display while building
@@ -56,25 +56,14 @@ private:
         Screen* screenStack[SCREEN_STACK_DEPTH];
         int8_t screenIndex;             ///< Stack index of the current screen.
 
-        Pin foo_pin;                    ///< Pin connected to the 'foo' LED
-        Pin bar_pin;                    ///< Pin connected to the 'bar' LED
-
         /// TODO: Delete this.
         bool building;                  ///< True if the bot is building
 
 public:
         /// Construct an interface board.
-        /// \param[in] button array to read from
-        /// \param[in] LCD to display on
-        /// \param[in] Pin connected to the foo LED
-        /// \param[in] Pin connected to the bar LED
         /// \param[in] Main screen, shown as root display
         /// \param[in] Screen to display while building
-        InterfaceBoard(ButtonArray& buttons_in,
-                       LiquidCrystal& lcd_in,
-                       const Pin& foo_pin_in,
-                       const Pin& bar_pin_in,
-                       Screen* mainScreen_in,
+        InterfaceBoard(Screen* mainScreen_in,
                        Screen* buildScreen_in);
 
         /// Initialze the interface board. This needs to be called once
@@ -101,6 +90,8 @@ public:
 	void doUpdate();
 
 	void showMonitorMode();
-};
 
+    static void Debug(const char message[]);
+};
+#endif
 #endif

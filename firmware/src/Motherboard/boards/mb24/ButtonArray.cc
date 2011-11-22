@@ -6,15 +6,17 @@ static uint8_t previousC;
 void ButtonArray::init() {
         previousL = 0;
         previousC = 0;
-
+#if HAS_INTERFACE_BUTTONS > 0
         // Set all of the known buttons to inputs (see above note)
         DDRL = DDRL & 0x1;
         DDRC = DDRC & 0xF9;
         PORTL = PORTL & 0x1;
         PORTC = PORTC & 0xF9;
+#endif // HAS_INTERFACE_BUTTONS > 0
 }
 
 void ButtonArray::scanButtons() {
+#if HAS_INTERFACE_BUTTONS > 0
         // Don't bother scanning if we already have a button.
         if (buttonPressWaiting) {
                 return;
@@ -55,9 +57,11 @@ void ButtonArray::scanButtons() {
 
         previousL = newL;
         previousC = newC;
+#endif // HAS_INTERFACE_BUTTONS > 0
 }
 
 bool ButtonArray::getButton(ButtonName& button) {
+#if HAS_INTERFACE_BUTTONS > 0
         bool buttonValid;
         uint8_t buttonNumber;
 
@@ -73,4 +77,7 @@ bool ButtonArray::getButton(ButtonName& button) {
         }
 
         return buttonValid;
+#else
+        return false;
+#endif // HAS_INTERFACE_BUTTONS > 0
 }

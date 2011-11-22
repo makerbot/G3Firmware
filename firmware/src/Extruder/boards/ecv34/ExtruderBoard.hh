@@ -74,8 +74,8 @@ private:
 
         uint8_t slave_id;
 
-        SoftwareServo servoA;
-        SoftwareServo servoB;
+	    SoftwareServo<SERVO0> servoA;
+	    SoftwareServo<SERVO1> servoB;
         CoolingFan coolingFan;
 
 public:

@@ -1,11 +1,12 @@
 #include "StepperAxis.hh"
+#if STEPPER_COUNT > 0
 
 StepperAxis::StepperAxis() :
     interface(0) {
 }
 
-StepperAxis::StepperAxis(StepperInterface& stepper_interface) :
-        interface(&stepper_interface) {
+StepperAxis::StepperAxis(const StepperInterface* stepper_interface) :
+        interface(stepper_interface) {
         reset();
 }
 
@@ -138,3 +139,4 @@ bool StepperAxis::doHoming(const int32_t intervals) {
         }
         return true;
 }
+#endif

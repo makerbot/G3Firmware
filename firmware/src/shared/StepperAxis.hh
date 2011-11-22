@@ -1,8 +1,10 @@
 #ifndef STEPPERAXIS_HH
 #define STEPPERAXIS_HH
 
-#include "StepperInterface.hh"
 #include "Configuration.hh"
+
+#if STEPPER_COUNT > 0
+#include "StepperInterface.hh"
 
 /// The stepper axis module implements a driver for a single stepper axis. It is designed
 /// to be accessed via the Steppers namespace, and uses a StepperInterface to talk to the
@@ -11,7 +13,7 @@
 class StepperAxis
 {
 public:
-        StepperInterface* interface;    ///< Interface this axis is connected to
+        const StepperInterface* interface;    ///< Interface this axis is connected to
         volatile int32_t position;      ///< Current position of this axis, in steps
         int32_t minimum;                ///< Minimum position, in steps
         int32_t maximum;                ///< Maximum position, in steps
@@ -50,7 +52,7 @@ public:
         /// Construct a stepper axis, using the given stepper
         /// interface
         /// \param[in] Stepper interface to use
-        StepperAxis(StepperInterface& stepper_interface);
+        StepperAxis(const StepperInterface* stepper_interface);
 
         /// Set the target position for the axis to travel to.
         /// \param[in] target_in Postion to move to, in steps
@@ -82,5 +84,5 @@ public:
         /// \return True if the axis is still homing.
         bool doHoming(const int32_t intervals);
 };
-
+#endif
 #endif // STEPPERAXIS_HH

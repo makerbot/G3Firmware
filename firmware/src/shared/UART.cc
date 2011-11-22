@@ -17,7 +17,7 @@
 
 
 #include "UART.hh"
-#include "Pin.hh"
+#include "PinTmplt.hh"
 #include <stdint.h>
 #include <avr/sfr_defs.h>
 #include <avr/interrupt.h>
@@ -151,13 +151,13 @@ void UART::send_byte(char data) {
 
 // Transition to a non-transmitting state. This is only used for RS485 mode.
 inline void listen() {
-//        TX_ENABLE_PIN.setValue(false);
-    TX_ENABLE_PIN.setValue(false);
+//        TX_ENABLE_PIN::setValue(false);
+    TX_ENABLE_PIN::setValue(false);
 }
 
 // Transition to a transmitting state
 inline void speak() {
-    TX_ENABLE_PIN.setValue(true);
+    TX_ENABLE_PIN::setValue(true);
 }
 
 UART::UART(uint8_t index, communication_mode mode) :
@@ -197,9 +197,9 @@ void UART::enable(bool enabled) {
 
         if (mode_ == RS485) {
                 // If this is an RS485 pin, set up the RX and TX enable control lines.
-                TX_ENABLE_PIN.setDirection(true);
-                RX_ENABLE_PIN.setDirection(true);
-                RX_ENABLE_PIN.setValue(false);  // Active low
+                TX_ENABLE_PIN::setDirection(true);
+                RX_ENABLE_PIN::setDirection(true);
+                RX_ENABLE_PIN::setValue(false);  // Active low
                 listen();
 
                 loopback_bytes = 0;

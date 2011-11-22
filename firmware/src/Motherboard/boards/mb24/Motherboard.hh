@@ -21,13 +21,10 @@
 #include "UART.hh"
 #include "StepperInterface.hh"
 #include "Types.hh"
-#include "PSU.hh"
+//#include "PSU.hh"
 #include "Configuration.hh"
 #include "Timeout.hh"
-#include "Menu.hh"
 #include "InterfaceBoard.hh"
-#include "LiquidCrystal.hh"
-#include "ButtonArray.hh"
 
 
 /// Main class for Motherboard version 2.4+ (Gen4 electronics)
@@ -35,17 +32,33 @@
 /// \ingroup MBv24
 class Motherboard {
 private:
-        // TODO: Declare this in main, drop the singleton.
-        /// Static instance of the motherboard
-        static Motherboard motherboard;
+    // TODO: Declare this in main, drop the singleton.
+    /// Static instance of the motherboard
+    static Motherboard motherboard;
 
 public:
-        /// Get the motherboard instance.
-        static Motherboard& getBoard() { return motherboard; }
+    /// Get the motherboard instance.
+    static Motherboard& getBoard() { return motherboard; }
 
 private:
-        /// Collection of stepper controllers that are on this board
-        StepperInterface stepper[STEPPER_COUNT];
+#if STEPPER_COUNT > 0
+	static StepperTmpltEndstops<0, X_DIR_PIN,X_STEP_PIN,X_ENABLE_PIN,X_MAX_PIN,X_MIN_PIN> stepperX;
+#endif
+#if STEPPER_COUNT > 1
+	static StepperTmpltEndstops<1, Y_DIR_PIN,Y_STEP_PIN,Y_ENABLE_PIN,Y_MAX_PIN,Y_MIN_PIN> stepperY;
+#endif
+#if STEPPER_COUNT > 2
+	static StepperTmpltEndstops<2, Z_DIR_PIN,Z_STEP_PIN,Z_ENABLE_PIN,Z_MAX_PIN,Z_MIN_PIN> stepperZ;
+#endif
+#if STEPPER_COUNT > 3
+	static StepperTmplt<3, A_DIR_PIN,A_STEP_PIN,A_ENABLE_PIN> stepperA;
+#endif
+#if STEPPER_COUNT > 4
+	static StepperTmplt<4, B_DIR_PIN,B_STEP_PIN,B_ENABLE_PIN> stepperB;
+#endif
+
+    /// Collection of stepper controllers that are on this board
+	static const StepperInterface* stepper[STEPPER_COUNT];
 
 	/// Microseconds since board initialization
 	volatile micros_t micros;
@@ -53,19 +66,19 @@ private:
 	/// Private constructor; use the singleton
 	Motherboard();
 
+#if HAS_INTERFACE_BOARD > 0
         // TODO: Move this to an interface board slice.
 	Timeout interface_update_timeout;
 
         /// True if we have an interface board attached
 	bool hasInterfaceBoard;
 
-        ButtonArray buttonArray;
-        LiquidCrystal lcd;
-        InterfaceBoard interfaceBoard;
+    InterfaceBoard interfaceBoard;
 
-        MainMenu mainMenu;              ///< Main system menu
-        SplashScreen splashScreen;      ///< Displayed at startup
-        MonitorMode monitorMode;        ///< Displayed during build
+    MainMenu mainMenu;              ///< Main system menu
+    SplashScreen splashScreen;      ///< Displayed at startup
+    MonitorMode monitorMode;        ///< Displayed during build
+#endif // HAS_INTERFACE_BOARD > 0
 
 public:
 	/// Reset the motherboard to its initial state.
@@ -73,12 +86,14 @@ public:
 	/// to any attached toolheads.
 	void reset();
 
+	void initInterfaceBoard();
+
 	void runMotherboardSlice();
 
 	/// Count the number of steppers available on this board.
         const int getStepperCount() const { return STEPPER_COUNT; }
 	/// Get the stepper interface for the nth stepper.
-	StepperInterface& getStepperInterface(int n)
+	const StepperInterface* getStepperInterface(int n)
 	{
 		return stepper[n];
 	}

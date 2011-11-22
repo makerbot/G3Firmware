@@ -33,64 +33,57 @@
 /// Instantiate static motherboard instance
 Motherboard Motherboard::motherboard;
 
+
 /// Create motherboard object
-Motherboard::Motherboard() :
-        lcd(LCD_RS_PIN,
-            LCD_ENABLE_PIN,
-            LCD_D0_PIN,
-            LCD_D1_PIN,
-            LCD_D2_PIN,
-            LCD_D3_PIN),
-        interfaceBoard(buttonArray,
-            lcd,
-            INTERFACE_FOO_PIN,
-            INTERFACE_BAR_PIN,
+Motherboard::Motherboard() 
+#if HAS_INTERFACE_BOARD > 0
+    :
+        interfaceBoard(
+#if HAS_INTERFACE_BUTTONS > 0
             &mainMenu,
+#else
+            &monitorMode,
+#endif // HAS_INTERFACE_BUTTONS > 0
             &monitorMode)
 
+#endif // HAS_INTERFACE_BOARD > 0
+{
+}
+
+#if STEPPER_COUNT > 0
+StepperTmpltEndstops<0, X_DIR_PIN,X_STEP_PIN,X_ENABLE_PIN,X_MAX_PIN,X_MIN_PIN> Motherboard::stepperX;
+#endif
+#if STEPPER_COUNT > 1
+StepperTmpltEndstops<1, Y_DIR_PIN,Y_STEP_PIN,Y_ENABLE_PIN,Y_MAX_PIN,Y_MIN_PIN> Motherboard::stepperY;
+#endif
+#if STEPPER_COUNT > 2
+StepperTmpltEndstops<2, Z_DIR_PIN,Z_STEP_PIN,Z_ENABLE_PIN,Z_MAX_PIN,Z_MIN_PIN> Motherboard::stepperZ;
+#endif
+#if STEPPER_COUNT > 3
+StepperTmplt<3, A_DIR_PIN,A_STEP_PIN,A_ENABLE_PIN> Motherboard::stepperA;
+#endif
+#if STEPPER_COUNT > 4
+StepperTmplt<4, B_DIR_PIN,B_STEP_PIN,B_ENABLE_PIN> Motherboard::stepperB;
+#endif
+const StepperInterface* Motherboard::stepper[STEPPER_COUNT] =
 {
 	/// Set up the stepper pins on board creation
 #if STEPPER_COUNT > 0
-        stepper[0] = StepperInterface(X_DIR_PIN,
-                                      X_STEP_PIN,
-                                      X_ENABLE_PIN,
-                                      X_MAX_PIN,
-                                      X_MIN_PIN,
-                                      eeprom::AXIS_INVERSION);
+	&stepperX
 #endif
 #if STEPPER_COUNT > 1
-        stepper[1] = StepperInterface(Y_DIR_PIN,
-                                      Y_STEP_PIN,
-                                      Y_ENABLE_PIN,
-                                      Y_MAX_PIN,
-                                      Y_MIN_PIN,
-                                      eeprom::AXIS_INVERSION);
+	,&stepperY
 #endif
 #if STEPPER_COUNT > 2
-        stepper[2] = StepperInterface(Z_DIR_PIN,
-                                      Z_STEP_PIN,
-                                      Z_ENABLE_PIN,
-                                      Z_MAX_PIN,
-                                      Z_MIN_PIN,
-                                      eeprom::AXIS_INVERSION);
+	,&stepperZ
 #endif
 #if STEPPER_COUNT > 3
-        stepper[3] = StepperInterface(A_DIR_PIN,
-                                      A_STEP_PIN,
-                                      A_ENABLE_PIN,
-                                      Pin(),
-                                      Pin(),
-                                      eeprom::AXIS_INVERSION);
+	,&stepperA
 #endif
 #if STEPPER_COUNT > 4
-        stepper[4] = StepperInterface(B_DIR_PIN,
-                                      B_STEP_PIN,
-                                      B_ENABLE_PIN,
-                                      Pin(),
-                                      Pin(),
-                                      eeprom::AXIS_INVERSION);
+	,&stepperB // swap B for extruder before of lower port usage
 #endif
-}
+};
 
 /// Reset the motherboard to its initial state.
 /// This only resets the board, and does not send a reset
@@ -110,10 +103,23 @@ void Motherboard::reset() {
 	bool hold_z = (axis_invert & (1<<7)) == 0;
 	steppers::setHoldZ(hold_z);
 
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-		stepper[i].init(i);
-	}
-	// Initialize the host and slave UARTs
+#if STEPPER_COUNT > 0
+	stepperX.init();
+#endif
+#if STEPPER_COUNT > 1
+	stepperY.init();
+#endif
+#if STEPPER_COUNT > 2
+	stepperZ.init();
+#endif
+#if STEPPER_COUNT > 3
+	stepperA.init();
+#endif
+#if STEPPER_COUNT > 4
+	stepperB.init(); // swap B for extruder before of lower port usage
+#endif
+
+    // Initialize the host and slave UARTs
         UART::getHostUART().enable(true);
         UART::getHostUART().in.reset();
         UART::getSlaveUART().enable(true);
@@ -130,26 +136,26 @@ void Motherboard::reset() {
 	TCCR2B = 0x07; // prescaler at 1/1024
 	TIMSK2 = 0x01; // OVF flag on
 	// Configure the debug pin.
-	DEBUG_PIN.setDirection(true);
+	DEBUG_PIN::setDirection(true);
+}
 
+void Motherboard::initInterfaceBoard() {
+#if HAS_INTERFACE_BOARD > 0
 	// Check if the interface board is attached
-        hasInterfaceBoard = interface::isConnected();
-
+    hasInterfaceBoard = interface::isConnected();
 	if (hasInterfaceBoard) {
 		// Make sure our interface board is initialized
-                interfaceBoard.init();
+        interfaceBoard.init();
 
-                // Then add the splash screen to it.
-                interfaceBoard.pushScreen(&splashScreen);
+        // Then add the splash screen to it.
+        interfaceBoard.pushScreen(&splashScreen);
 
-                // Finally, set up the *** interface
-                interface::init(&interfaceBoard, &lcd);
+        // Finally, set up the *** interface
+        interface::init(&interfaceBoard);
 
-                interface_update_timeout.start(interfaceBoard.getUpdateRate());
+        interface_update_timeout.start(interfaceBoard.getUpdateRate());
 	}
-
-        // Blindly try to reset the toolhead with index 0.
-//        resetToolhead();
+#endif // HAS_INTERFACE_BOARD > 0
 }
 
 /// Get the number of microseconds that have passed since
@@ -165,9 +171,13 @@ micros_t Motherboard::getCurrentMicros() {
 
 /// Run the motherboard interrupt
 void Motherboard::doInterrupt() {
+
+#if HAS_INTERFACE_BOARD > 0
 	if (hasInterfaceBoard) {
-                interfaceBoard.doInterrupt();
+        interfaceBoard.doInterrupt();
 	}
+#endif // HAS_INTERFACE_BOARD > 0
+
 	micros += INTERVAL_IN_MICROSECONDS;
 	// Do not move steppers if the board is in a paused state
 	if (command::isPaused()) return;
@@ -175,12 +185,15 @@ void Motherboard::doInterrupt() {
 }
 
 void Motherboard::runMotherboardSlice() {
+
+#if HAS_INTERFACE_BOARD > 0
 	if (hasInterfaceBoard) {
 		if (interface_update_timeout.hasElapsed()) {
-                        interfaceBoard.doUpdate();
-                        interface_update_timeout.start(interfaceBoard.getUpdateRate());
+            interfaceBoard.doUpdate();
+            interface_update_timeout.start(interfaceBoard.getUpdateRate());
 		}
 	}
+#endif
 }
 
 
@@ -204,7 +217,7 @@ enum {
 void Motherboard::indicateError(int error_code) {
 	if (error_code == 0) {
 		blink_state = BLINK_NONE;
-		DEBUG_PIN.setValue(false);
+		DEBUG_PIN::setValue(false);
 	}
 	else if (blink_count != error_code) {
 		blink_state = BLINK_OFF;
@@ -238,7 +251,7 @@ ISR(TIMER2_OVF_vect) {
 			blinked_so_far++;
 			blink_state = BLINK_OFF;
 			blink_ovfs_remaining = OVFS_OFF;
-			DEBUG_PIN.setValue(false);
+			DEBUG_PIN::setValue(false);
 		} else if (blink_state == BLINK_OFF) {
 			if (blinked_so_far >= blink_count) {
 				blink_state = BLINK_PAUSE;
@@ -246,13 +259,13 @@ ISR(TIMER2_OVF_vect) {
 			} else {
 				blink_state = BLINK_ON;
 				blink_ovfs_remaining = OVFS_ON;
-				DEBUG_PIN.setValue(true);
+				DEBUG_PIN::setValue(true);
 			}
 		} else if (blink_state == BLINK_PAUSE) {
 			blinked_so_far = 0;
 			blink_state = BLINK_ON;
 			blink_ovfs_remaining = OVFS_ON;
-			DEBUG_PIN.setValue(true);
+			DEBUG_PIN::setValue(true);
 		}
 	}
 }

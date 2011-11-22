@@ -1,8 +1,6 @@
+#include "InterfaceBoard.hh"
+#if HAS_INTERFACE_BOARD > 0
 #include "Menu.hh"
-#include "Configuration.hh"
-
-// TODO: Kill this, should be hanlded by build system.
-#ifdef HAS_INTERFACE_BOARD
 
 #include "Steppers.hh"
 #include "Commands.hh"
@@ -10,7 +8,6 @@
 #include "Tool.hh"
 #include "Host.hh"
 #include "Timeout.hh"
-#include "InterfaceBoard.hh"
 #include "Interface.hh"
 #include <util/delay.h>
 #include <stdlib.h>
@@ -68,29 +65,29 @@ bool queryExtruderParameter(uint8_t parameter, OutPacket& responsePacket) {
 	return true;
 }
 
-void SplashScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar splash1[] = "                ";
-	static PROGMEM prog_uchar splash2[] = " Thing-O-Matic  ";
-	static PROGMEM prog_uchar splash3[] = "   ---------    ";
-	static PROGMEM prog_uchar splash4[] = "                ";
+void SplashScreen::update(Display& display, bool forceRedraw) {
+	static PROGMEM prog_char splash1[] = "                ";
+	static PROGMEM prog_char splash2[] = " Thing-O-Matic  ";
+	static PROGMEM prog_char splash3[] = "   ---------    ";
+	static PROGMEM prog_char splash4[] = "                ";
 
 
 	if (forceRedraw) {
-		lcd.setCursor(0,0);
-		lcd.writeFromPgmspace(splash1);
+		display.setCursor(0,0);
+		display.writeFromPgmspace(splash1);
 
-		lcd.setCursor(0,1);
-		lcd.writeFromPgmspace(splash2);
+		display.setCursor(0,1);
+		display.writeFromPgmspace(splash2);
 
-		lcd.setCursor(0,2);
-		lcd.writeFromPgmspace(splash3);
+		display.setCursor(0,2);
+		display.writeFromPgmspace(splash3);
 
-		lcd.setCursor(0,3);
-		lcd.writeFromPgmspace(splash4);
+		display.setCursor(0,3);
+		display.writeFromPgmspace(splash4);
 	}
 	else {
 		// The machine has started, so we're done!
-                interface::popScreen();
+            interface::popScreen();
         }
 }
 
@@ -106,37 +103,37 @@ void JogMode::reset() {
 	distanceChanged = false;
 }
 
-void JogMode::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar jog1[] = "Jog mode: ";
-	static PROGMEM prog_uchar jog2[] = "  Y+          Z+";
-	static PROGMEM prog_uchar jog3[] = "X-  X+    (mode)";
-	static PROGMEM prog_uchar jog4[] = "  Y-          Z-";
+void JogMode::update(Display& display, bool forceRedraw) {
+	static PROGMEM prog_char jog1[] = "Jog mode: ";
+	static PROGMEM prog_char jog2[] = "  Y+          Z+";
+	static PROGMEM prog_char jog3[] = "X-  X+    (mode)";
+	static PROGMEM prog_char jog4[] = "  Y-          Z-";
 
-	static PROGMEM prog_uchar distanceShort[] = "SHORT";
-	static PROGMEM prog_uchar distanceLong[] = "LONG";
+	static PROGMEM prog_char distanceShort[] = "SHORT";
+	static PROGMEM prog_char distanceLong[] = "LONG";
 
 	if (forceRedraw || distanceChanged) {
-		lcd.clear();
-		lcd.setCursor(0,0);
-		lcd.writeFromPgmspace(jog1);
+		display.clear();
+		display.setCursor(0,0);
+		display.writeFromPgmspace(jog1);
 
 		switch (jogDistance) {
 		case DISTANCE_SHORT:
-			lcd.writeFromPgmspace(distanceShort);
+			display.writeFromPgmspace(distanceShort);
 			break;
 		case DISTANCE_LONG:
-			lcd.writeFromPgmspace(distanceLong);
+			display.writeFromPgmspace(distanceLong);
 			break;
 		}
 
-		lcd.setCursor(0,1);
-		lcd.writeFromPgmspace(jog2);
+		display.setCursor(0,1);
+		display.writeFromPgmspace(jog2);
 
-		lcd.setCursor(0,2);
-		lcd.writeFromPgmspace(jog3);
+		display.setCursor(0,2);
+		display.writeFromPgmspace(jog3);
 
-		lcd.setCursor(0,3);
-		lcd.writeFromPgmspace(jog4);
+		display.setCursor(0,3);
+		display.writeFromPgmspace(jog4);
 
 		distanceChanged = false;
 	}
@@ -208,8 +205,8 @@ void JogMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 }
 
 
-void SnakeMode::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar gameOver[] =  "GAME OVER!";
+void SnakeMode::update(Display& display, bool forceRedraw) {
+	static PROGMEM prog_char gameOver[] =  "GAME OVER!";
 
 	// If we are dead, restart the game.
 	if (!snakeAlive) {
@@ -217,22 +214,30 @@ void SnakeMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		forceRedraw = true;
 	}
 
+    if (appleReset)
+    {
+	    // Put the apple in an initial position (this could collide with the snake!)    
+	    applePosition.x = rand()%display.width();
+	    applePosition.y = rand()%display.height();
+        appleReset = false;
+    }
+
 	if (forceRedraw) {
-		lcd.clear();
+		display.clear();
 
 		for (uint8_t i = 0; i < snakeLength; i++) {
-			lcd.setCursor(snakeBody[i].x, snakeBody[i].y);
-			lcd.write('O');
+			display.setCursor(snakeBody[i].x, snakeBody[i].y);
+			display.write('O');
 		}
 	}
 
 	// Always redraw the apple, just in case.
-	lcd.setCursor(applePosition.x, applePosition.y);
-	lcd.write('*');
+	display.setCursor(applePosition.x, applePosition.y);
+	display.write('*');
 
 	// First, undraw the snake's tail
-	lcd.setCursor(snakeBody[snakeLength-1].x, snakeBody[snakeLength-1].y);
-	lcd.write(' ');
+	display.setCursor(snakeBody[snakeLength-1].x, snakeBody[snakeLength-1].y);
+	display.write(' ');
 
 	// Then, shift the snakes body parts back, deleting the tail
 	for(int8_t i = snakeLength-1; i >= 0; i--) {
@@ -243,22 +248,22 @@ void SnakeMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	switch(snakeDirection)
 	{
 	case DIR_EAST:
-		snakeBody[0].x = (snakeBody[0].x + 1) % LCD_SCREEN_WIDTH;
+		snakeBody[0].x = (snakeBody[0].x + 1) % display.width();
 		break;
 	case DIR_WEST:
-		snakeBody[0].x = (snakeBody[0].x +  LCD_SCREEN_WIDTH - 1) % LCD_SCREEN_WIDTH;
+		snakeBody[0].x = (snakeBody[0].x +  display.width() - 1) % display.width();
 		break;
 	case DIR_NORTH:
-		snakeBody[0].y = (snakeBody[0].y + LCD_SCREEN_HEIGHT - 1) % LCD_SCREEN_HEIGHT;
+		snakeBody[0].y = (snakeBody[0].y + display.height() - 1) % display.height();
 		break;
 	case DIR_SOUTH:
-		snakeBody[0].y = (snakeBody[0].y + 1) % LCD_SCREEN_HEIGHT;
+		snakeBody[0].y = (snakeBody[0].y + 1) % display.height();
 		break;
 	}
 
 	// Now, draw the snakes new head
-	lcd.setCursor(snakeBody[0].x, snakeBody[0].y);
-	lcd.write('O');
+	display.setCursor(snakeBody[0].x, snakeBody[0].y);
+	display.write('O');
 
 	// Check if the snake has run into itself
 	for (uint8_t i = 1; i < snakeLength; i++) {
@@ -266,8 +271,8 @@ void SnakeMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			&& snakeBody[i].y == snakeBody[0].y) {
 			snakeAlive = false;
 
-			lcd.setCursor(1,1);
-			lcd.writeFromPgmspace(gameOver);
+			display.setCursor(1,1);
+			display.writeFromPgmspace(gameOver);
 			updateRate = 5000L * 1000L;
 		}
 	}
@@ -282,11 +287,11 @@ void SnakeMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			updateRate -= 5L * 1000L;
 		}
 
-		applePosition.x = rand()%LCD_SCREEN_WIDTH;
-		applePosition.y = rand()%LCD_SCREEN_HEIGHT;
+		applePosition.x = rand()%display.width();
+		applePosition.y = rand()%display.height();
 
-		lcd.setCursor(applePosition.x, applePosition.y);
-		lcd.write('*');
+		display.setCursor(applePosition.x, applePosition.y);
+		display.write('*');
 	}
 }
 
@@ -302,29 +307,27 @@ void SnakeMode::reset() {
 	snakeBody[1].x = 1; snakeBody[1].y = 1;
 	snakeBody[2].x = 0; snakeBody[2].y = 1;
 
-	// Put the apple in an initial position (this could collide with the snake!)
-	applePosition.x = rand()%LCD_SCREEN_WIDTH;
-	applePosition.y = rand()%LCD_SCREEN_HEIGHT;
+    appleReset = true;
 }
 
 
 void SnakeMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 	switch (button) {
         case ButtonArray::YMINUS:
-		snakeDirection = DIR_SOUTH;
-		break;
+		    snakeDirection = DIR_SOUTH;
+		    break;
         case ButtonArray::YPLUS:
-		snakeDirection = DIR_NORTH;
-		break;
+		    snakeDirection = DIR_NORTH;
+		    break;
         case ButtonArray::XMINUS:
-		snakeDirection = DIR_WEST;
-		break;
+		    snakeDirection = DIR_WEST;
+		    break;
         case ButtonArray::XPLUS:
-		snakeDirection = DIR_EAST;
-		break;
+		    snakeDirection = DIR_EAST;
+		    break;
         case ButtonArray::CANCEL:
-                interface::popScreen();
-		break;
+            interface::popScreen();
+    		break;
 	}
 }
 
@@ -333,31 +336,31 @@ void MonitorMode::reset() {
 	updatePhase = 0;
 }
 
-void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar extruder_temp[] =   "Tool: ---/---C";
-	static PROGMEM prog_uchar platform_temp[] =   "Bed:  ---/---C";
+void MonitorMode::update(Display& display, bool forceRedraw) {
+	static PROGMEM prog_char extruder_temp[] =   "Tool: ---/---C";
+	static PROGMEM prog_char platform_temp[] =   "Bed:  ---/---C";
 
 	if (forceRedraw) {
-		lcd.clear();
-		lcd.setCursor(0,0);
+		display.clear();
+		display.setCursor(0,0);
 		switch(host::getHostState()) {
 		case host::HOST_STATE_READY:
-			lcd.writeString(host::getMachineName());
+			display.writeString(host::getMachineName());
 			break;
 		case host::HOST_STATE_BUILDING:
 		case host::HOST_STATE_BUILDING_FROM_SD:
-			lcd.writeString(host::getBuildName());
+			display.writeString(host::getBuildName());
 			break;
 		case host::HOST_STATE_ERROR:
-			lcd.writeString("error!");
+			display.writeString("error!");
 			break;
 		}
 
-		lcd.setCursor(0,2);
-		lcd.writeFromPgmspace(extruder_temp);
+		display.setCursor(0,2);
+		display.writeFromPgmspace(extruder_temp);
 
-		lcd.setCursor(0,3);
-		lcd.writeFromPgmspace(platform_temp);
+		display.setCursor(0,3);
+		display.writeFromPgmspace(platform_temp);
 
 	} else {
 	}
@@ -368,42 +371,42 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	// Redraw tool info
 	switch (updatePhase) {
 	case 0:
-		lcd.setCursor(6,2);
+		display.setCursor(6,2);
 		if (queryExtruderParameter(SLAVE_CMD_GET_TEMP, responsePacket)) {
 			uint16_t data = responsePacket.read16(1);
-			lcd.writeInt(data,3);
+			display.writeInt(data,3);
 		} else {
-			lcd.writeString("XXX");
+			display.writeString("XXX");
 		}
 		break;
 
 	case 1:
-		lcd.setCursor(10,2);
+		display.setCursor(10,2);
 		if (queryExtruderParameter(SLAVE_CMD_GET_SP, responsePacket)) {
 			uint16_t data = responsePacket.read16(1);
-			lcd.writeInt(data,3);
+			display.writeInt(data,3);
 		} else {
-			lcd.writeString("XXX");
+			display.writeString("XXX");
 		}
 		break;
 
 	case 2:
-		lcd.setCursor(6,3);
+		display.setCursor(6,3);
 		if (queryExtruderParameter(SLAVE_CMD_GET_PLATFORM_TEMP, responsePacket)) {
 			uint16_t data = responsePacket.read16(1);
-			lcd.writeInt(data,3);
+			display.writeInt(data,3);
 		} else {
-			lcd.writeString("XXX");
+			display.writeString("XXX");
 		}
 		break;
 
 	case 3:
-		lcd.setCursor(10,3);
+		display.setCursor(10,3);
 		if (queryExtruderParameter(SLAVE_CMD_GET_PLATFORM_SP, responsePacket)) {
 			uint16_t data = responsePacket.read16(1);
-			lcd.writeInt(data,3);
+			display.writeInt(data,3);
 		} else {
-			lcd.writeString("XXX");
+			display.writeString("XXX");
 		}
 		break;
 	}
@@ -430,36 +433,36 @@ void MonitorMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 }
 
 
-void Menu::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar blankLine[] =  "                ";
+void Menu::update(Display& display, bool forceRedraw) {
+	static PROGMEM prog_char blankLine[] =  "                ";
 
 	// Do we need to redraw the whole menu?
-	if ((itemIndex/LCD_SCREEN_HEIGHT) != (lastDrawIndex/LCD_SCREEN_HEIGHT)
+	if ((itemIndex/display.height()) != (lastDrawIndex/display.height())
 			|| forceRedraw ) {
 		// Redraw the whole menu
-		lcd.clear();
+		display.clear();
 
-		for (uint8_t i = 0; i < LCD_SCREEN_HEIGHT; i++) {
-			// Instead of using lcd.clear(), clear one line at a time so there
+		for (uint8_t i = 0; i < display.height(); i++) {
+			// Instead of using display.clear(), clear one line at a time so there
 			// is less screen flickr.
 
-			if (i+(itemIndex/LCD_SCREEN_HEIGHT)*LCD_SCREEN_HEIGHT +1 > itemCount) {
+			if (i+(itemIndex/display.height())*display.height() +1 > itemCount) {
 				break;
 			}
 
-			lcd.setCursor(1,i);
+			display.setCursor(1,i);
 			// Draw one page of items at a time
-			drawItem(i+(itemIndex/LCD_SCREEN_HEIGHT)*LCD_SCREEN_HEIGHT, lcd);
+			drawItem(i+(itemIndex/display.height())*display.height(), display);
 		}
 	}
 	else {
 		// Only need to clear the previous cursor
-		lcd.setCursor(0,(lastDrawIndex%LCD_SCREEN_HEIGHT));
-		lcd.write(' ');
+		display.setCursor(0,(lastDrawIndex%display.height()));
+		display.write(' ');
 	}
 
-	lcd.setCursor(0,(itemIndex%LCD_SCREEN_HEIGHT));
-	lcd.write('>');
+	display.setCursor(0,(itemIndex%display.height()));
+	display.write('>');
 	lastDrawIndex = itemIndex;
 }
 
@@ -523,22 +526,22 @@ void CancelBuildMenu::resetState() {
 	firstItemIndex = 2;
 }
 
-void CancelBuildMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
-	static PROGMEM prog_uchar cancel[] = "Cancel Build?";
-	static PROGMEM prog_uchar yes[] =   "Yes";
-	static PROGMEM prog_uchar no[] =   "No";
+void CancelBuildMenu::drawItem(uint8_t index, Display& display) {
+	static PROGMEM prog_char cancel[] = "Cancel Build?";
+	static PROGMEM prog_char yes[] =   "Yes";
+	static PROGMEM prog_char no[] =   "No";
 
 	switch (index) {
 	case 0:
-		lcd.writeFromPgmspace(cancel);
+		display.writeFromPgmspace(cancel);
 		break;
 	case 1:
 		break;
 	case 2:
-		lcd.writeFromPgmspace(yes);
+		display.writeFromPgmspace(yes);
 		break;
 	case 3:
-		lcd.writeFromPgmspace(no);
+		display.writeFromPgmspace(no);
 		break;
 	}
 }
@@ -564,27 +567,27 @@ MainMenu::MainMenu() {
 	reset();
 }
 
-void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
-	static PROGMEM prog_uchar monitor[] = "Monitor Mode";
-	static PROGMEM prog_uchar build[] =   "Build from SD";
-	static PROGMEM prog_uchar jog[] =   "Jog Mode";
-	static PROGMEM prog_uchar snake[] =   "Snake Game";
+void MainMenu::drawItem(uint8_t index, Display& display) {
+	static PROGMEM prog_char monitor[] = "Monitor Mode";
+	static PROGMEM prog_char build[] =   "Build from SD";
+	static PROGMEM prog_char jog[] =   "Jog Mode";
+	static PROGMEM prog_char snake[] =   "Snake Game";
 
 	switch (index) {
 	case 0:
-		lcd.writeFromPgmspace(monitor);
+		display.writeFromPgmspace(monitor);
 		break;
 	case 1:
-		lcd.writeFromPgmspace(build);
+		display.writeFromPgmspace(build);
 		break;
 	case 2:
-		lcd.writeFromPgmspace(jog);
+		display.writeFromPgmspace(jog);
 		break;
 	case 3:
 		// blank
 		break;
 	case 4:
-		lcd.writeFromPgmspace(snake);
+		display.writeFromPgmspace(snake);
 		break;
 	}
 }
@@ -681,13 +684,13 @@ bool SDMenu::getFilename(uint8_t index, char buffer[], uint8_t buffer_size) {
         return true;
 }
 
-void SDMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+void SDMenu::drawItem(uint8_t index, Display& display) {
 	if (index > itemCount - 1) {
 		// TODO: report error
 		return;
 	}
 
-	const uint8_t MAX_FILE_LEN = LCD_SCREEN_WIDTH;
+	const uint8_t MAX_FILE_LEN = display.width();
 	char fnbuf[MAX_FILE_LEN];
 
         if ( !getFilename(index, fnbuf, MAX_FILE_LEN) ) {
@@ -697,7 +700,7 @@ void SDMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 
 	uint8_t idx;
 	for (idx = 0; (idx < MAX_FILE_LEN) && (fnbuf[idx] != 0); idx++) {
-		lcd.write(fnbuf[idx]);
+		display.write(fnbuf[idx]);
 	}
 }
 
