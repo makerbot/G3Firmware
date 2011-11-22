@@ -48,16 +48,18 @@ template < uint8_t offset, class dir_pin, class step_pin, class enable_pin > cla
 public:
 
 	/// Set the direction for the stepper to move
-	virtual void setDirection(bool forward) const { dir_pin::setValue(invert_axis ? !forward : forward, false); }
+    // only called from within the StepperAxis interupt routine, so we can assume we're in an atomic block
+	virtual void setDirection(bool forward) const { dir_pin::setValue(invert_axis ? !forward : forward, true); }
 	
     /// Set the value of the step line
-    virtual void step(bool value) const {step_pin::setValue(value, false);}
+    // only called from within the StepperAxis interupt routine, so we can assume we're in an atomic block
+    virtual void step(bool value) const {step_pin::setValue(value, true);}
 
 	/// Enable or disable this axis
 	virtual void setEnabled(bool enabled) const
     {
     	// The A3982 stepper driver chip has an inverted enable.
-    	enable_pin::setValue(!enabled, false);
+    	enable_pin::setValue(!enabled);
     }
 
 

@@ -28,6 +28,7 @@
 #include "SDCard.hh"
 #include "Eeprom.hh"
 #include "EepromMap.hh"
+#include <util/delay.h>
 
 void reset(bool hard_reset) {
 	Motherboard& board = Motherboard::getBoard();
@@ -61,9 +62,11 @@ void reset(bool hard_reset) {
 int main() {
 
 	Motherboard& board = Motherboard::getBoard();
-	steppers::init(Motherboard::getBoard());
+	steppers::init(board);
 	reset(true);
+
 	while (1) {
+
 		// Toolhead interaction thread.
 		tool::runToolSlice();
 		// Host interaction thread.
@@ -73,6 +76,11 @@ int main() {
 		// Motherboard slice
 		board.runMotherboardSlice();
 
+#ifdef TRACE_MAIN_LOOP_CYCLES
+        static bool debug = false;
+        debug = !debug;
+        DEBUG_PIN::setValue(debug);
+#endif
 	}
 	return 0;
 }

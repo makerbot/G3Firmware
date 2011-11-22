@@ -25,6 +25,8 @@ static DualDisplay globalDisplay;
 
 void InterfaceBoard::Debug(const char message[])
 {
+    static bool init = false;
+    if ( !init ) { globalDisplay.init(); init = true; }
     static uint16_t row = 0;
     globalDisplay.setCursor(0,row++%globalDisplay.height()); 
     globalDisplay.writeInt(row,4);

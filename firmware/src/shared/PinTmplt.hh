@@ -55,9 +55,15 @@
 template < uint16_t port_base, uint8_t pin_index > class PinTmplt {
 public:
 
-    static  inline void setDirection(bool output, bool atomic = true) 
+    // ports with 2 byte base address need to be wrapped in an atomic
+    // block.  We provide the option for the caller to wrap several calls in a single
+    // atomic block for code optimizing.
+    // see http://code.google.com/p/arduino/issues/detail?id=146
+    // and http://code.google.com/p/digitalwritefast/
+
+    static  inline void setDirection(bool output, bool externalAtomicBlock = false) 
         { 
-            if( (port_base < 0x40) || !atomic)
+            if( (port_base < 0x40) || externalAtomicBlock )
             {
                 output ? DDRx |= _BV(pin_index) :  DDRx &= ~_BV(pin_index); 
             }
@@ -69,9 +75,9 @@ public:
                 }
             }
         }
-	static inline void setValue(bool on, bool atomic = true) 
+	static inline void setValue(bool on, bool externalAtomicBlock = false) 
         { 
-            if((port_base < 0x40) || !atomic )
+            if( (port_base < 0x40) || externalAtomicBlock )
             {
                 on ? PORTx |= _BV(pin_index) :  PORTx &= ~_BV(pin_index);
             }
@@ -85,6 +91,7 @@ public:
         }
 
 	static inline bool getValue()  { return !!(PINx & _BV(pin_index)); }
+
 };
 
 #define Pin(port_id,pin_id) PinTmplt<port_id,pin_id>
