@@ -51,11 +51,10 @@ private:
 	static StepperTmpltEndstops<2, Z_DIR_PIN,Z_STEP_PIN,Z_ENABLE_PIN,Z_MAX_PIN,Z_MIN_PIN> stepperZ;
 #endif
 #if STEPPER_COUNT > 3
-    // we're using B over A because of the assigned AVR Port which gets us a performance win using it over A
-	static StepperTmplt<3, B_DIR_PIN,B_STEP_PIN,B_ENABLE_PIN> stepperB;
+	static StepperTmplt<3, A_DIR_PIN,A_STEP_PIN,A_ENABLE_PIN> stepperA;
 #endif
 #if STEPPER_COUNT > 4
-	static StepperTmplt<4, A_DIR_PIN,A_STEP_PIN,A_ENABLE_PIN> stepperA;
+	static StepperTmplt<4, B_DIR_PIN,B_STEP_PIN,B_ENABLE_PIN> stepperB;
 #endif
 
     /// Collection of stepper controllers that are on this board

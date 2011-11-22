@@ -60,10 +60,10 @@ StepperTmpltEndstops<1, Y_DIR_PIN,Y_STEP_PIN,Y_ENABLE_PIN,Y_MAX_PIN,Y_MIN_PIN> M
 StepperTmpltEndstops<2, Z_DIR_PIN,Z_STEP_PIN,Z_ENABLE_PIN,Z_MAX_PIN,Z_MIN_PIN> Motherboard::stepperZ;
 #endif
 #if STEPPER_COUNT > 3
-StepperTmplt<3, B_DIR_PIN,B_STEP_PIN,B_ENABLE_PIN> Motherboard::stepperB;
+StepperTmplt<3, A_DIR_PIN,A_STEP_PIN,A_ENABLE_PIN> Motherboard::stepperA;
 #endif
 #if STEPPER_COUNT > 4
-StepperTmplt<4, A_DIR_PIN,A_STEP_PIN,A_ENABLE_PIN> Motherboard::stepperA;
+StepperTmplt<4, B_DIR_PIN,B_STEP_PIN,B_ENABLE_PIN> Motherboard::stepperB;
 #endif
 const StepperInterface* Motherboard::stepper[STEPPER_COUNT] =
 {
@@ -78,10 +78,10 @@ const StepperInterface* Motherboard::stepper[STEPPER_COUNT] =
 	,&stepperZ
 #endif
 #if STEPPER_COUNT > 3
-	,&stepperB // swap B for extruder before of lower port usage
+	,&stepperA
 #endif
 #if STEPPER_COUNT > 4
-	,&stepperA
+	,&stepperB // swap B for extruder before of lower port usage
 #endif
 };
 
@@ -113,10 +113,10 @@ void Motherboard::reset() {
 	stepperZ.init();
 #endif
 #if STEPPER_COUNT > 3
-	stepperB.init(); // swap B for extruder before of lower port usage
+	stepperA.init();
 #endif
 #if STEPPER_COUNT > 4
-	stepperA.init();
+	stepperB.init(); // swap B for extruder before of lower port usage
 #endif
 
     // Initialize the host and slave UARTs
