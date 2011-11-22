@@ -145,15 +145,15 @@ void Motherboard::initInterfaceBoard() {
     hasInterfaceBoard = interface::isConnected();
 	if (hasInterfaceBoard) {
 		// Make sure our interface board is initialized
-                interfaceBoard.init();
+        interfaceBoard.init();
 
-                // Then add the splash screen to it.
-                interfaceBoard.pushScreen(&splashScreen);
+        // Then add the splash screen to it.
+        interfaceBoard.pushScreen(&splashScreen);
 
-                // Finally, set up the *** interface
-                interface::init(&interfaceBoard);
+        // Finally, set up the *** interface
+        interface::init(&interfaceBoard);
 
-                interface_update_timeout.start(interfaceBoard.getUpdateRate());
+        interface_update_timeout.start(interfaceBoard.getUpdateRate());
 	}
 #endif // HAS_INTERFACE_BOARD > 0
 }

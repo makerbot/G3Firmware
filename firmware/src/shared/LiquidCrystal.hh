@@ -18,10 +18,7 @@
 
 class LiquidCrystal : public Display {
 public:
-  LiquidCrystal();
 
-  void init(uint8_t fourbitmode);
-    
   void begin(uint8_t cols, uint8_t rows, uint8_t charsize = LCD_5x8DOTS);
 
   virtual void init();
@@ -62,8 +59,7 @@ public:
 private:
   void send(uint8_t, bool);
   void write4bits(uint8_t);
-  void pulseEnable();
-
+  
 
   uint8_t _displayfunction;
   uint8_t _displaycontrol;

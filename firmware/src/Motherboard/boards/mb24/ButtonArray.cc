@@ -6,12 +6,13 @@ static uint8_t previousC;
 void ButtonArray::init() {
         previousL = 0;
         previousC = 0;
-
+#if HAS_INTERFACE_BUTTONS > 0
         // Set all of the known buttons to inputs (see above note)
         DDRL = DDRL & 0x1;
         DDRC = DDRC & 0xF9;
         PORTL = PORTL & 0x1;
         PORTC = PORTC & 0xF9;
+#endif // HAS_INTERFACE_BUTTONS > 0
 }
 
 void ButtonArray::scanButtons() {
