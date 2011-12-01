@@ -26,8 +26,6 @@
 #define TOOL_PACKET_TIMEOUT_MS 50L
 #define TOOL_PACKET_TIMEOUT_MICROS (1000L*TOOL_PACKET_TIMEOUT_MS)
 
-#define DELAY_BETWEEN_TRANSMISSIONS_MICROS (500L)
-
 namespace tool {
 
 // TODO: Don't bother initializing these here.
@@ -101,10 +99,7 @@ bool getToolVersion() {
     // override standard timeout
     timeout.start(TOOL_PACKET_TIMEOUT_MICROS*2);
     releaseLock();
-    // WHILE: bounded by tool timeout
-    while (!isTransactionDone()) {
-            runToolSlice(); // This will most likely time out if there's multiple toolheads.
-    }
+    waitForTransaction();
 
     if (in.getErrorCode() == PacketError::PACKET_TIMEOUT) {
             return false;
@@ -143,13 +138,13 @@ void setToolIndicatorLED() {
     // override standard timeout
     timeout.start(TOOL_PACKET_TIMEOUT_MICROS*2);
     releaseLock();
-    // WHILE: bounded by tool timeout
-    while (!isTransactionDone()) {
-            runToolSlice(); // This will most likely time out if there's multiple toolheads.
-    }
+    waitForTransaction();
 }
 
 bool reset() {
+    DEBUG_TOOL_SLICE_PIN::setDirection(true);
+    DEBUG_TOOL_SLICE_PIN::setValue(false);
+
 	// This code is very lightly modified from handleToolQuery in Host.cc.
 	// We don't give up if we fail to get a lock; we force it instead.
 	Timeout acquire_lock_timeout;
@@ -158,7 +153,7 @@ bool reset() {
 		if (acquire_lock_timeout.hasElapsed()) {
 			locked = true; // grant ourselves the lock
 			transaction_active = false; // abort transaction!
-                        Motherboard::getBoard().indicateError(ERR_SLAVE_LOCK_TIMEOUT);
+            Motherboard::getBoard().indicateError(ERR_SLAVE_LOCK_TIMEOUT);
 			break;
 		}
 	}
@@ -171,10 +166,7 @@ bool reset() {
 	// override standard timeout
 	timeout.start(TOOL_PACKET_TIMEOUT_MICROS*2);
 	releaseLock();
-	// WHILE: bounded by tool timeout
-	while (!isTransactionDone()) {
-		runToolSlice(); // This will most likely time out if there's multiple toolheads.
-	}
+    waitForTransaction();
 	return UART::getSlaveUART().in.isFinished();
 }
 
@@ -215,68 +207,71 @@ void releaseLock() {
 	locked = false;
 }
 
+static Timeout lastTransaction;
 void startTransaction() {
-        sent_packet_count++;
-
-        // Enforce a minimum off-time between transactions
-        // TODO: Base this on the time from the last transaction.
-        Timeout t;
-        t.start(DELAY_BETWEEN_TRANSMISSIONS_MICROS); // wait for xxx us
-        while (!t.hasElapsed());
-
 	transaction_active = true;
+    sent_packet_count++;
+
 	timeout.start(TOOL_PACKET_TIMEOUT_MICROS); // 50 ms timeout
 	retries = RETRIES;
-        UART::getSlaveUART().in.reset();
-        UART::getSlaveUART().beginSend();
+    UART::getSlaveUART().in.reset();
+    UART::getSlaveUART().beginSend();
 }
 
 bool isTransactionDone() {
 	return !transaction_active;
 }
 
-void runToolSlice() {
+void waitForTransaction()
+{
+	while (transaction_active) {
+		tool::runToolSlice();
+	}
+}
+
+static bool retryCommunication(){
+	if (retries) {
+        packet_retry_count++;
+		retries--;
+		timeout.start(TOOL_PACKET_TIMEOUT_MICROS); // 50 ms timeout
         UART& uart = UART::getSlaveUART();
+		uart.out.prepareForResend();
+		uart.in.reset();
+		uart.reset();
+		uart.beginSend();
+        return true;
+    }
+    return false;
+}
+
+void runToolSlice() {
+    DEBUG_TOOL_SLICE_PIN::setValue(true);
+    UART& uart = UART::getSlaveUART();
 	if (transaction_active) {
-		if (uart.in.isFinished())
-		{
+		if (uart.in.isFinished()) {
 			transaction_active = false;
 		} else if (uart.in.hasError()) {
-		  if (uart.in.getErrorCode() == PacketError::NOISE_BYTE) {
-                    noise_byte_count++;
-		    uart.in.reset();
-		  } else
-			if (retries) {
-                                packet_retry_count++;
-				retries--;
-				timeout.start(TOOL_PACKET_TIMEOUT_MICROS); // 50 ms timeout
-				uart.out.prepareForResend();
-				uart.in.reset();
-				uart.reset();
-				uart.beginSend();
-			} else {
-                                packet_failure_count++;
-				transaction_active = false;
-                                Motherboard::getBoard().indicateError(ERR_SLAVE_PACKET_MISC);
-			}
+		    if (uart.in.getErrorCode() == PacketError::NOISE_BYTE) {
+                noise_byte_count++;
+		        uart.in.reset();
+		    } else if ( !retryCommunication() ) {
+			    transaction_active = false;
+                Motherboard::getBoard().indicateError(ERR_SLAVE_PACKET_MISC);
+		    }
 		} else if (timeout.hasElapsed()) {
-			if (retries) {
-                                packet_retry_count++;
-				retries--;
-				timeout.start(TOOL_PACKET_TIMEOUT_MICROS); // 50 ms timeout
-				uart.out.prepareForResend();
-				uart.in.reset();
-				uart.reset();
-				uart.beginSend();
-			} else {
-                                packet_failure_count++;
+			if ( !retryCommunication() ) {
 				uart.in.timeout();
 				uart.reset();
+                packet_failure_count++;
 				transaction_active = false;
-                                Motherboard::getBoard().indicateError(ERR_SLAVE_PACKET_TIMEOUT);
+                Motherboard::getBoard().indicateError(ERR_SLAVE_PACKET_TIMEOUT);
 			}
 		}
+        else
+        {
+        }
 	}
+    DEBUG_TOOL_SLICE_PIN::setValue(false);
 }
 
 void setCurrentToolheadIndex(uint8_t tool_index_in) {

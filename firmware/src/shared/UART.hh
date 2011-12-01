@@ -71,9 +71,6 @@ private:
         /// Initialize the serial configuration. Must be called once at boot.
         void init_serial();
 
-        /// Send a byte of data over the serial line.
-        /// \param[in] data Data byte to send
-        void send_byte(char data);
 
         const communication_mode mode_;     ///< Communication mode we are speaking
         const uint8_t index_;               ///< Hardware UART index

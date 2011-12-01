@@ -46,12 +46,12 @@ volatile uint8_t loopback_bytes = 0;
     #error UART not implemented on this processor type!
 #endif
 
+// Use double-speed mode for more accurate baud rate?
 #define UCSRA_VALUE(uart_) _BV(U2X##uart_) // baud rate doubling
 
 #if defined (__AVR_ATmega168__) || defined (__AVR_ATmega328__)
 
     #define UBRR_VALUE 16
-    #define UCSR0A_VALUE 0
 
     #define INIT_SERIAL(uart_) \
     { \
@@ -64,30 +64,11 @@ volatile uint8_t loopback_bytes = 0;
         UCSR0C = _BV(UCSZ01)|_BV(UCSZ00); \
     }
 
-#elif defined (__AVR_ATmega644P__)
+#elif defined (__AVR_ATmega644P__) || defined (__AVR_ATmega1280__) || defined (__AVR_ATmega2560__)
 
-    #define UBRR_VALUE 16
-    #define UBRRA_VALUE 0
-
-    // Adapted from ancient arduino/wiring rabbit hole
-    #define INIT_SERIAL(uart_) \
-    { \
-        UBRR##uart_##H = UBRR_VALUE >> 8; \
-        UBRR##uart_##L = UBRR_VALUE & 0xff; \
-        \
-        /* set config for uart_ */ \
-        UCSR##uart_##A = UCSRA_VALUE(uart_); \
-        UCSR##uart_##B = _BV(RXEN##uart_) | _BV(TXEN##uart_); \
-        UCSR##uart_##C = _BV(UCSZ##uart_##1)|_BV(UCSZ##uart_##0); \
-    }
-
-#elif defined (__AVR_ATmega1280__) || defined (__AVR_ATmega2560__)
-
-    // Use double-speed mode for more accurate baud rate?
     #define UBRR0_VALUE 16 // 115200 baud
     #define UBRR1_VALUE 16 // 115200 baud
 
-    // Adapted from ancient arduino/wiring rabbit hole
     #define INIT_SERIAL(uart_) \
     { \
         UBRR##uart_##H = UBRR##uart_##_VALUE >> 8; \
@@ -140,17 +121,6 @@ void UART::init_serial() {
 #endif
 }
 
-inline void UART::send_byte(char data) {
-    if(index_ == 0) {
-        UDR0 = data;
-    }
-#if HAS_SLAVE_UART
-    else {
-        UDR1 = data;
-    }
-#endif
-}
-
 // Transition to a non-transmitting state. This is only used for RS485 mode.
 inline void listen() {
 //        TX_ENABLE_PIN::setValue(false);
@@ -181,7 +151,14 @@ void UART::beginSend() {
                 loopback_bytes = 1;
         }
 
-        send_byte(out.getNextByteToSend());
+        if(index_ == 0) {
+            UDR0 = out.getNextByteToSend();
+        }
+#if HAS_SLAVE_UART
+        else {
+            UDR1 = out.getNextByteToSend();
+        }
+#endif
 }
 
 void UART::enable(bool enabled) {
