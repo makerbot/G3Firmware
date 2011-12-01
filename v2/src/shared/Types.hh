@@ -22,5 +22,6 @@
 
 /// Type used to store measurements of microseconds.
 typedef uint32_t micros_t;
+typedef uint32_t seconds_t;
 
 #endif // TYPES_HH_
