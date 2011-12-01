@@ -177,7 +177,7 @@ micros_t Motherboard::getCurrentSeconds() {
 /// Reset the seconds counter to 0.
 void Motherboard::resetCurrentSeconds() {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-		micros = 0L;
+		seconds = 0L;
 	}
 }
 
