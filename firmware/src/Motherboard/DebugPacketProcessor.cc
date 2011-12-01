@@ -79,10 +79,12 @@ bool processDebugPacket(const InPacket& from_host, OutPacket& to_host) {
 				to_host.append8(from_host.read8(i));
 			}
 			return true;
+/*
 		} else if (command == CommandCode::DEBUG_GENERATE_BAD_PACKET) {
 			// TODO
 		} else if (command == CommandCode::DEBUG_SIMULATE_BAD_PACKET) {
 			// TODO
+*/
 		} else if (command == CommandCode::DEBUG_SLAVE_PASSTHRU) {
 			// BLOCK: wait until sent
 			{

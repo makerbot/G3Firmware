@@ -92,9 +92,6 @@ void Motherboard::reset() {
 	// Configure the debug pin.
 	DEBUG_PIN::setDirection(true);
 
-    DEBUG_MOTHERBOARD_SLICE_PIN::setDirection(true);
-    DEBUG_MOTHERBOARD_SLICE_PIN::setValue(false);
-
 	indicateError(0); // turn off blinker
 
 	// Init steppers
@@ -181,7 +178,6 @@ void Motherboard::doInterrupt() {
 }
 
 void Motherboard::runMotherboardSlice() {
-    DEBUG_MOTHERBOARD_SLICE_PIN::setValue(true);
 
 #if HAS_INTERFACE_BOARD > 0
 	if (hasInterfaceBoard) {
@@ -192,7 +188,6 @@ void Motherboard::runMotherboardSlice() {
 	}
 #endif
 
-    DEBUG_MOTHERBOARD_SLICE_PIN::setValue(false);
 }
 
 

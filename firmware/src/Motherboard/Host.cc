@@ -60,12 +60,9 @@ HostState currentState;
 bool do_host_reset = true;
 
 void resetHost() {
-    DEBUG_HOST_SLICE_PIN::setDirection(true);
-    DEBUG_HOST_SLICE_PIN::setValue(false);
 }
 
 void runHostSlice() {
-    DEBUG_HOST_SLICE_PIN::setValue(true);
 
 	// still sending; wait until send is complete before reading new host packets.
     OutPacket& out = UART::getHostUART().out;
@@ -123,7 +120,6 @@ void runHostSlice() {
 	        }
         }
     }
-    DEBUG_HOST_SLICE_PIN::setValue(false);
 }
 
 /// Identify a command packet, and process it.  If the packet is a command

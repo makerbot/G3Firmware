@@ -106,15 +106,12 @@ Timeout homing_timeout;
 Timeout tool_wait_timeout;
 
 void reset() {
-    DEBUG_CMD_SLICE_PIN::setDirection(true);
-    DEBUG_CMD_SLICE_PIN::setValue(false);
 	command_buffer.reset();
 	mode = READY;
 }
 
 // A fast slice for processing commands and refilling the stepper queue, etc.
 void runCommandSlice() {
-    DEBUG_CMD_SLICE_PIN::setValue(true);
 	if (sdcard::isPlaying()) {
 		while (command_buffer.getRemainingCapacity() > 0 && sdcard::playbackHasNext()) {
 			command_buffer.push(sdcard::playbackNext());
@@ -418,6 +415,5 @@ void runCommandSlice() {
             }
 		}
 	}
-    DEBUG_CMD_SLICE_PIN::setValue(false);
 }
 }

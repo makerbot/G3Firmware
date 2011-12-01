@@ -142,9 +142,7 @@ void setToolIndicatorLED() {
 }
 
 bool reset() {
-    DEBUG_TOOL_SLICE_PIN::setDirection(true);
-    DEBUG_TOOL_SLICE_PIN::setValue(false);
-
+    
 	// This code is very lightly modified from handleToolQuery in Host.cc.
 	// We don't give up if we fail to get a lock; we force it instead.
 	Timeout acquire_lock_timeout;
@@ -245,7 +243,6 @@ static bool retryCommunication(){
 }
 
 void runToolSlice() {
-    DEBUG_TOOL_SLICE_PIN::setValue(true);
     UART& uart = UART::getSlaveUART();
 	if (transaction_active) {
 		if (uart.in.isFinished()) {
@@ -271,7 +268,6 @@ void runToolSlice() {
         {
         }
 	}
-    DEBUG_TOOL_SLICE_PIN::setValue(false);
 }
 
 void setCurrentToolheadIndex(uint8_t tool_index_in) {

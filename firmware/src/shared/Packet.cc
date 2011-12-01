@@ -104,7 +104,6 @@ void InPacket::processByte(uint8_t b) {
 */
            break;
         default:
-            //DEBUG_PACKET_PIN::setValue(true);
            break;
     }
 
