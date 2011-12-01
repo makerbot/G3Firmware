@@ -46,9 +46,8 @@ bool queryExtruderParameter(uint8_t parameter, uint16_t& value ) {
     // do this busy work after the transaction has started
 	InPacket& in = tool::getInPacket();
 
-    DEBUG_QUERY_TOOL_PIN::setValue(true);
     tool::waitForTransaction();
-    DEBUG_QUERY_TOOL_PIN::setValue(false);
+
 	if (in.getErrorCode() == PacketError::PACKET_TIMEOUT) {
 		return false;
 	} else {
