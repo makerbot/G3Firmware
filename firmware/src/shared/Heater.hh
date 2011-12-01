@@ -43,7 +43,7 @@ class Heater
                                         ///< be updated at.
     
     // TODO: Delete this.
-    int current_temperature;            ///< Last known temperature reading
+    int16_t current_temperature;            ///< Last known temperature reading
     uint16_t eeprom_base;               ///< Base address to read EEPROM configuration from
 
     PID pid;                            ///< PID controller instance
@@ -79,15 +79,15 @@ class Heater
     
     /// Get the current sensor temperature
     /// \return Current sensor temperature, in degrees Celcius
-    inline int get_current_temperature() { return sensor.getTemperature(); }
+    inline int16_t get_current_temperature() { return sensor.getTemperature(); }
 
     /// Get the setpoint temperature
     /// \return Setpoint temperature, in degrees Celcius
-    inline int get_set_temperature() { return pid.getTarget(); }
+    inline int16_t get_set_temperature() { return pid.getTarget(); }
 
     /// Set the target output temperature
     /// \param temp New target temperature, in degrees Celcius.
-    inline void set_target_temperature(int temp) { pid.setTarget(temp); }
+    inline void set_target_temperature(int16_t temp) { pid.setTarget(temp); }
 
     /// Check if the heater is within the specified band
     /// \return True if the heater temperature is within #TARGET_HYSTERESIS degrees
@@ -104,22 +104,22 @@ class Heater
 
     /// Change the setpoint temperature
     /// \param value New setpoint temperature, in degrees Celcius.
-    void set_output(uint8_t value) { element.setHeatingElement(value); }
+    inline void set_output(uint8_t value) { element.setHeatingElement(value); }
 
     /// Reset the heater to a to board-on state
     void reset();
 
     /// Get the current PID error term
     /// \return E term from the PID controller
-    inline int getPIDErrorTerm() { return pid.getErrorTerm(); }
+    inline int16_t getPIDErrorTerm() { return pid.getErrorTerm(); }
 
     /// Get the current PID delta term
     /// \return D term from the PID controller
-    inline int getPIDDeltaTerm() { return pid.getDeltaTerm(); }
+    inline int16_t getPIDDeltaTerm() { return pid.getDeltaTerm(); }
 
     /// Get the last PID output
     /// \return last output from the PID controller
-    inline int getPIDLastOutput() { return pid.getLastOutput(); }
+    inline int16_t getPIDLastOutput() { return pid.getLastOutput(); }
 };
 
 #endif // HEATER_H

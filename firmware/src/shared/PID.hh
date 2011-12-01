@@ -42,11 +42,11 @@ private:
     int16_t delta_history[DELTA_SAMPLES];
     float delta_summation;      ///< ?
     uint8_t delta_idx;          ///< Current index in the delta history buffer
-    int prev_error;             ///< Previous input for calculating next delta
-    int error_acc;              ///< Accumulated error, for calculating integral
+    int16_t prev_error;             ///< Previous input for calculating next delta
+    int16_t error_acc;              ///< Accumulated error, for calculating integral
 
-    int sp;                     ///< Process set point
-    int last_output;            ///< Last output of the PID controller
+    int16_t sp;                     ///< Process set point
+    int16_t last_output;            ///< Last output of the PID controller
 
 public:
     /// Initialize the PID module
@@ -70,7 +70,7 @@ public:
 
     /// Get the current PID target
     /// \return Current setpoint
-    int getTarget() const { return sp; }
+    int16_t getTarget() const { return sp; }
 
     /// Reset the PID to board-on values
     void reset();
@@ -81,19 +81,19 @@ public:
     /// Calculate the next cycle of the PID loop.
     /// \param[in] pv Process value (measured value from the sensor)
     /// \return output value (used to control the output)
-    int calculate(int pv);
+    int16_t calculate(int16_t pv);
 
     /// Get the current value of the error term
     /// \return Error term
-    int getErrorTerm();
+    inline int16_t getErrorTerm() { return error_acc; }
 
     /// Get the current value of the delta term
     /// \return Delta term
-    int getDeltaTerm();
+    inline int16_t getDeltaTerm() { return (int16_t)delta_summation; }
 
     /// Get the last process output value
     /// \return Last process output value
-    int getLastOutput();
+    inline int16_t getLastOutput() { return last_output; }
 };
 
 #endif /* PID_HH_ */

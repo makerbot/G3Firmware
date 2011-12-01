@@ -150,7 +150,7 @@ void Heater::manage_temperature()
 			set_output(255);
 		}
 		else {
-			int mv = pid.calculate(current_temperature);
+			int16_t mv = pid.calculate(current_temperature);
 			// offset value to compensate for heat bleed-off.
 			// There are probably more elegant ways to do this,
 			// but this works pretty well.
