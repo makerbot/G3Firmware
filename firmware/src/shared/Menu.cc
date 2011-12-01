@@ -21,8 +21,7 @@
 #define HOST_TOOL_RESPONSE_TIMEOUT_MICROS (1000L*HOST_TOOL_RESPONSE_TIMEOUT_MS)
 
 /// Send a query packet to the extruder
-bool queryExtruderParameter(uint8_t parameter, OutPacket& responsePacket) {
-
+bool queryExtruderParameter(uint8_t parameter, uint16_t& value ) {
 	Timeout acquire_lock_timeout;
 	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MS);
 	while (!tool::getLock()) {
@@ -30,10 +29,9 @@ bool queryExtruderParameter(uint8_t parameter, OutPacket& responsePacket) {
 			return false;
 		}
 	}
+
 	OutPacket& out = tool::getOutPacket();
-	InPacket& in = tool::getInPacket();
 	out.reset();
-	responsePacket.reset();
 
 	// Fill the query packet. The first byte is the toolhead index, and the
 	// second is the
@@ -44,25 +42,22 @@ bool queryExtruderParameter(uint8_t parameter, OutPacket& responsePacket) {
 	// to check for timeouts on this loop.
 	tool::startTransaction();
 	tool::releaseLock();
-	// WHILE: bounded by tool timeout in runToolSlice
-	while (!tool::isTransactionDone()) {
-		tool::runToolSlice();
-	}
+
+    // do this busy work after the transaction has started
+	InPacket& in = tool::getInPacket();
+
+    DEBUG_QUERY_TOOL_PIN::setValue(true);
+    tool::waitForTransaction();
+    DEBUG_QUERY_TOOL_PIN::setValue(false);
 	if (in.getErrorCode() == PacketError::PACKET_TIMEOUT) {
 		return false;
 	} else {
-		// Copy payload back. Start from 0-- we need the response code.
-		for (uint8_t i = 0; i < in.getLength(); i++) {
-			responsePacket.append8(in.read8(i));
-		}
+        value = in.read16(1);
+
+	    // Check that the extruder was able to process the request
+        return rcCompare(in.read8(0),RC_OK);
 	}
 
-	// Check that the extruder was able to process the request
-	if (!rcCompare(responsePacket.read8(0),RC_OK)) {
-		return false;
-	}
-
-	return true;
 }
 
 void SplashScreen::update(Display& display, bool forceRedraw) {
@@ -140,7 +135,9 @@ void JogMode::update(Display& display, bool forceRedraw) {
 }
 
 void JogMode::jog(ButtonArray::ButtonName direction) {
-	Point position = steppers::getPosition();
+
+    Point position;
+    steppers::getPosition(&position);
 
 	int32_t interval = 2000;
 	uint8_t steps;
@@ -366,50 +363,38 @@ void MonitorMode::update(Display& display, bool forceRedraw) {
 	}
 
 
-	OutPacket responsePacket;
-
+    bool success = false;
+    uint16_t data = 0;
 	// Redraw tool info
 	switch (updatePhase) {
 	case 0:
 		display.setCursor(6,2);
-		if (queryExtruderParameter(SLAVE_CMD_GET_TEMP, responsePacket)) {
-			uint16_t data = responsePacket.read16(1);
-			display.writeInt(data,3);
-		} else {
-			display.writeString("XXX");
-		}
+		success = queryExtruderParameter(SLAVE_CMD_GET_TEMP, data);
 		break;
 
 	case 1:
 		display.setCursor(10,2);
-		if (queryExtruderParameter(SLAVE_CMD_GET_SP, responsePacket)) {
-			uint16_t data = responsePacket.read16(1);
-			display.writeInt(data,3);
-		} else {
-			display.writeString("XXX");
-		}
+		success = queryExtruderParameter(SLAVE_CMD_GET_SP, data);
 		break;
 
 	case 2:
 		display.setCursor(6,3);
-		if (queryExtruderParameter(SLAVE_CMD_GET_PLATFORM_TEMP, responsePacket)) {
-			uint16_t data = responsePacket.read16(1);
-			display.writeInt(data,3);
-		} else {
-			display.writeString("XXX");
-		}
+		success = queryExtruderParameter(SLAVE_CMD_GET_PLATFORM_TEMP, data);
 		break;
 
 	case 3:
 		display.setCursor(10,3);
-		if (queryExtruderParameter(SLAVE_CMD_GET_PLATFORM_SP, responsePacket)) {
-			uint16_t data = responsePacket.read16(1);
-			display.writeInt(data,3);
-		} else {
-			display.writeString("XXX");
-		}
+		success = queryExtruderParameter(SLAVE_CMD_GET_PLATFORM_SP, data);
 		break;
 	}
+
+    if ( success )
+    {
+		display.writeInt(data,3);
+	} else {
+		display.writeString("XXX");
+	}
+
 
 	updatePhase++;
 	if (updatePhase > 3) {
