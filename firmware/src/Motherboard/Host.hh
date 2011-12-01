@@ -38,6 +38,8 @@ enum HostState {
         HOST_STATE_ERROR            = 3
 };
 
+void resetHost();
+
 /// Run the host slice. This function handles incoming packets and host resets.
 void runHostSlice();
 
@@ -53,7 +55,8 @@ char* getBuildName();
 /// state machine, which is used to determine what information should be
 /// displayed on the interface board.
 /// \return Current host state.
-HostState getHostState();
+extern HostState currentState;
+inline HostState getHostState() { return currentState; }
 
 /// Start a build from SD card. The build name should be set by overwriting
 /// the value of buildName, provided by #getBuildName().

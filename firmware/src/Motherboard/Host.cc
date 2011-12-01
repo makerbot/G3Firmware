@@ -59,63 +59,71 @@ HostState currentState;
 
 bool do_host_reset = true;
 
+void resetHost() {
+    DEBUG_HOST_SLICE_PIN::setDirection(true);
+    DEBUG_HOST_SLICE_PIN::setValue(false);
+}
+
 void runHostSlice() {
-        InPacket& in = UART::getHostUART().in;
-        OutPacket& out = UART::getHostUART().out;
-	if (out.isSending()) {
-		// still sending; wait until send is complete before reading new host packets.
-		return;
-	}
-	if (do_host_reset) {
-		do_host_reset = false;
-                // Then, reset local board
-		reset(false);
-		packet_in_timeout.abort();
+    DEBUG_HOST_SLICE_PIN::setValue(true);
 
-		// Clear the machine and build names
-		machineName[0] = 0;
-		buildName[0] = 0;
-		currentState = HOST_STATE_READY;
+	// still sending; wait until send is complete before reading new host packets.
+    OutPacket& out = UART::getHostUART().out;
+	if (!out.isSending()) {
+	    if (do_host_reset) {
+		    do_host_reset = false;
+                    // Then, reset local board
+		    reset(false);
+		    packet_in_timeout.abort();
 
-		return;
-	}
-	if (in.isStarted() && !in.isFinished()) {
-		if (!packet_in_timeout.isActive()) {
-			// initiate timeout
-			packet_in_timeout.start(HOST_PACKET_TIMEOUT_MICROS);
-		} else if (packet_in_timeout.hasElapsed()) {
-			in.timeout();
-		}
-	}
-	if (in.hasError()) {
-		// Reset packet quickly and start handling the next packet.
-		// Report error code.
-		if (in.getErrorCode() == PacketError::PACKET_TIMEOUT) {
-                        Motherboard::getBoard().indicateError(ERR_HOST_PACKET_TIMEOUT);
-		} else {
-                        Motherboard::getBoard().indicateError(ERR_HOST_PACKET_MISC);
-		}
-		in.reset();
-	}
-	if (in.isFinished()) {
-		packet_in_timeout.abort();
-		out.reset();
-#if defined(HONOR_DEBUG_PACKETS) && (HONOR_DEBUG_PACKETS == 1)
-		if (processDebugPacket(in, out)) {
-			// okay, processed
-		} else
-#endif
-		if (processCommandPacket(in, out)) {
-			// okay, processed
-		} else if (processQueryPacket(in, out)) {
-			// okay, processed
-		} else {
-			// Unrecognized command
-			out.append8(RC_CMD_UNSUPPORTED);
-		}
-		in.reset();
+		    // Clear the machine and build names
+		    machineName[0] = 0;
+		    buildName[0] = 0;
+		    currentState = HOST_STATE_READY;
+	    }
+        else
+        {
+            InPacket& in = UART::getHostUART().in;
+	        if (in.isStarted() && !in.isFinished()) {
+		        if (!packet_in_timeout.isActive()) {
+			        // initiate timeout
+			        packet_in_timeout.start(HOST_PACKET_TIMEOUT_MICROS);
+		        } else if (packet_in_timeout.hasElapsed()) {
+			        in.timeout();
+		        }
+	        }
+	        if (in.hasError()) {
+		        // Reset packet quickly and start handling the next packet.
+		        // Report error code.
+		        if (in.getErrorCode() == PacketError::PACKET_TIMEOUT) {
+                    Motherboard::getBoard().indicateError(ERR_HOST_PACKET_TIMEOUT);
+		        } else {
+                    Motherboard::getBoard().indicateError(ERR_HOST_PACKET_MISC);
+		        }
+		        in.reset();
+	        }
+	        if (in.isFinished()) {
+		        packet_in_timeout.abort();
+		        out.reset();
+        #if defined(HONOR_DEBUG_PACKETS) && (HONOR_DEBUG_PACKETS == 1)
+		        if (processDebugPacket(in, out)) {
+			        // okay, processed
+		        } else
+        #endif
+		        if (processCommandPacket(in, out)) {
+			        // okay, processed
+		        } else if (processQueryPacket(in, out)) {
+			        // okay, processed
+		        } else {
+			        // Unrecognized command
+			        out.append8(RC_CMD_UNSUPPORTED);
+		        }
+		        in.reset();
                 UART::getHostUART().beginSend();
-	}
+	        }
+        }
+    }
+    DEBUG_HOST_SLICE_PIN::setValue(false);
 }
 
 /// Identify a command packet, and process it.  If the packet is a command
@@ -196,28 +204,41 @@ inline void handleGetBufferSize(const InPacket& from_host, OutPacket& to_host) {
 }
 
 inline void handleGetPosition(const InPacket& from_host, OutPacket& to_host) {
-	ATOMIC_BLOCK(ATOMIC_FORCEON) {
-		const Point p = steppers::getPosition();
+	//ATOMIC_BLOCK(ATOMIC_FORCEON) 
+    {
+		Motherboard& board = Motherboard::getBoard();
+		// From spec:
+		// endstop status bits: (7-0) : | N/A | N/A | z max | z min | y max | y min | x max | x min |
+		uint8_t endstop_status = 0;
+		for (int i = 2; i >= 0; i--) {
+			const StepperInterface* si = board.getStepperInterface(i);
+			endstop_status <<= 2;
+			endstop_status |= (si->isAtMaximum()?2:0) | (si->isAtMinimum()?1:0);
+		}
+		Point p;
+        steppers::getPosition(&p);
 		to_host.append8(RC_OK);
 		to_host.append32(p[0]);
 		to_host.append32(p[1]);
 		to_host.append32(p[2]);
-		// From spec:
-		// endstop status bits: (7-0) : | N/A | N/A | z max | z min | y max | y min | x max | x min |
-		Motherboard& board = Motherboard::getBoard();
-		uint8_t endstop_status = 0;
-		for (int i = 3; i > 0; i--) {
-			const StepperInterface* si = board.getStepperInterface(i-1);
-			endstop_status <<= 2;
-			endstop_status |= (si->isAtMaximum()?2:0) | (si->isAtMinimum()?1:0);
-		}
 		to_host.append8(endstop_status);
 	}
 }
 
 inline void handleGetPositionExt(const InPacket& from_host, OutPacket& to_host) {
-	ATOMIC_BLOCK(ATOMIC_FORCEON) {
-		const Point p = steppers::getPosition();
+	//ATOMIC_BLOCK(ATOMIC_FORCEON) 
+    {
+		// From spec:
+		// endstop status bits: (15-0) : | b max | b min | a max | a min | z max | z min | y max | y min | x max | x min |
+		Motherboard& board = Motherboard::getBoard();
+		uint8_t endstop_status = 0;
+		for (int i = STEPPER_COUNT-1; i >= 0; i--) {
+			const StepperInterface* si = board.getStepperInterface(i);
+			endstop_status <<= 2;
+			endstop_status |= (si->isAtMaximum()?2:0) | (si->isAtMinimum()?1:0);
+		}
+		Point p;
+        steppers::getPosition(&p);
 		to_host.append8(RC_OK);
 		to_host.append32(p[0]);
 		to_host.append32(p[1]);
@@ -229,15 +250,35 @@ inline void handleGetPositionExt(const InPacket& from_host, OutPacket& to_host) 
 		to_host.append32(0);
 		to_host.append32(0);
 #endif
+		to_host.append16(endstop_status);
+	}
+}
+
+inline void handleGetPosition16(const InPacket& from_host, OutPacket& to_host) {
+	//ATOMIC_BLOCK(ATOMIC_FORCEON) 
+    {
 		// From spec:
 		// endstop status bits: (15-0) : | b max | b min | a max | a min | z max | z min | y max | y min | x max | x min |
 		Motherboard& board = Motherboard::getBoard();
 		uint8_t endstop_status = 0;
-		for (int i = STEPPER_COUNT; i > 0; i--) {
-			const StepperInterface* si = board.getStepperInterface(i-1);
+		for (int i = STEPPER_COUNT-1; i >= 0; i--) {
+			const StepperInterface* si = board.getStepperInterface(i);
 			endstop_status <<= 2;
 			endstop_status |= (si->isAtMaximum()?2:0) | (si->isAtMinimum()?1:0);
 		}
+		Point p;
+        steppers::getPosition(&p);
+		to_host.append8(RC_OK);
+		to_host.append16(p[0]);
+		to_host.append16(p[1]);
+		to_host.append16(p[2]);
+#if STEPPER_COUNT > 3
+		to_host.append16(p[3]);
+		to_host.append16(p[4]);
+#else
+		to_host.append16(0);
+		to_host.append16(0);
+#endif
 		to_host.append16(endstop_status);
 	}
 }
@@ -310,10 +351,7 @@ void doToolPause(OutPacket& to_host) {
 	// to check for timeouts on this loop.
 	tool::startTransaction();
 	tool::releaseLock();
-	// WHILE: bounded by tool timeout in runToolSlice
-	while (!tool::isTransactionDone()) {
-		tool::runToolSlice();
-	}
+    tool::waitForTransaction();
 	if (in.getErrorCode() == PacketError::PACKET_TIMEOUT) {
 		to_host.append8(RC_DOWNSTREAM_TIMEOUT);
 	} else {
@@ -351,10 +389,7 @@ inline void handleToolQuery(const InPacket& from_host, OutPacket& to_host) {
 	// to check for timeouts on this loop.
 	tool::startTransaction();
 	tool::releaseLock();
-	// WHILE: bounded by tool timeout in runToolSlice
-	while (!tool::isTransactionDone()) {
-		tool::runToolSlice();
-	}
+    tool::waitForTransaction();
 	if (in.getErrorCode() == PacketError::PACKET_TIMEOUT) {
 		to_host.append8(RC_DOWNSTREAM_TIMEOUT);
 	} else {
@@ -477,11 +512,16 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			case HOST_CMD_GET_BUFFER_SIZE:
 				handleGetBufferSize(from_host,to_host);
 				return true;
+/*
 			case HOST_CMD_GET_POSITION:
 				handleGetPosition(from_host,to_host);
 				return true;
 			case HOST_CMD_GET_POSITION_EXT:
 				handleGetPositionExt(from_host,to_host);
+				return true;
+*/
+			case HOST_CMD_GET_POSITION_16:
+				handleGetPosition16(from_host,to_host);
 				return true;
 			case HOST_CMD_CAPTURE_TO_FILE:
 				handleCaptureToFile(from_host,to_host);
@@ -553,10 +593,6 @@ char* getMachineName() {
 
 char* getBuildName() {
 	return buildName;
-}
-
-HostState getHostState() {
-	return currentState;
 }
 
 sdcard::SdErrorCode startBuildFromSD() {
