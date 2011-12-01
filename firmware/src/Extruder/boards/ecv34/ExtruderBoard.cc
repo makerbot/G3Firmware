@@ -153,27 +153,25 @@ void ExtruderBoard::reset(uint8_t resetFlags) {
 }
 
 void ExtruderBoard::runExtruderSlice() {
-        motor_controller.update();
+    motor_controller.update();
 
-        extruder_heater.manage_temperature();
-
-        if(isUsingPlatform()) {
-               platform_heater.manage_temperature();
-        }
-
-        coolingFan.manageCoolingFan();
+    static uint8_t manage = 0;
+    manage++;
+    switch(manage%3)
+    {
+        case 0:         
+            extruder_heater.manage_temperature();
+            break;
+        case 1:
+            if(isUsingPlatform()) {
+                platform_heater.manage_temperature();
+            }
+            break;
+        case 2:
+            coolingFan.manageCoolingFan();
+            break;
+    }
 }
-
-int ExtruderBoard::get_current_temperature()
-{
-    return extruder_heater.get_current_temperature();
-}
-
-void ExtruderBoard::set_target_temperature(int temp )
-{
-    return extruder_heater.set_target_temperature(temp);
-}
-
 
 void ExtruderBoard::setMotorSpeed(int16_t speed) {
 	// Since the motor and regulated cooling fan share an output, only one can be enabled at a time.
@@ -237,17 +235,8 @@ void ExtruderBoard::doInterrupt() {
 	}
 }
 
-//runs the AutoBuildPlatform (connected to 'Extra' screw terms on ECv3.x )
-void ExtruderBoard::setAutomatedBuildPlatformRunning(bool state)
-{
-	CHANNEL_A::setValue(state);
-}
 
 //runs the Extruder Cooling Fan (connected to 'A1/B1' screw term on ECv3.x)
-void ExtruderBoard::setFanRunning(bool state) {
-	//CHANNEL_A.setValue(on);
-	MOTOR_ENABLE_PIN::setValue(state);
-}
 
 void ExtruderBoard::setValve(bool on) {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
@@ -262,13 +251,6 @@ void ExtruderBoard::indicateError(int errorCode) {
 	//DEBUG_LED.setValue(errorCode != 0);
 }
 
-void ExtruderBoard::lightIndicatorLED() {
-    MOTOR_DIR_PIN::setValue(true);
-}
-
-void ExtruderBoard::setUsingPlatform(bool is_using) {
-	using_platform = is_using;
-}
 
 /// Timer two comparator A match interrupt
 ISR(TIMER2_COMPA_vect) {

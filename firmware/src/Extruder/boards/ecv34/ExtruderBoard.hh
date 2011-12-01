@@ -88,11 +88,11 @@ public:
 	// reset.
 	uint8_t getResetFlags();
 
-	int get_current_temperature();
-	void set_target_temperature(int);
+    inline int get_current_temperature() { return extruder_heater.get_current_temperature(); }
+    inline void set_target_temperature(int temp) { return extruder_heater.set_target_temperature(temp); }
 
-	Heater& getExtruderHeater() { return extruder_heater; }
-	Heater& getPlatformHeater() { return platform_heater; }
+	inline Heater& getExtruderHeater() { return extruder_heater; }
+	inline Heater& getPlatformHeater() { return platform_heater; }
 
 	MotorController& getMotorController() { return motor_controller; }
 
@@ -100,14 +100,19 @@ public:
 	void setMotorSpeedRPM(uint32_t speed, bool direction) {} // Unsupported on 3.4
 
 	/// Enable/Disable the extruder cooling fan
-	void setFanRunning(bool state);
+    //runs the Extruder Cooling Fan (connected to 'A1/B1' screw term on ECv3.x)
+	inline void setFanRunning(bool state) {
+    	//CHANNEL_A.setValue(on);
+	    MOTOR_ENABLE_PIN::setValue(state);
+    }
 
 	/// Enable/Disable the automatic build platform motor
-	void setAutomatedBuildPlatformRunning(bool state);
+    //runs the AutoBuildPlatform (connected to 'Extra' screw terms on ECv3.x )
+    inline void setAutomatedBuildPlatformRunning(bool state) { CHANNEL_A::setValue(state); }
 
 
 	void setValve(bool on);
-	UART& getHostUART() { return UART::getHostUART(); }
+	inline UART& getHostUART() { return UART::getHostUART(); }
 
 	/// Get the number of microseconds that have passed since
 	/// the board was initialized.  This value will wrap after
@@ -118,10 +123,10 @@ public:
 	/// Indicate an error by manipulating the debug LED.
 	void indicateError(int errorCode);
 
-	void lightIndicatorLED();
+    inline void lightIndicatorLED() { MOTOR_DIR_PIN::setValue(true); }
 
 	bool isUsingPlatform() { return using_platform; }
-	void setUsingPlatform(bool is_using);
+    inline void setUsingPlatform(bool is_using) { using_platform = is_using; }
 
 	// Index 0 = ServoA, Index 1 = ServoB.  Value = -1 to turn off, 0-180 to set position.
 	void setServo(uint8_t index, int value);
