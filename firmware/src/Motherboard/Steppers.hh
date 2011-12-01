@@ -83,7 +83,8 @@ namespace steppers {
 
     /// Get the current system position
     /// \return The current machine position.
-    const Point getPosition();
+//    const Point getPosition();
+    const void getPosition(Point* point);
 
     /// Control whether the Z axis should stay enabled during the entire
     /// build (defaults to off). This is useful for machines that have
@@ -92,6 +93,8 @@ namespace steppers {
     ///                  through the entire build. If false, it will be
     ///                  disabled when not moving.
     void setHoldZ(bool holdZ);
+
+
 };
 
 #endif // STEPPERS_HH_

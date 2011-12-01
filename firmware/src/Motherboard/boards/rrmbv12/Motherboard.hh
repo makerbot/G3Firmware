@@ -55,7 +55,7 @@ public:
 	const int getStepperCount() const { return STEPPERS; }
 
         /// Get the stepper interface for the nth stepper.
-	StepperInterface& getStepperInterface(int n)
+	inline const StepperInterface* getStepperInterface(int n)
 	{
 		return stepper[n];
 	}
@@ -63,7 +63,7 @@ public:
 	/// Get the number of microseconds that have passed since
 	/// the board was initialized.  This value will wrap after
 	/// 2**16 microseconds; callers should compensate for this.
-	micros_t getCurrentMicros();
+    inline micros_t getCurrentMicros() { ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {return micros;} }
 
 	/// Write an error code to the debug pin.
 	void indicateError(int errorCode);

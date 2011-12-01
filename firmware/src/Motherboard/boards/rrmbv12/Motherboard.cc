@@ -80,6 +80,7 @@ Motherboard::Motherboard(const Pin& psu_pin) :
 /// This only resets the board, and does not send a reset
 /// to any attached toolheads.
 void Motherboard::reset() {
+
 	indicateError(0); // turn off blinker
 
 	// Init and turn on power supply
@@ -101,21 +102,22 @@ void Motherboard::reset() {
 	for (int i = 0; i < STEPPER_COUNT; i++) {
 		stepper[i].init(i);
 	}
+
 	// Initialize the host and slave UARTs
-        UART::getHostUART().enable(true);
-        UART::getHostUART().in.reset();
+    UART::getHostUART().enable(true);
+    UART::getHostUART().in.reset();
 
-        // TODO: These aren't done on other platforms, are they necessary?
-        UART::getHostUART().reset();
-        UART::getHostUART().out.reset();
+    // TODO: These aren't done on other platforms, are they necessary?
+    UART::getHostUART().reset();
+    UART::getHostUART().out.reset();
 
 
-        UART::getSlaveUART().enable(true);
-        UART::getSlaveUART().in.reset();
+    UART::getSlaveUART().enable(true);
+    UART::getSlaveUART().in.reset();
 
-        // TODO: These aren't done on other platforms, are they necessary?
-        UART::getSlaveUART().reset();
-        UART::getSlaveUART().out.reset();
+    // TODO: These aren't done on other platforms, are they necessary?
+    UART::getSlaveUART().reset();
+    UART::getSlaveUART().out.reset();
 
 
 	// Reset and configure timer 1, the microsecond and stepper
@@ -131,16 +133,6 @@ void Motherboard::reset() {
 	TIMSK2 = 0x01; // OVF flag on
 	// Configure the debug pin.
 	DEBUG_PIN.setDirection(true);
-}
-
-/// Get the number of microseconds that have passed since
-/// the board was booted.
-micros_t Motherboard::getCurrentMicros() {
-	micros_t micros_snapshot;
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-		micros_snapshot = micros;
-	}
-	return micros_snapshot;
 }
 
 void Motherboard::runMotherboardSlice() {

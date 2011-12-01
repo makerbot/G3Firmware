@@ -62,14 +62,6 @@ void InterfaceBoard::init() {
         pushScreen(mainScreen);
 }
 
-void InterfaceBoard::doInterrupt() {
-	buttons.scanButtons();
-}
-
-micros_t InterfaceBoard::getUpdateRate() {
-	return screenStack[screenIndex]->getUpdateRate();
-}
-
 void InterfaceBoard::doUpdate() {
 
 	// If we are building, make sure we show a build menu; otherwise,
@@ -91,13 +83,14 @@ void InterfaceBoard::doUpdate() {
 	}
 
 
+#if HAS_INTERFACE_BUTTONS > 0
     static ButtonArray::ButtonName button;
 
 
 	if (buttons.getButton(button)) {
 		screenStack[screenIndex]->notifyButtonPressed(button);
 	}
-
+#endif
 	screenStack[screenIndex]->update(display, false);
 }
 

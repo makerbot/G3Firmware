@@ -36,12 +36,13 @@ private:
         bool active;                    ///< True if the timeout object is actively counting down.
         bool elapsed;                   ///< True if the timeout object has elapsed.
 
-        //TODO: Instead of storing start and duration, precompute and store the elapse time.
+    //TODO: Instead of storing start and duration, precompute and store the elapse time.
 	micros_t start_stamp_micros;
 	micros_t duration_micros;
 public:
         /// Instantiate a new timeout object.
-	Timeout();
+    Timeout() : active(false), elapsed(false) {}
+
 
         /// Start a new timeout cycle that will elapse after the given amount of time.
         /// \param [in] duration_micros Microseconds until the timeout cycle should elapse.

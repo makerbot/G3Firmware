@@ -46,27 +46,6 @@ void init(InterfaceBoard* board_in) {
     board = board_in;
 }
 
-void pushScreen(Screen* newScreen) {
-        board->pushScreen(newScreen);
-}
-
-void popScreen() {
-        board->popScreen();
-}
-
-void doInterrupt() {
-        board->doInterrupt();
-}
-
-micros_t getUpdateRate() {
-        return board->getUpdateRate();
-}
-
-void doUpdate() {
-        board->doUpdate();
-}
-
-
 }
 
 #endif // HAS_INTERFACE_BOARD > 0

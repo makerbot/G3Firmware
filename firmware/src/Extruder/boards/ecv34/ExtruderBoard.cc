@@ -139,6 +139,10 @@ void ExtruderBoard::reset(uint8_t resetFlags) {
 	getHostUART().enable(true);
 	getHostUART().in.reset();
 
+	MOTOR_DIR_PIN::setDirection(true);
+	MOTOR_DIR_PIN::setValue(true);
+	MOTOR_ENABLE_PIN::setDirection(true);
+
 	coolingFan.reset();
 
 	//        flashIndicatorLED();
@@ -204,14 +208,6 @@ void ExtruderBoard::setServo(uint8_t index, int value) {
 	}
 }
 
-micros_t ExtruderBoard::getCurrentMicros() {
-	micros_t micros_snapshot;
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-		micros_snapshot = micros;
-	}
-	return micros_snapshot;
-}
-
 /// Run the extruder board interrupt
 void ExtruderBoard::doInterrupt() {
 	static micros_t servo_counter = 0;
@@ -250,9 +246,6 @@ void ExtruderBoard::setAutomatedBuildPlatformRunning(bool state)
 //runs the Extruder Cooling Fan (connected to 'A1/B1' screw term on ECv3.x)
 void ExtruderBoard::setFanRunning(bool state) {
 	//CHANNEL_A.setValue(on);
-	MOTOR_DIR_PIN::setDirection(true);
-	MOTOR_DIR_PIN::setValue(true);
-	MOTOR_ENABLE_PIN::setDirection(true);
 	MOTOR_ENABLE_PIN::setValue(state);
 }
 

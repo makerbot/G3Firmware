@@ -83,11 +83,6 @@ void Heater::reset() {
 	next_sense_timeout.start(sample_interval_micros);
 }
 
-void Heater::set_target_temperature(int temp)
-{
-	pid.setTarget(temp);
-}
-
 // We now define target hysteresis in absolute degrees.  The original
 // implementation (+/-5%) was giving us swings of 10% in either direction
 // *before* any artifacts of process instability came in.
@@ -97,27 +92,6 @@ bool Heater::has_reached_target_temperature()
 {
 	return (current_temperature >= (pid.getTarget() - TARGET_HYSTERESIS)) &&
 			(current_temperature <= (pid.getTarget() + TARGET_HYSTERESIS));
-}
-
-int Heater::get_set_temperature() {
-	return pid.getTarget();
-}
-
-int Heater::get_current_temperature()
-{
-	return sensor.getTemperature();
-}
-
-int Heater::getPIDErrorTerm() {
-	return pid.getErrorTerm();
-}
-
-int Heater::getPIDDeltaTerm() {
-	return pid.getDeltaTerm();
-}
-
-int Heater::getPIDLastOutput() {
-	return pid.getLastOutput();
 }
 
 void Heater::manage_temperature()
@@ -190,18 +164,9 @@ void Heater::manage_temperature()
 	}
 }
 
-void Heater::set_output(uint8_t value)
-{
-	element.setHeatingElement(value);
-}
-
 void Heater::fail()
 {
 	fail_state = true;
 	set_output(0);
 }
 
-bool Heater::has_failed()
-{
-	return fail_state;
-}

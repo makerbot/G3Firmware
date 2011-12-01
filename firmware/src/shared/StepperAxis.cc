@@ -10,9 +10,9 @@ StepperAxis::StepperAxis(const StepperInterface* stepper_interface) :
         reset();
 }
 
-void StepperAxis::setTarget(const int32_t target_in,
+int32_t StepperAxis::setTarget(const int32_t target,
                             bool relative) {
-        target = target_in;
+    ATOMIC_BLOCK(ATOMIC_FORCEON){
         if (relative) {
                 delta = target;
         } else {
@@ -26,27 +26,18 @@ void StepperAxis::setTarget(const int32_t target_in,
                 delta = -delta;
                 direction = false;
         }
+        return delta;
+    }
 }
 
 void StepperAxis::setHoming(const bool direction_in) {
-        direction = direction_in;
-        interface->setEnabled(true);
-        delta = 1;
-}
-
-void StepperAxis::definePosition(const int32_t position_in) {
-        position = position_in;
-}
-
-void StepperAxis::enableStepper(bool enable) {
-        interface->setEnabled(enable);
+    direction = direction_in;
+    interface->setEnabled(true);
+    delta = 1;
 }
 
 void StepperAxis::reset() {
         position = 0;
-        minimum = 0;
-        maximum = 0;
-        target = 0;
         counter = 0;
         delta = 0;
 #if defined(SINGLE_SWITCH_ENDSTOPS) && (SINGLE_SWITCH_ENDSTOPS == 1)

@@ -72,7 +72,7 @@ public:
 
         /// This should be called periodically by a high-speed interrupt to
         /// service the button input pad.
-	void doInterrupt();
+	inline void doInterrupt() { buttons.scanButtons(); }
 
         /// Add a new screen to the stack. This automatically calls reset()
         /// and then update() on the screen, to ensure that it displays
@@ -85,7 +85,7 @@ public:
         /// being displayed, then this function does nothing.
 	void popScreen();
 
-	micros_t getUpdateRate();
+    inline micros_t getUpdateRate() const { return screenStack[screenIndex]->getUpdateRate(); }
 
 	void doUpdate();
 

@@ -112,7 +112,7 @@ public:
 	/// Get the number of microseconds that have passed since
 	/// the board was initialized.  This value will wrap after
 	/// 2**16 microseconds; callers should compensate for this.
-	micros_t getCurrentMicros();
+    inline micros_t getCurrentMicros() { ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {return micros;} }
 	/// Perform the timer interrupt routine.
 	void doInterrupt();
 	/// Indicate an error by manipulating the debug LED.

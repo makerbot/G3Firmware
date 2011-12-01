@@ -209,14 +209,6 @@ void ExtruderBoard::setMotorSpeedRPM(uint32_t speed, bool direction) {
 	setExtruderMotorRPM(speed, direction);
 }
 
-micros_t ExtruderBoard::getCurrentMicros() {
-	micros_t micros_snapshot;
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-		micros_snapshot = micros;
-	}
-	return micros_snapshot;
-}
-
 // ms between servo updates; conservative to avoid 7805 overheating
 #define SERVO_CYCLE_LENGTH 8
 volatile uint8_t servo_cycle = 0;

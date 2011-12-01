@@ -26,6 +26,8 @@
 // TODO: This style interface is weird; find a way to replace it.
 namespace interface {
 
+extern InterfaceBoard* board;
+
 /// Set the current interface board and lcd. This *must* be called before using
 /// any of the functions in this interface.
 void init(InterfaceBoard* board_in);
@@ -35,23 +37,23 @@ bool isConnected();
 
 /// Display a new screen by pushing it to the screen stack.
 /// \param[in] newScreen Screen to be added to the stack.
-void pushScreen(Screen* newScreen);
+inline void pushScreen(Screen* newScreen) { board->pushScreen(newScreen); }
 
 /// Remove the top screen from the screen stack. If there is only one screen left,
 /// it will not be removed.
-void popScreen();
+inline void popScreen() { board->popScreen(); }
 
 
 /// Screen update interrupt. This scans the keypad to look for any changes. To
 /// ensure a consistant user response, it should be called from a medium frequency
 /// interrupt.
-void doInterrupt();
+inline void doInterrupt() { board->doInterrupt(); }
 
 /// Update the display. This function is where the current display screen
 /// should handle button presses, redraw it's screen, etc. It is run from the
 /// motherboard slice, not an interrupt, because it may take a relatively long
 /// time to run.
-void doUpdate();
+inline void doUpdate() { board->doUpdate();}
 
 /// Returns the minimum amount of time that should elapse before the current
 /// display screen is updated again. This is customizable to allow for both
@@ -59,7 +61,8 @@ void doUpdate();
 /// the machine is not printing, as well as slow-updating screens (monitor
 /// mode) that can be displayed while the machine is running, without causing
 /// much impact.
-micros_t getUpdateRate();
+inline micros_t getUpdateRate() { return board->getUpdateRate();}
+
 
 }
 

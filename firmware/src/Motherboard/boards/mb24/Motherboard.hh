@@ -42,6 +42,7 @@ public:
 
 private:
 #if STEPPER_COUNT > 0
+
 	static StepperTmpltEndstops<0, X_DIR_PIN,X_STEP_PIN,X_ENABLE_PIN,X_MAX_PIN,X_MIN_PIN> stepperX;
 #endif
 #if STEPPER_COUNT > 1
@@ -93,7 +94,7 @@ public:
 	/// Count the number of steppers available on this board.
         const int getStepperCount() const { return STEPPER_COUNT; }
 	/// Get the stepper interface for the nth stepper.
-	const StepperInterface* getStepperInterface(int n)
+	inline const StepperInterface* getStepperInterface(int n)
 	{
 		return stepper[n];
 	}
@@ -101,7 +102,7 @@ public:
 	/// Get the number of microseconds that have passed since
 	/// the board was initialized.  This value will wrap after
 	/// 2**32 microseconds (ca. 70 minutes); callers should compensate for this.
-	micros_t getCurrentMicros();
+    inline micros_t getCurrentMicros() { ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {return micros;} }
 
 	/// Write an error code to the debug pin.
 	void indicateError(int errorCode);

@@ -89,6 +89,12 @@ const StepperInterface* Motherboard::stepper[STEPPER_COUNT] =
 /// This only resets the board, and does not send a reset
 /// to any attached toolheads.
 void Motherboard::reset() {
+	// Configure the debug pin.
+	DEBUG_PIN::setDirection(true);
+
+    DEBUG_MOTHERBOARD_SLICE_PIN::setDirection(true);
+    DEBUG_MOTHERBOARD_SLICE_PIN::setValue(false);
+
 	indicateError(0); // turn off blinker
 
 	// Init steppers
@@ -135,8 +141,6 @@ void Motherboard::reset() {
 	TCCR2A = 0x00;
 	TCCR2B = 0x07; // prescaler at 1/1024
 	TIMSK2 = 0x01; // OVF flag on
-	// Configure the debug pin.
-	DEBUG_PIN::setDirection(true);
 }
 
 void Motherboard::initInterfaceBoard() {
@@ -158,19 +162,11 @@ void Motherboard::initInterfaceBoard() {
 #endif // HAS_INTERFACE_BOARD > 0
 }
 
-/// Get the number of microseconds that have passed since
-/// the board was booted.
-micros_t Motherboard::getCurrentMicros() {
-	micros_t micros_snapshot;
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-		micros_snapshot = micros;
-	}
-	return micros_snapshot;
-}
-
 
 /// Run the motherboard interrupt
 void Motherboard::doInterrupt() {
+
+	micros += INTERVAL_IN_MICROSECONDS;
 
 #if HAS_INTERFACE_BOARD > 0
 	if (hasInterfaceBoard) {
@@ -178,13 +174,14 @@ void Motherboard::doInterrupt() {
 	}
 #endif // HAS_INTERFACE_BOARD > 0
 
-	micros += INTERVAL_IN_MICROSECONDS;
-	// Do not move steppers if the board is in a paused state
+    // Do not move steppers if the board is in a paused state
 	if (command::isPaused()) return;
-	steppers::doInterrupt();
+    	steppers::doInterrupt();
+
 }
 
 void Motherboard::runMotherboardSlice() {
+    DEBUG_MOTHERBOARD_SLICE_PIN::setValue(true);
 
 #if HAS_INTERFACE_BOARD > 0
 	if (hasInterfaceBoard) {
@@ -194,6 +191,8 @@ void Motherboard::runMotherboardSlice() {
 		}
 	}
 #endif
+
+    DEBUG_MOTHERBOARD_SLICE_PIN::setValue(false);
 }
 
 

@@ -62,7 +62,9 @@ public:
     // and http://code.google.com/p/digitalwritefast/
 
     static  inline void setDirection(bool output, bool externalAtomicBlock = false) 
-        { 
+    { 
+        if (port_base != 0)
+        {
             if( (port_base < 0x40) || externalAtomicBlock )
             {
                 output ? DDRx |= _BV(pin_index) :  DDRx &= ~_BV(pin_index); 
@@ -75,8 +77,12 @@ public:
                 }
             }
         }
+    }
+
 	static inline void setValue(bool on, bool externalAtomicBlock = false) 
-        { 
+    { 
+        if (port_base != 0)
+        {
             if( (port_base < 0x40) || externalAtomicBlock )
             {
                 on ? PORTx |= _BV(pin_index) :  PORTx &= ~_BV(pin_index);
@@ -89,13 +95,25 @@ public:
                 }
             }
         }
+    }
 
-	static inline bool getValue()  { return !!(PINx & _BV(pin_index)); }
+	static inline bool getValue()  
+    { 
+        if (port_base != 0)
+        {
+            return !!(PINx & _BV(pin_index)); 
+        }
+        else
+        {
+            return 0;
+        }
+    }
 
 };
 
 #define Pin(port_id,pin_id) PinTmplt<port_id,pin_id>
 
+#define NULL_PIN PinTmplt<0,0>
 
 #if defined(__AVR_ATmega644P__) || \
 	defined(__AVR_ATmega1280__) || \
