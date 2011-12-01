@@ -31,6 +31,7 @@
 #include "ExtruderBoard.hh"
 #endif
 
+#define RS485_TRANSMISSION_LINE_DELAY_US 1
 // We have to track the number of bytes that have been sent, so that we can filter
 // them from our receive buffer later.This is only used for RS485 mode.
 volatile uint8_t loopback_bytes = 0;
@@ -45,9 +46,11 @@ volatile uint8_t loopback_bytes = 0;
     #error UART not implemented on this processor type!
 #endif
 
+#define UCSRA_VALUE(uart_) _BV(U2X##uart_) // baud rate doubling
+
 #if defined (__AVR_ATmega168__) || defined (__AVR_ATmega328__)
 
-    #define UBRR_VALUE 25
+    #define UBRR_VALUE 16
     #define UCSR0A_VALUE 0
 
     #define INIT_SERIAL(uart_) \
@@ -56,14 +59,14 @@ volatile uint8_t loopback_bytes = 0;
         UBRR0L = UBRR_VALUE & 0xff; \
         \
         /* set config for uart, explicitly clear TX interrupt flag */ \
-        UCSR0A = UCSR0A_VALUE | _BV(TXC0); \
+        UCSR0A = UCSRA_VALUE(uart_) | _BV(TXC0); \
         UCSR0B = _BV(RXEN0) | _BV(TXEN0); \
         UCSR0C = _BV(UCSZ01)|_BV(UCSZ00); \
     }
 
 #elif defined (__AVR_ATmega644P__)
 
-    #define UBRR_VALUE 25
+    #define UBRR_VALUE 16
     #define UBRRA_VALUE 0
 
     // Adapted from ancient arduino/wiring rabbit hole
@@ -73,7 +76,7 @@ volatile uint8_t loopback_bytes = 0;
         UBRR##uart_##L = UBRR_VALUE & 0xff; \
         \
         /* set config for uart_ */ \
-        UCSR##uart_##A = UBRRA_VALUE; \
+        UCSR##uart_##A = UCSRA_VALUE(uart_); \
         UCSR##uart_##B = _BV(RXEN##uart_) | _BV(TXEN##uart_); \
         UCSR##uart_##C = _BV(UCSZ##uart_##1)|_BV(UCSZ##uart_##0); \
     }
@@ -82,8 +85,7 @@ volatile uint8_t loopback_bytes = 0;
 
     // Use double-speed mode for more accurate baud rate?
     #define UBRR0_VALUE 16 // 115200 baud
-    #define UBRR1_VALUE 51 // 38400 baud
-    #define UCSRA_VALUE(uart_) _BV(U2X##uart_)
+    #define UBRR1_VALUE 16 // 115200 baud
 
     // Adapted from ancient arduino/wiring rabbit hole
     #define INIT_SERIAL(uart_) \
@@ -138,7 +140,7 @@ void UART::init_serial() {
 #endif
 }
 
-void UART::send_byte(char data) {
+inline void UART::send_byte(char data) {
     if(index_ == 0) {
         UDR0 = data;
     }
@@ -175,7 +177,7 @@ void UART::beginSend() {
 
         if (mode_ == RS485) {
                 speak();
-                _delay_us(10);
+                _delay_us(RS485_TRANSMISSION_LINE_DELAY_US);
                 loopback_bytes = 1;
         }
 
@@ -283,7 +285,7 @@ void UART::reset() {
                         loopback_bytes++;
                         UDR1 = UART::getSlaveUART().out.getNextByteToSend();
                 } else {
-                        _delay_us(10);
+                        //_delay_us(RS485_TRANSMISSION_LINE_DELAY_US);
                         listen();
                 }
         }
