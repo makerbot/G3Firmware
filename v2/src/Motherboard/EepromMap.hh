@@ -49,6 +49,10 @@ const static uint16_t MACHINE_NAME				= 0x0020;
 const static uint16_t AXIS_HOME_POSITIONS		= 0x0060;
 
 
+const static uint16_t TOOL0_TEMP			= 0x0080;
+const static uint16_t TOOL1_TEMP			= 0x0081;
+const static uint16_t PLATFORM_TEMP			= 0x0082;
+
 /// Reset all data in the EEPROM to a default.
 void setDefaults();
 
