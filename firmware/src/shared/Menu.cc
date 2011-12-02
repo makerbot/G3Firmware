@@ -16,6 +16,9 @@
 #include <util/delay.h>
 #include <stdlib.h>
 #include "SDCard.hh"
+#include "EepromMap.hh"
+#include "Eeprom.hh"
+#include <avr/eeprom.h>
 
 
 #define HOST_PACKET_TIMEOUT_MS 20
@@ -43,6 +46,54 @@ bool queryExtruderParameter(uint8_t parameter, OutPacket& responsePacket) {
 	// second is the
 	out.append8(0);
 	out.append8(parameter);
+
+	// Timeouts are handled inside the toolslice code; there's no need
+	// to check for timeouts on this loop.
+	tool::startTransaction();
+	tool::releaseLock();
+	// WHILE: bounded by tool timeout in runToolSlice
+	while (!tool::isTransactionDone()) {
+		tool::runToolSlice();
+	}
+	if (in.getErrorCode() == PacketError::PACKET_TIMEOUT) {
+		return false;
+	} else {
+		// Copy payload back. Start from 0-- we need the response code.
+		for (uint8_t i = 0; i < in.getLength(); i++) {
+			responsePacket.append8(in.read8(i));
+		}
+	}
+
+	// Check that the extruder was able to process the request
+	if (!rcCompare(responsePacket.read8(0),RC_OK)) {
+		return false;
+	}
+
+	return true;
+}
+
+
+
+/// Send a query packet to the extruder
+bool setExtruder16BitParameter(uint8_t parameter, uint16_t val, OutPacket& responsePacket) {
+
+	Timeout acquire_lock_timeout;
+	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MS);
+	while (!tool::getLock()) {
+		if (acquire_lock_timeout.hasElapsed()) {
+			return false;
+		}
+	}
+	OutPacket& out = tool::getOutPacket();
+	InPacket& in = tool::getInPacket();
+	out.reset();
+	responsePacket.reset();
+
+	// Fill the query packet. The first byte is the toolhead index, and the
+	// second is the
+	out.append8(0);
+	out.append8(parameter);
+	out.append16(val);
 
 	// Timeouts are handled inside the toolslice code; there's no need
 	// to check for timeouts on this loop.
@@ -569,18 +620,28 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		}
 		break;
 	case 4:
-		lcd.setCursor(0,1);
-		buf[0] = '\0';
-		appendUint8(buf, sizeof(buf), sdcard::getPercentPlayed());
-		strcat(buf, "% ");
-		lcd.writeString(buf);
+		switch(host::getHostState()) {
+		case host::HOST_STATE_BUILDING:
+		case host::HOST_STATE_BUILDING_FROM_SD:
+		    lcd.setCursor(0,1);
+		    buf[0] = '\0';
+		    appendUint8(buf, sizeof(buf), sdcard::getPercentPlayed());
+		    strcat(buf, "% ");
+		    lcd.writeString(buf);
+		    break;
+		}
 		break;
 	case 5:
-		lcd.setCursor(6,1);
-		buf[0] = '\0';
-		seconds_t elapsed = Motherboard::getBoard().getCurrentSeconds();
-		appendElapsedTime(buf, sizeof(buf), (uint32_t)elapsed);
-		lcd.writeString(buf);
+		switch(host::getHostState()) {
+		case host::HOST_STATE_BUILDING:
+		case host::HOST_STATE_BUILDING_FROM_SD:
+		    lcd.setCursor(6,1);
+		    buf[0] = '\0';
+		    seconds_t elapsed = Motherboard::getBoard().getCurrentSeconds();
+		    appendElapsedTime(buf, sizeof(buf), (uint32_t)elapsed);
+		    lcd.writeString(buf);
+		    break;
+		}
 		break;
 	}
 
@@ -742,9 +803,10 @@ MainMenu::MainMenu() {
 
 void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	static PROGMEM prog_uchar monitor[] = "Monitor Mode";
-	static PROGMEM prog_uchar build[] =   "Build from SD";
-	static PROGMEM prog_uchar jog[] =   "Jog Mode";
-	static PROGMEM prog_uchar snake[] =   "Snake Game";
+	static PROGMEM prog_uchar build[]   = "Build from SD";
+	static PROGMEM prog_uchar jog[]     = "Jog Mode";
+	static PROGMEM prog_uchar heaters[] = "Heaters";
+	static PROGMEM prog_uchar snake[]   = "Snake Game";
 
 	switch (index) {
 	case 0:
@@ -757,7 +819,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(jog);
 		break;
 	case 3:
-		// blank
+		lcd.writeFromPgmspace(heaters);
 		break;
 	case 4:
 		lcd.writeFromPgmspace(snake);
@@ -776,11 +838,16 @@ void MainMenu::handleSelect(uint8_t index) {
                         interface::pushScreen(&sdMenu);
 			break;
 		case 2:
-			// Show build from SD screen
+			// Show Jog mode screen
                         interface::pushScreen(&jogger);
 			break;
+		case 3:
+			// Show heaters menu
+                        interface::pushScreen(&heatersMenu);
+			heatersMenu.fetchTargetTemps();
+			break;
 		case 4:
-			// Show build from SD screen
+			// Show Snake game
                         interface::pushScreen(&snake);
 			break;
 		}
@@ -896,6 +963,225 @@ void SDMenu::handleSelect(uint8_t index) {
 		// TODO: report error
 		return;
 	}
+}
+
+
+void Tool0TempSetScreen::reset() {
+	value = eeprom::getEeprom8(eeprom::TOOL0_TEMP, 220);;
+}
+
+void Tool0TempSetScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
+	static PROGMEM prog_uchar message1[] = "Tool0 Targ Temp:";
+	static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
+
+	if (forceRedraw) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(message1);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(message4);
+	}
+
+
+	// Redraw tool info
+	lcd.setCursor(0,1);
+	lcd.writeInt(value,3);
+}
+
+void Tool0TempSetScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
+	switch (button) {
+        case ButtonArray::CANCEL:
+		interface::popScreen();
+		break;
+        case ButtonArray::ZERO:
+        case ButtonArray::OK:
+		eeprom_write_byte((uint8_t*)eeprom::TOOL0_TEMP,value);
+		interface::popScreen();
+		break;
+        case ButtonArray::ZPLUS:
+		// increment more
+		if (value <= 250) {
+			value += 5;
+		}
+		break;
+        case ButtonArray::ZMINUS:
+		// decrement more
+		if (value >= 5) {
+			value -= 5;
+		}
+		break;
+        case ButtonArray::YPLUS:
+		// increment less
+		if (value <= 254) {
+			value += 1;
+		}
+		break;
+        case ButtonArray::YMINUS:
+		// decrement less
+		if (value >= 1) {
+			value -= 1;
+		}
+		break;
+
+        case ButtonArray::XMINUS:
+        case ButtonArray::XPLUS:
+		break;
+	}
+}
+
+
+void PlatformTempSetScreen::reset() {
+	value = eeprom::getEeprom8(eeprom::PLATFORM_TEMP, 110);;
+}
+
+void PlatformTempSetScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
+	static PROGMEM prog_uchar message1[] = "Bed Target Temp:";
+	static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
+
+	if (forceRedraw) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(message1);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(message4);
+	}
+
+
+	// Redraw tool info
+	lcd.setCursor(0,1);
+	lcd.writeInt(value,3);
+}
+
+void PlatformTempSetScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
+	switch (button) {
+        case ButtonArray::CANCEL:
+		interface::popScreen();
+		break;
+        case ButtonArray::ZERO:
+        case ButtonArray::OK:
+		eeprom_write_byte((uint8_t*)eeprom::PLATFORM_TEMP,value);
+		interface::popScreen();
+		break;
+        case ButtonArray::ZPLUS:
+		// increment more
+		if (value <= 250) {
+			value += 5;
+		}
+		break;
+        case ButtonArray::ZMINUS:
+		// decrement more
+		if (value >= 5) {
+			value -= 5;
+		}
+		break;
+        case ButtonArray::YPLUS:
+		// increment less
+		if (value <= 254) {
+			value += 1;
+		}
+		break;
+        case ButtonArray::YMINUS:
+		// decrement less
+		if (value >= 1) {
+			value -= 1;
+		}
+		break;
+
+        case ButtonArray::XMINUS:
+        case ButtonArray::XPLUS:
+		break;
+	}
+}
+
+
+HeatersMenu::HeatersMenu() {
+	itemCount = 4;
+	reset();
+}
+
+void HeatersMenu::fetchTargetTemps() {
+	OutPacket responsePacket;
+	if (queryExtruderParameter(SLAVE_CMD_GET_SP, responsePacket)) {
+		tool0Temp = responsePacket.read16(1);
+	}
+	if (queryExtruderParameter(SLAVE_CMD_GET_PLATFORM_SP, responsePacket)) {
+		platformTemp = responsePacket.read16(1);
+	}
+}
+
+void HeatersMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+	static PROGMEM prog_uchar heat[]     = "Heat ";
+	static PROGMEM prog_uchar cool[]     = "Cool ";
+	static PROGMEM prog_uchar tool0[]    = "Tool0";
+	static PROGMEM prog_uchar platform[] = "Bed";
+	static PROGMEM prog_uchar tool0set[] = "Set Tool0 Temp";
+	static PROGMEM prog_uchar platset[]  = "Set Bed Temp";
+
+	switch (index) {
+	case 0:
+		fetchTargetTemps();
+		if (tool0Temp > 0) {
+			lcd.writeFromPgmspace(cool);
+		} else {
+			lcd.writeFromPgmspace(heat);
+		}
+		lcd.writeFromPgmspace(tool0);
+		break;
+	case 1:
+		if (platformTemp > 0) {
+			lcd.writeFromPgmspace(cool);
+		} else {
+			lcd.writeFromPgmspace(heat);
+		}
+		lcd.writeFromPgmspace(platform);
+		break;
+	case 2:
+		lcd.writeFromPgmspace(tool0set);
+		break;
+	case 3:
+		lcd.writeFromPgmspace(platset);
+		break;
+	}
+}
+
+void HeatersMenu::handleSelect(uint8_t index) {
+	OutPacket responsePacket;
+	switch (index) {
+		case 0:
+			// Toggle Extruder heater on/off
+			if (tool0Temp > 0) {
+				setExtruder16BitParameter(SLAVE_CMD_SET_TEMP, 0, responsePacket);
+			} else {
+				uint8_t value = eeprom::getEeprom8(eeprom::TOOL0_TEMP, 220);
+				setExtruder16BitParameter(SLAVE_CMD_SET_TEMP, (uint16_t)value, responsePacket);
+			}
+			fetchTargetTemps();
+			lastDrawIndex = 255; // forces redraw.
+			break;
+		case 1:
+			// Toggle Platform heater on/off
+			if (platformTemp > 0) {
+				setExtruder16BitParameter(SLAVE_CMD_SET_PLATFORM_TEMP, 0, responsePacket);
+			} else {
+				uint8_t value = eeprom::getEeprom8(eeprom::PLATFORM_TEMP, 110);
+				setExtruder16BitParameter(SLAVE_CMD_SET_PLATFORM_TEMP, value, responsePacket);
+			}
+			fetchTargetTemps();
+			lastDrawIndex = 255; // forces redraw.
+			break;
+		case 2:
+			// Show Extruder Temperature Setting Screen
+                        interface::pushScreen(&tool0TempSetScreen);
+			break;
+		case 3:
+			// Show Platform Temperature Setting Screen
+                        interface::pushScreen(&platTempSetScreen);
+			break;
+		}
 }
 
 #endif

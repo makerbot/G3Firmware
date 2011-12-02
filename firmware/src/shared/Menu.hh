@@ -43,7 +43,7 @@ public:
 /// automatically.
 class Menu: public Screen {
 public:
-	micros_t getUpdateRate() {return 500L * 1000L;}
+	virtual micros_t getUpdateRate() {return 500L * 1000L;}
 
 	void update(LiquidCrystal& lcd, bool forceRedraw);
 
@@ -204,6 +204,57 @@ public:
 };
 
 
+class Tool0TempSetScreen: public Screen {
+private:
+	uint8_t value;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+
+class PlatformTempSetScreen: public Screen {
+private:
+	uint8_t value;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+
+class HeatersMenu: public Menu {
+public:
+	HeatersMenu();
+
+	void fetchTargetTemps();
+
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+
+private:
+	uint16_t tool0Temp;
+	uint16_t platformTemp;
+
+        /// Static instances of our menus
+        Tool0TempSetScreen tool0TempSetScreen;
+        PlatformTempSetScreen platTempSetScreen;
+};
+
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -217,8 +268,10 @@ private:
         /// Static instances of our menus
         MonitorMode monitorMode;
         SDMenu sdMenu;
+        HeatersMenu heatersMenu;
         JogMode jogger;
         SnakeMode snake;
 };
+
 
 #endif
