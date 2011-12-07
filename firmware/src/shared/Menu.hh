@@ -94,6 +94,7 @@ class JogMode: public Screen {
 private:
 	enum distance_t {
 	  DISTANCE_SHORT,
+	  DISTANCE_MED,
 	  DISTANCE_LONG,
 	};
 
@@ -111,6 +112,34 @@ public:
 
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
+
+class ExtruderMode: public Screen {
+private:
+	enum time_t {
+	  TIME_10S,
+	  TIME_30S,
+	  TIME_60S,
+	};
+
+	time_t extrudeTime;
+	bool timeChanged;
+
+	uint8_t updatePhase;
+
+	void changeTemp(ButtonArray::ButtonName direction);
+
+        void extrude(ButtonArray::ButtonName direction);
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
 
 /// This is an easter egg.
 class SnakeMode: public Screen {
@@ -204,6 +233,7 @@ public:
 };
 
 
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -218,6 +248,7 @@ private:
         MonitorMode monitorMode;
         SDMenu sdMenu;
         JogMode jogger;
+	    ExtruderMode extruder;
         SnakeMode snake;
 };
 
