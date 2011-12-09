@@ -260,6 +260,30 @@ inline void LiquidCrystal::write(uint8_t value) {
 }
 
 
+void LiquidCrystal::writeZheight(uint32_t value) {
+
+	uint32_t currentDigit = 100000;
+	uint32_t nextDigit;
+
+		nextDigit = currentDigit/10;
+		write((value%currentDigit)/nextDigit+'0');
+		currentDigit = nextDigit;
+		nextDigit = currentDigit/10;
+		write((value%currentDigit)/nextDigit+'0');
+		currentDigit = nextDigit;
+		nextDigit = currentDigit/10;
+		write((value%currentDigit)/nextDigit+'0');
+		currentDigit = nextDigit;
+		write('.');
+		nextDigit = currentDigit/10;
+		write((value%currentDigit)/nextDigit+'0');
+		currentDigit = nextDigit;
+		nextDigit = currentDigit/10;
+		write((value%currentDigit)/nextDigit+'0');
+}
+
+
+
 void LiquidCrystal::writeInt(uint16_t value, uint8_t digits) {
 
 	uint16_t currentDigit;

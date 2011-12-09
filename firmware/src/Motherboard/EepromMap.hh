@@ -49,6 +49,14 @@ const static uint16_t MACHINE_NAME				= 0x0020;
 /// Default locations for the axis: 5 x 32 bit = 20 bytes
 const static uint16_t AXIS_HOME_POSITIONS		= 0x0060;
 
+// Estop configuration byte: 1 byte.
+const static uint16_t ESTOP_CONFIGURATION = 0x0074;
+
+enum {
+	ESTOP_CONF_NONE = 0x0,
+	ESTOP_CONF_ACTIVE_HIGH = 0x1,
+	ESTOP_CONF_ACTIVE_LOW = 0x2
+};
 
 /// Reset all data in the EEPROM to a default.
 void setDefaults();

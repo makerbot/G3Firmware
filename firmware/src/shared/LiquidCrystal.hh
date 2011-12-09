@@ -85,6 +85,8 @@ public:
   virtual void write(uint8_t);
 
   /** Added by MakerBot Industries to support storing strings in flash **/
+  void writeZheight(uint32_t value);
+
   void writeInt(uint16_t value, uint8_t digits);
 
   void writeString(char message[]);

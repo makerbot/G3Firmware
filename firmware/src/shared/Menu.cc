@@ -68,6 +68,55 @@ bool queryExtruderParameter(uint8_t parameter, OutPacket& responsePacket) {
 	return true;
 }
 
+/// Send a command packet to the extruder
+bool commandExtruder(uint8_t parameter, uint16_t value) {
+
+	Timeout acquire_lock_timeout;
+	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MS);
+	while (!tool::getLock()) {
+		if (acquire_lock_timeout.hasElapsed()) {
+			return false;
+		}
+	}
+	OutPacket& out = tool::getOutPacket();
+	OutPacket& responsePacket = out;
+
+	InPacket& in = tool::getInPacket();
+	out.reset();
+	responsePacket.reset();
+
+	// Fill the query packet. The first byte is the toolhead index, and the
+	// second is the
+	out.append8(0);
+	out.append8(parameter);
+	out.append16(value);
+
+	// Timeouts are handled inside the toolslice code; there's no need
+	// to check for timeouts on this loop.
+	tool::startTransaction();
+	tool::releaseLock();
+	// WHILE: bounded by tool timeout in runToolSlice
+	while (!tool::isTransactionDone()) {
+		tool::runToolSlice();
+	}
+	if (in.getErrorCode() == PacketError::PACKET_TIMEOUT) {
+		return false;
+	} else {
+		// Copy payload back. Start from 0-- we need the response code.
+		for (uint8_t i = 0; i < in.getLength(); i++) {
+			responsePacket.append8(in.read8(i));
+		}
+	}
+
+	// Check that the extruder was able to process the request
+	if (!rcCompare(responsePacket.read8(0),RC_OK)) {
+		return false;
+	}
+
+	return true;
+}
+
+
 void SplashScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
 	static PROGMEM prog_uchar splash1[] = "                ";
 	static PROGMEM prog_uchar splash2[] = " Thing-O-Matic  ";
@@ -112,8 +161,9 @@ void JogMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	static PROGMEM prog_uchar jog3[] = "X-  X+    (mode)";
 	static PROGMEM prog_uchar jog4[] = "  Y-          Z-";
 
-	static PROGMEM prog_uchar distanceShort[] = "SHORT";
-	static PROGMEM prog_uchar distanceLong[] = "LONG";
+	static PROGMEM prog_uchar distanceShort[] =  "SHORT";
+	static PROGMEM prog_uchar distanceMed[] =    "MED";
+	static PROGMEM prog_uchar distanceLong[] =   "LONG";
 
 	if (forceRedraw || distanceChanged) {
 		lcd.clear();
@@ -123,6 +173,9 @@ void JogMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		switch (jogDistance) {
 		case DISTANCE_SHORT:
 			lcd.writeFromPgmspace(distanceShort);
+			break;
+		case DISTANCE_MED:
+			lcd.writeFromPgmspace(distanceMed);
 			break;
 		case DISTANCE_LONG:
 			lcd.writeFromPgmspace(distanceLong);
@@ -146,14 +199,17 @@ void JogMode::jog(ButtonArray::ButtonName direction) {
 	Point position = steppers::getPosition();
 
 	int32_t interval = 2000;
-	uint8_t steps;
+	uint16_t steps;
 
 	switch(jogDistance) {
 	case DISTANCE_SHORT:
 		steps = 20;
 		break;
-	case DISTANCE_LONG:
+	case DISTANCE_MED:
 		steps = 200;
+		break;
+	case DISTANCE_LONG:
+		steps = 2000;
 		break;
 	}
 
@@ -185,11 +241,16 @@ void JogMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 	switch (button) {
         case ButtonArray::ZERO:
         case ButtonArray::OK:
-		if (jogDistance == DISTANCE_SHORT) {
+		switch(jogDistance) {
+		case DISTANCE_SHORT:
+			jogDistance = DISTANCE_MED;
+			break;
+		case DISTANCE_MED:
 			jogDistance = DISTANCE_LONG;
-		}
-		else {
+			break;
+		case DISTANCE_LONG:
 			jogDistance = DISTANCE_SHORT;
+			break;
 		}
 		distanceChanged = true;
 		break;
@@ -207,6 +268,200 @@ void JogMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 	}
 }
 
+void ExtruderMode::reset() {
+	extrudeTime = TIME_10S;
+	updatePhase = 0;
+	timeChanged = false;
+}
+
+void ExtruderMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	static PROGMEM prog_uchar extrude1[] = "Extruder mode: ";
+	static PROGMEM prog_uchar extrude2[] = " TEMP+      FWD ";
+	static PROGMEM prog_uchar extrude3[] = "---/---C   ";
+	static PROGMEM prog_uchar extrude4[] = " TEMP-      BACK";
+
+	static PROGMEM prog_uchar time10s[] =  "(10s)";
+	static PROGMEM prog_uchar time30s[] =  "(30s)";
+	static PROGMEM prog_uchar time60s[] =  "(60s)";
+	
+
+	if (forceRedraw) {
+		lcd.clear();
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(extrude1);
+
+		lcd.setCursor(0,1);
+		lcd.writeFromPgmspace(extrude2);
+
+		lcd.setCursor(0,2);
+		lcd.writeFromPgmspace(extrude3);
+		switch (extrudeTime) {
+		case TIME_10S:
+			lcd.writeFromPgmspace(time10s);
+			break;
+		case TIME_30S:
+			lcd.writeFromPgmspace(time30s);
+			break;
+		case TIME_60S:
+			lcd.writeFromPgmspace(time60s);
+			break;
+		}
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(extrude4);
+
+	}else if (timeChanged) {
+		lcd.setCursor(11,2);
+		switch (extrudeTime) {
+		case TIME_10S:
+			lcd.writeFromPgmspace(time10s);
+			break;
+		case TIME_30S:
+			lcd.writeFromPgmspace(time30s);
+			break;
+		case TIME_60S:
+			lcd.writeFromPgmspace(time60s);
+			break;
+		timeChanged = false;
+		}
+	}else{
+	}
+
+	OutPacket responsePacket;
+	Point position;
+
+	// Redraw tool info
+	switch (updatePhase) {
+	case 0:
+		lcd.setCursor(0,2);
+		if (queryExtruderParameter(SLAVE_CMD_GET_TEMP, responsePacket)) {
+			uint16_t data = responsePacket.read16(1);
+			lcd.writeInt(data,3);
+		} else {
+			lcd.writeString("XXX");
+		}
+		break;
+
+	case 1:
+		lcd.setCursor(4,2);
+		if (queryExtruderParameter(SLAVE_CMD_GET_SP, responsePacket)) {
+			uint16_t data = responsePacket.read16(1);
+			lcd.writeInt(data,3);
+		} else {
+			lcd.writeString("XXX");
+		}
+		break;
+	}
+
+	updatePhase++;
+	if (updatePhase > 1) {
+		updatePhase = 0;
+	}
+}
+
+void ExtruderMode::changeTemp(ButtonArray::ButtonName button) {
+	OutPacket responsePacket;
+
+	if (queryExtruderParameter(SLAVE_CMD_GET_SP, responsePacket)) {
+		uint16_t setPoint = responsePacket.read16(1);
+		switch (button) {
+		case ButtonArray::ZERO:
+			setPoint = 0;	
+			break;
+		case ButtonArray::XMINUS:
+			setPoint -= 10;
+			if (setPoint > 300) {
+				setPoint = 0;
+			}
+			break;
+		case ButtonArray::YMINUS:
+			setPoint -= 1;
+			if (setPoint > 300) {
+				setPoint = 0;
+			}
+			break;
+		case ButtonArray::YPLUS:
+			setPoint += 1;
+			if (setPoint > 300) {
+				setPoint = 300;
+			}
+			break;
+		case ButtonArray::XPLUS:
+			setPoint += 10;
+			if (setPoint > 300) {
+				setPoint = 300;
+			}
+			break;
+		}
+
+		commandExtruder(SLAVE_CMD_SET_TEMP, setPoint);
+	} else {
+	}
+
+}
+
+
+void ExtruderMode::extrude(ButtonArray::ButtonName direction) {
+	Point position = steppers::getPosition();
+
+	int32_t interval = 15000;
+	uint16_t steps;
+
+	switch(extrudeTime) {
+	case TIME_10S:
+		steps = 667;
+		break;
+	case TIME_30S:
+		steps = 2000;
+		break;
+	case TIME_60S:
+		steps = 4000;
+		break;
+	}
+
+	switch(direction) {
+        case ButtonArray::ZMINUS:
+		position[3] -= steps;
+		break;
+        case ButtonArray::ZPLUS:
+		position[3] += steps;
+		break;
+	}
+
+	steppers::setTarget(position, interval);
+}
+
+void ExtruderMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	switch (button) {
+        case ButtonArray::OK:
+		switch(extrudeTime) {
+		case TIME_10S:
+			extrudeTime = TIME_30S;
+			break;
+		case TIME_30S:
+			extrudeTime = TIME_60S;
+			break;
+		case TIME_60S:
+			extrudeTime = TIME_10S;
+			break;
+		}
+		timeChanged = true;
+		break;
+        case ButtonArray::ZERO:
+        case ButtonArray::YMINUS:
+        case ButtonArray::YPLUS:
+        case ButtonArray::XMINUS:
+        case ButtonArray::XPLUS:
+        	changeTemp(button);
+        	break;
+        case ButtonArray::ZMINUS:
+        case ButtonArray::ZPLUS:
+		extrude(button);
+		break;
+        case ButtonArray::CANCEL:
+                interface::popScreen();
+		break;
+	}
+}
 
 void SnakeMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	static PROGMEM prog_uchar gameOver[] =  "GAME OVER!";
@@ -334,8 +589,9 @@ void MonitorMode::reset() {
 }
 
 void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar extruder_temp[] =   "Tool: ---/---C";
-	static PROGMEM prog_uchar platform_temp[] =   "Bed:  ---/---C";
+	static PROGMEM prog_uchar z_axis_height[] =   "Z-pos: ---.--mm";
+	static PROGMEM prog_uchar extruder_temp[] =   "Tool:  ---/---C";
+	static PROGMEM prog_uchar platform_temp[] =   "Bed:   ---/---C";
 
 	if (forceRedraw) {
 		lcd.clear();
@@ -352,6 +608,8 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			lcd.writeString("error!");
 			break;
 		}
+		lcd.setCursor(0,1);
+		lcd.writeFromPgmspace(z_axis_height);
 
 		lcd.setCursor(0,2);
 		lcd.writeFromPgmspace(extruder_temp);
@@ -364,11 +622,12 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 
 	OutPacket responsePacket;
+	Point position;
 
 	// Redraw tool info
 	switch (updatePhase) {
 	case 0:
-		lcd.setCursor(6,2);
+		lcd.setCursor(7,2);
 		if (queryExtruderParameter(SLAVE_CMD_GET_TEMP, responsePacket)) {
 			uint16_t data = responsePacket.read16(1);
 			lcd.writeInt(data,3);
@@ -378,7 +637,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		break;
 
 	case 1:
-		lcd.setCursor(10,2);
+		lcd.setCursor(11,2);
 		if (queryExtruderParameter(SLAVE_CMD_GET_SP, responsePacket)) {
 			uint16_t data = responsePacket.read16(1);
 			lcd.writeInt(data,3);
@@ -388,7 +647,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		break;
 
 	case 2:
-		lcd.setCursor(6,3);
+		lcd.setCursor(7,3);
 		if (queryExtruderParameter(SLAVE_CMD_GET_PLATFORM_TEMP, responsePacket)) {
 			uint16_t data = responsePacket.read16(1);
 			lcd.writeInt(data,3);
@@ -398,7 +657,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		break;
 
 	case 3:
-		lcd.setCursor(10,3);
+		lcd.setCursor(11,3);
 		if (queryExtruderParameter(SLAVE_CMD_GET_PLATFORM_SP, responsePacket)) {
 			uint16_t data = responsePacket.read16(1);
 			lcd.writeInt(data,3);
@@ -406,10 +665,20 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			lcd.writeString("XXX");
 		}
 		break;
+
+	case 4:
+		lcd.setCursor(7,1);
+		position = steppers::getPosition();
+		if (true) {
+			lcd.writeZheight(position[2]/2);  //divide by 2 because there are 200 steps per mm
+		} else {
+			lcd.writeString("XXXXXXX");
+		}
+		break;
 	}
 
 	updatePhase++;
-	if (updatePhase > 3) {
+	if (updatePhase > 4) {
 		updatePhase = 0;
 	}
 }
@@ -568,6 +837,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	static PROGMEM prog_uchar monitor[] = "Monitor Mode";
 	static PROGMEM prog_uchar build[] =   "Build from SD";
 	static PROGMEM prog_uchar jog[] =   "Jog Mode";
+	static PROGMEM prog_uchar extrude[] = "Extruder Mode";
 	static PROGMEM prog_uchar snake[] =   "Snake Game";
 
 	switch (index) {
@@ -581,7 +851,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(jog);
 		break;
 	case 3:
-		// blank
+		lcd.writeFromPgmspace(extrude);
 		break;
 	case 4:
 		lcd.writeFromPgmspace(snake);
@@ -600,11 +870,15 @@ void MainMenu::handleSelect(uint8_t index) {
                         interface::pushScreen(&sdMenu);
 			break;
 		case 2:
-			// Show build from SD screen
+			// Show Jog Mode screen
                         interface::pushScreen(&jogger);
 			break;
+		case 3:
+			// Show Extruder Mode screen
+                        interface::pushScreen(&extruder);
+			break;
 		case 4:
-			// Show build from SD screen
+			// Show Snake Game screen
                         interface::pushScreen(&snake);
 			break;
 		}
