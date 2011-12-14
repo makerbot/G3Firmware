@@ -17,6 +17,7 @@
 
 #include "Command.hh"
 #include "Steppers.hh"
+#include "Planner.hh"
 #include "Commands.hh"
 #include "Tool.hh"
 #include "Configuration.hh"
@@ -111,6 +112,53 @@ void reset() {
 	mode = READY;
 }
 
+// Handle movement comands -- called from a few places
+void handleMovementCommand(uint8_t &command) {
+	// if we're already moving, check to make sure the buffer isn't full
+	if (mode == MOVING && planner::block_buffer.isFull()) {
+		return; // we'll be back!
+	}
+	if (command == HOST_CMD_QUEUE_POINT_ABS) {
+		// check for completion
+		if (command_buffer.getLength() >= 17) {
+			command_buffer.pop(); // remove the command code
+			mode = MOVING;
+			int32_t x = pop32();
+			int32_t y = pop32();
+			int32_t z = pop32();
+			int32_t dda = pop32();
+			planner::addMoveToBuffer(Point(x,y,z), dda); // <- this is a BAD IDEA
+		}
+	} else if (command == HOST_CMD_QUEUE_POINT_EXT) {
+		// check for completion
+		if (command_buffer.getLength() >= 25) {
+			command_buffer.pop(); // remove the command code
+			mode = MOVING;
+			int32_t x = pop32();
+			int32_t y = pop32();
+			int32_t z = pop32();
+			int32_t a = pop32();
+			int32_t b = pop32();
+			int32_t dda = pop32();
+			planner::addMoveToBuffer(Point(x,y,z,a,b), dda);
+		}
+	} else if (command == HOST_CMD_QUEUE_POINT_NEW) {
+		// check for completion
+		if (command_buffer.getLength() >= 26) {
+			command_buffer.pop(); // remove the command code
+			mode = MOVING;
+			int32_t x = pop32();
+			int32_t y = pop32();
+			int32_t z = pop32();
+			int32_t a = pop32();
+			int32_t b = pop32();
+			int32_t us = pop32();
+			uint8_t relative = pop8();
+			//steppers::setTargetNew(Point(x,y,z,a,b),us,relative);
+		}
+	}
+}
+
 // A fast slice for processing commands and refilling the stepper queue, etc.
 void runCommandSlice() {
 	if (sdcard::isPlaying()) {
@@ -128,7 +176,16 @@ void runCommandSlice() {
 		}
 	}
 	if (mode == MOVING) {
-		if (!steppers::isRunning()) { mode = READY; }
+		if (!steppers::isRunning()) {
+			mode = READY;
+		} else {
+			if (command_buffer.getLength() > 0) {
+				uint8_t command = command_buffer[0];
+				if (command == HOST_CMD_QUEUE_POINT_ABS || command == HOST_CMD_QUEUE_POINT_EXT || command == HOST_CMD_QUEUE_POINT_NEW) {
+					handleMovementCommand(command);
+				}
+			}
+		}
 	}
 	if (mode == DELAY) {
 		// check timers
@@ -185,44 +242,8 @@ void runCommandSlice() {
 		// process next command on the queue.
 		if (command_buffer.getLength() > 0) {
 			uint8_t command = command_buffer[0];
-			if (command == HOST_CMD_QUEUE_POINT_ABS) {
-				// check for completion
-				if (command_buffer.getLength() >= 17) {
-					command_buffer.pop(); // remove the command code
-					mode = MOVING;
-					int32_t x = pop32();
-					int32_t y = pop32();
-					int32_t z = pop32();
-					int32_t dda = pop32();
-					steppers::setTarget(Point(x,y,z),dda);
-				}
-			} else if (command == HOST_CMD_QUEUE_POINT_EXT) {
-				// check for completion
-				if (command_buffer.getLength() >= 25) {
-					command_buffer.pop(); // remove the command code
-					mode = MOVING;
-					int32_t x = pop32();
-					int32_t y = pop32();
-					int32_t z = pop32();
-					int32_t a = pop32();
-					int32_t b = pop32();
-					int32_t dda = pop32();
-					steppers::setTarget(Point(x,y,z,a,b),dda);
-				}
-			} else if (command == HOST_CMD_QUEUE_POINT_NEW) {
-				// check for completion
-				if (command_buffer.getLength() >= 26) {
-					command_buffer.pop(); // remove the command code
-					mode = MOVING;
-					int32_t x = pop32();
-					int32_t y = pop32();
-					int32_t z = pop32();
-					int32_t a = pop32();
-					int32_t b = pop32();
-					int32_t us = pop32();
-					uint8_t relative = pop8();
-					steppers::setTargetNew(Point(x,y,z,a,b),us,relative);
-				}
+			if (command == HOST_CMD_QUEUE_POINT_ABS || command == HOST_CMD_QUEUE_POINT_EXT || command == HOST_CMD_QUEUE_POINT_NEW) {
+				handleMovementCommand(command);
 			} else if (command == HOST_CMD_CHANGE_TOOL) {
 				if (command_buffer.getLength() >= 2) {
 					command_buffer.pop(); // remove the command code
@@ -246,7 +267,7 @@ void runCommandSlice() {
 					int32_t x = pop32();
 					int32_t y = pop32();
 					int32_t z = pop32();
-					steppers::definePosition(Point(x,y,z));
+					planner::definePosition(Point(x,y,z));
 				}
 			} else if (command == HOST_CMD_SET_POSITION_EXT) {
 				// check for completion
@@ -257,7 +278,7 @@ void runCommandSlice() {
 					int32_t z = pop32();
 					int32_t a = pop32();
 					int32_t b = pop32();
-					steppers::definePosition(Point(x,y,z,a,b));
+					planner::definePosition(Point(x,y,z,a,b));
 				}
 			} else if (command == HOST_CMD_DELAY) {
 				if (command_buffer.getLength() >= 5) {

@@ -92,6 +92,8 @@ namespace steppers {
     ///                  through the entire build. If false, it will be
     ///                  disabled when not moving.
     void setHoldZ(bool holdZ);
+
+	bool getNextMove();
 };
 
 #endif // STEPPERS_HH_

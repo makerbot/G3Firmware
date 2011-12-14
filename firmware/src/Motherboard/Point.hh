@@ -16,6 +16,9 @@ public:
         /// Default point constructor
         Point();
 
+		/// Copy Point constructor
+		Point(const Point &other);
+
         /// Construct a point with the given cooridnates. Coordinates are in
         /// stepper steps.
         /// \param[in] x X axis position
@@ -48,6 +51,14 @@ public:
         /// \return Reference to the variable containing the axis' position.
         int32_t& operator[](unsigned int index);
 
+        /// Subtraction operator, for fast deltas
+        const Point &operator-(const Point &other) const;
+		
+		// friend const Point &operator-(const Point &a, const Point &b);
+        
+
+        /// Absolute value -- convert all point to positive
+        Point abs();
 } __attribute__ ((__packed__));
 
 

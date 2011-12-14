@@ -22,6 +22,7 @@
 #include "Motherboard.hh"
 #include "Configuration.hh"
 #include "Steppers.hh"
+#include "Planner.hh"
 #include "Command.hh"
 #include "Eeprom.hh"
 #include "EepromMap.hh"
@@ -74,6 +75,21 @@ Motherboard::Motherboard(const Pin& psu_pin) :
                                       Pin(),
                                       eeprom::AXIS_INVERSION);
 #endif
+
+		/* FIX THIS FIX THIS FIX THIS FIX THIS */
+		planner::setAxisStepsPerMM(94.1397046, 0);
+		planner::setAxisStepsPerMM(94.1397046, 1);
+		planner::setAxisStepsPerMM(2560.0, 2);
+		planner::setAxisStepsPerMM(100.470957613814818, 3);
+		planner::setAxisStepsPerMM(100.470957613814818, 4);
+		/* END FIX THIS FIX THIS FIX THIS FIX THIS */
+
+        planner::setAcceleration(DEFAULT_ACCELERATION);
+        planner::setMaxXYJerk(DEFAULT_MAX_XY_JERK);
+        planner::setMaxAxisJerk(DEFAULT_MAX_Z_JERK, 2);
+        planner::setMaxAxisJerk(DEFAULT_MAX_A_JERK, 3);
+        planner::setMaxAxisJerk(DEFAULT_MAX_B_JERK, 4);
+		
 }
 
 /// Reset the motherboard to its initial state.
