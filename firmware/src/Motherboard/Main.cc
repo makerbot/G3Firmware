@@ -24,6 +24,7 @@
 #include <util/atomic.h>
 #include "Timeout.hh"
 #include "Steppers.hh"
+#include "Planner.hh"
 #include "Motherboard.hh"
 #include "SDCard.hh"
 #include "Eeprom.hh"
@@ -58,6 +59,7 @@ int main() {
 
 	Motherboard& board = Motherboard::getBoard();
 	steppers::init(Motherboard::getBoard());
+	planner::init();
 	reset(true);
 	sei();
 	while (1) {

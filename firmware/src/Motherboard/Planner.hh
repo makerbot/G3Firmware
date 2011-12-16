@@ -126,7 +126,11 @@ namespace planner {
 		BufDataType* const data; /// Pointer to buffer data
 	
 	public:
-		ReusingCircularBufferTempl(int8_t size_in, BufDataType* buffer_in) : head(0), tail(0), size(size), size_mask(size-1), data(buffer_in) {};
+		ReusingCircularBufferTempl(int8_t size_in, BufDataType* buffer_in) : head(0), tail(0), size(size), size_mask(size-1), data(buffer_in) {
+			for (int8_t i = 0; i < size; i++) {
+				data[i] = BufDataType();
+			}
+		};
 		
 		inline BufDataType *getHead() {
 			return &data[head];
@@ -147,7 +151,7 @@ namespace planner {
 		}
 		
 		inline int8_t getPreviousIndex(int8_t from) {
-			return (from - 1) & size_mask;
+			return ((from+size) - 1) & size_mask;
 		}
 		
 		inline BufDataType *getNextHead() {
@@ -186,7 +190,6 @@ namespace planner {
 	};
 
 	// Create a circular buffer of blocks to walk
-	extern Block block_buffer_data[];
 	extern ReusingCircularBufferTempl<Block> block_buffer;
 }
 

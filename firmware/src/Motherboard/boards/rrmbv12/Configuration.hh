@@ -27,8 +27,8 @@
 // be at least eight times this large.  Reducing the interval can cause resource
 // starvation; leave this at 64uS or greater unless you know what you're doing.
 #define INTERVAL_IN_MICROSECONDS 64
-// 8MHz / INTERVAL_IN_MICROSECONDS = 125000
-#define INTERVALS_PER_SECOND 125000
+// 1000000 / INTERVAL_IN_MICROSECONDS = 125000
+#define INTERVALS_PER_SECOND (1000000 / INTERVAL_IN_MICROSECONDS)
 
 // The pin that connects to the /PS_ON pin on the PSU header.  This pin switches
 // on the PSU when pulled low.
@@ -158,10 +158,10 @@
 // THIS MUst BE A POWER OF 2! 4, 8, 16, 32, you get the idea...
 #define BLOCK_BUFFER_SIZE 16
 
-#define DEFAULT_ACCELERATION 10.0 /* mm/s/s */
-#define DEFAULT_MAX_XY_JERK 10.0
-#define DEFAULT_MAX_Z_JERK 0.2
-#define DEFAULT_MAX_A_JERK 0.2
-#define DEFAULT_MAX_B_JERK 0.2
+#define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
+#define DEFAULT_MAX_XY_JERK 20.0
+#define DEFAULT_MAX_Z_JERK 0.4
+#define DEFAULT_MAX_A_JERK 0.4
+#define DEFAULT_MAX_B_JERK 0.4
 
 #endif // BOARDS_RRMBV12_CONFIGURATION_HH_

@@ -130,6 +130,12 @@ namespace planner {
 		
 		position = Point(0,0,0,0,0);
 		previous_nominal_speed = 0.0;
+		
+		axes[0].max_acceleration = 9000*axes[0].steps_per_mm;
+		axes[1].max_acceleration = 9000*axes[1].steps_per_mm;
+		axes[2].max_acceleration = 100*axes[2].steps_per_mm;
+		axes[3].max_acceleration = 9000*axes[3].steps_per_mm;
+		axes[4].max_acceleration = 9000*axes[4].steps_per_mm;
 	}
 
 	
@@ -147,9 +153,9 @@ namespace planner {
 
 	void setAcceleration(float new_acceleration) {
 		acceleration = new_acceleration;
-		for (int i = 1; i < AXIS_COUNT; i++) {
-			axes[i].max_acceleration = acceleration * axes[i].steps_per_mm;
-		}
+		// for (int i = 0; i < AXIS_COUNT; i++) {
+		// 	axes[i].max_acceleration = acceleration * axes[i].steps_per_mm;
+		// }
 	}
 	
 	// Calculates the maximum allowable speed at this point when you must be able to reach target_velocity using the 
@@ -300,10 +306,10 @@ namespace planner {
 			Block *block[3] = { NULL, NULL, NULL };
 			while(block_index != block_buffer.getTailIndex()) { 
 				block_index = block_buffer.getPreviousIndex(block_index); 
-				// block[2] = block[1];
-				// block[1] = block[0];
+				block[2] = block[1];
+				block[1] = block[0];
 				// Move two blocks worth of ram, from [0] to [1], using the overlap-safe memmove
-				memmove(block[0], block[1], sizeof(Block)<<1);
+				//memmove(block[0], block[1], sizeof(Block)<<1);
 				block[0] = &block_buffer[block_index];
 				planner_reverse_pass_kernel(block[0], block[1], block[2]);
 			}
@@ -339,10 +345,10 @@ namespace planner {
 		Block *block[3] = { NULL, NULL, NULL };
 
 		while(block_index != block_buffer.getHeadIndex()) {
-			// block[0] = block[1];
-			// block[1] = block[2];
+			block[0] = block[1];
+			block[1] = block[2];
 			// Move two blocks worth of ram, from [1] to [0], using the overlap-safe memmove
-			memmove(block[1], block[0], sizeof(Block)<<1);
+			//memmove(block[1], block[0], sizeof(Block)<<1);
 			block[2] = &block_buffer[block_index];
 			planner_forward_pass_kernel(block[0],block[1],block[2]);
 			block_index = block_buffer.getNextIndex(block_index);
@@ -382,12 +388,23 @@ namespace planner {
 	// Buffer the move. IOW, add a new block, and recalculate the acceleration accordingly
 	bool addMoveToBuffer(const Point& target, int32_t us_per_step)
 	{
+		steppers::setTarget(target, us_per_step);
+		return true;
+		
 		if (block_buffer.isFull())
 			return false;
 		
 		Block *block = block_buffer.getHead();
 		// Mark block as not busy (Not executed by the stepper interrupt)
 		block->busy = false;
+
+		//steppers::setTarget(target, us_per_step);
+		block->nominal_rate = ceil(1000000/us_per_step); // (step/sec) Always > 0
+
+
+
+
+
 	  
 		// calculate the difference between the current position and the target
 		Point delta = target - position;
@@ -410,12 +427,20 @@ namespace planner {
 				// Need to change the call interface to fix this, though.
 			}
 		}
-		if (axes[master_axis].steps_per_mm == 0) {
-			Motherboard::getBoard().indicateError(4);
-		}
-		float feed_rate = (us_per_step * block->step_event_count)/axes[master_axis].steps_per_mm; // mm/second
-		if (feed_rate == 0)
-			return true; // we did not care, but yes, we did something with this
+
+
+		block->steps = target;
+		
+		// Update position
+		position = target;
+
+		block_buffer++;
+		steppers::startRunning();
+		
+		return true;
+
+
+
 		
 		// // Compute direction bits for this block 
 		// block->direction_bits = 0;
@@ -426,7 +451,7 @@ namespace planner {
 		float delta_mm[AXIS_COUNT];
 		block->millimeters = 0;
 		for (int i = 0; i < AXIS_COUNT; i++) {
-			delta_mm[i] = delta[i]/axes[i].steps_per_mm;
+			delta_mm[i] = steps[i]/axes[i].steps_per_mm;
 			block->millimeters += delta_mm[i] * delta_mm[i];
 		}
 		block->millimeters = sqrt(block->millimeters);
@@ -434,10 +459,10 @@ namespace planner {
 		float inverse_millimeters = 1.0/block->millimeters; // Inverse millimeters to remove multiple divides 
 		
 		// Calculate speed in mm/second for each axis. No divide by zero due to previous checks.
-		float inverse_second = feed_rate * inverse_millimeters;
+		float inverse_second = (1000000.0/us_per_step)*block->step_event_count;
 
 		block->nominal_speed = block->millimeters * inverse_second; // (mm/sec) Always > 0
-		block->nominal_rate = ceil(block->step_event_count * inverse_second); // (step/sec) Always > 0
+		block->nominal_rate = ceil(1000000.0/us_per_step); // (step/sec) Always > 0
 		
 		// TODO make sure we are going the minimum speed, at least
 		// if(feed_rate<minimumfeedrate) feed_rate=minimumfeedrate;
@@ -521,14 +546,16 @@ namespace planner {
 		block->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
 
 		// Update position
-		memcpy(&position, &target, sizeof(target)); // position[] = target[]
-
-		// Move buffer head
+		position = target;
+		
+		// Move buffer head -- should this move to after recalulate?
 		block_buffer++;
 
-		planner_recalculate();
+		//planner_recalculate();
 		
-		steppers::getNextMove();
+		block->nominal_rate = us_per_step;
+		
+		steppers::startRunning();
 		return true;
 	}
 
@@ -536,7 +563,7 @@ namespace planner {
 	                 const uint8_t axes_enabled,
 	                 const uint32_t us_per_step)
 	{
-	
+		// STUB
 	}
 
 	void definePosition(const Point& new_position)

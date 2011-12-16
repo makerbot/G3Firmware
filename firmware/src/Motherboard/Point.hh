@@ -53,6 +53,7 @@ public:
 
         /// Subtraction operator, for fast deltas
         const Point &operator-(const Point &other) const;
+		Point &operator=(const Point &other);
 		
 		// friend const Point &operator-(const Point &a, const Point &b);
         

@@ -115,9 +115,9 @@ void reset() {
 // Handle movement comands -- called from a few places
 void handleMovementCommand(uint8_t &command) {
 	// if we're already moving, check to make sure the buffer isn't full
-	if (mode == MOVING && planner::block_buffer.isFull()) {
-		return; // we'll be back!
-	}
+	// if (mode == MOVING && planner::block_buffer.isFull()) {
+	// 	return; // we'll be back!
+	// }
 	if (command == HOST_CMD_QUEUE_POINT_ABS) {
 		// check for completion
 		if (command_buffer.getLength() >= 17) {
@@ -140,7 +140,7 @@ void handleMovementCommand(uint8_t &command) {
 			int32_t a = pop32();
 			int32_t b = pop32();
 			int32_t dda = pop32();
-			planner::addMoveToBuffer(Point(x,y,z,a,b), dda);
+			steppers::setTarget(Point(x,y,z,a,b), dda);
 		}
 	} else if (command == HOST_CMD_QUEUE_POINT_NEW) {
 		// check for completion
@@ -179,12 +179,12 @@ void runCommandSlice() {
 		if (!steppers::isRunning()) {
 			mode = READY;
 		} else {
-			if (command_buffer.getLength() > 0) {
-				uint8_t command = command_buffer[0];
-				if (command == HOST_CMD_QUEUE_POINT_ABS || command == HOST_CMD_QUEUE_POINT_EXT || command == HOST_CMD_QUEUE_POINT_NEW) {
-					handleMovementCommand(command);
-				}
-			}
+			// if (command_buffer.getLength() > 0) {
+			// 	uint8_t command = command_buffer[0];
+			// 	if (command == HOST_CMD_QUEUE_POINT_ABS || command == HOST_CMD_QUEUE_POINT_EXT || command == HOST_CMD_QUEUE_POINT_NEW) {
+			// 		handleMovementCommand(command);
+			// 	}
+			// }
 		}
 	}
 	if (mode == DELAY) {
@@ -242,12 +242,13 @@ void runCommandSlice() {
 		// process next command on the queue.
 		if (command_buffer.getLength() > 0) {
 			uint8_t command = command_buffer[0];
+			
 			if (command == HOST_CMD_QUEUE_POINT_ABS || command == HOST_CMD_QUEUE_POINT_EXT || command == HOST_CMD_QUEUE_POINT_NEW) {
 				handleMovementCommand(command);
 			} else if (command == HOST_CMD_CHANGE_TOOL) {
 				if (command_buffer.getLength() >= 2) {
 					command_buffer.pop(); // remove the command code
-                                        tool::setCurrentToolheadIndex(command_buffer.pop());
+					tool::setCurrentToolheadIndex(command_buffer.pop());
 				}
 			} else if (command == HOST_CMD_ENABLE_AXES) {
 				if (command_buffer.getLength() >= 2) {
@@ -357,7 +358,7 @@ void runCommandSlice() {
 						}
 					}
 
-					steppers::definePosition(newPoint);
+					planner::definePosition(newPoint);
 				}
 
 			} else if (command == HOST_CMD_TOOL_COMMAND) {

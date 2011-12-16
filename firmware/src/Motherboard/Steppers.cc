@@ -34,7 +34,7 @@ volatile int32_t timer_counter;
 
 // STEPRATE_AXIS is the number of the virtual axis that control the steprate
 #define STEPRATE_AXIS STEPPER_COUNT
-StepperAxis axes[STEPPER_COUNT];
+StepperAxis axes[ALL_AXIS_COUNT];
 volatile bool is_homing;
 
 bool holdZ = false;
@@ -78,7 +78,7 @@ void setHoldZ(bool holdZ_in) {
 	holdZ = holdZ_in;
 }
 
-/*
+
 void setTarget(const Point& target, int32_t dda_interval) {
         int32_t max_delta = 0;
         for (int i = 0; i < AXIS_COUNT; i++) {
@@ -92,15 +92,35 @@ void setTarget(const Point& target, int32_t dda_interval) {
                 }
         }
         // compute number of intervals for this move
-        intervals = ((max_delta * dda_interval) / INTERVAL_IN_MICROSECONDS);
+        //intervals = ((max_delta * dda_interval) / INTERVAL_IN_MICROSECONDS);
+
+		axes[STEPRATE_AXIS].setScaleShift(0);
+
+		axes[STEPRATE_AXIS].definePosition(10000/INTERVAL_IN_MICROSECONDS);//dda_interval/INTERVAL_IN_MICROSECONDS
+		axes[STEPRATE_AXIS].setTarget(dda_interval/INTERVAL_IN_MICROSECONDS, /*relative =*/ false);
+
+		int8_t scale_shift = 0;
+		while ((axes[STEPRATE_AXIS].delta >> scale_shift) > max_delta) {
+			scale_shift++;
+		}
+		axes[STEPRATE_AXIS].setScaleShift(scale_shift);
+
+		// if (axes[STEPRATE_AXIS].delta > max_delta) {
+		//                 max_delta = axes[STEPRATE_AXIS].delta;
+		//         }
+	
+		timer_counter = axes[STEPRATE_AXIS].position<<axes[STEPRATE_AXIS].scale_shift;;
+
+        intervals = max_delta;
         intervals_remaining = intervals;
         const int32_t negative_half_interval = -intervals / 2;
-        for (int i = 0; i < AXIS_COUNT; i++) {
+        for (int i = 0; i < ALL_AXIS_COUNT; i++) {
                 axes[i].counter = negative_half_interval;
         }
         is_running = true;
 }
 
+/*
 void setTargetNew(const Point& target, int32_t us, uint8_t relative) {
         for (int i = 0; i < AXIS_COUNT; i++) {
                 axes[i].setTarget(target[i], (relative & (1 << i)) != 0);
@@ -139,13 +159,13 @@ bool getNextMove() {
 #if 0
 	if (current_phase == DECELERATING) {
 		current_phase == ACCELERATING;
+		current_block = 0;
 	}
 	else if (current_phase == ACCELERATING) {
 		current_phase == IN_PLATEAU;
 	}
 	else if (current_phase == IN_PLATEAU) {
-		current_phase == ACCELERATING;
-		current_block = 0;
+		current_phase == DECELERATING;
 	}
 	
 	// step_rate is steps/sec, step_timing is sec/step
@@ -221,48 +241,58 @@ FetchNext:
 		goto FetchNext;
 	}
 	
-#endif
+#else
 
 	if (!current_block) {
-			if (planner::block_buffer.isEmpty())
-				return false;
+		if (planner::block_buffer.isEmpty())
+			return false;
 
-			current_block = planner::block_buffer.getTail();
-			// Mark block as busy (being executed by the stepper interrupt)
-			current_block->busy = true;
+		current_block = planner::block_buffer.getTail();
+		// Mark block as busy (being executed by the stepper interrupt)
+		current_block->busy = true;
 
-			// bump the tail forward
-			planner::block_buffer--;
+		// bump the tail forward
+		planner::block_buffer--;
 	}
-
+	
+	max_delta = current_block->step_event_count;
+	
 	for (int i = 0; i < STEPPER_COUNT; i++) {
 		axes[i].setTarget(current_block->steps[i], /*relative =*/ true);
 	}
 	axes[STEPRATE_AXIS].definePosition(INTERVALS_PER_SECOND/current_block->nominal_rate);
 	axes[STEPRATE_AXIS].setTarget(INTERVALS_PER_SECOND/current_block->nominal_rate, /*relative =*/ false);
 	
+	current_block = 0;
+#endif
 	
-	// make sure that steprate axis is not the longest axis, by scaling in halves
-	// int8_t scale_shift = 0;
-	// while ((axes[STEPRATE_AXIS].delta >> scale_shift) > max_delta) {
-	// 	scale_shift++;
-	// }
-	// axes[STEPRATE_AXIS].setScaleShift(scale_shift);
-	
+#if 1
+	//make sure that steprate axis is not the longest axis, by scaling in halves
+	int8_t scale_shift = 0;
+	while ((axes[STEPRATE_AXIS].delta >> scale_shift) > max_delta) {
+		scale_shift++;
+	}
+	axes[STEPRATE_AXIS].setScaleShift(scale_shift);
+
+	//compute number of intervals for this move
+	intervals = max_delta;
+#else	
 	if (axes[STEPRATE_AXIS].delta > max_delta)
 		max_delta = axes[STEPRATE_AXIS].delta;
-	
+	intervals = ((max_delta * current_block->nominal_rate) / INTERVAL_IN_MICROSECONDS);
+	intervals = max_delta;
+#endif
+
 	for (int i = 0; i < STEPPER_COUNT; i++) {
 		const int32_t delta = axes[i].delta;
 		// Only shut z axis on inactivity
 		if (i == 2 && !holdZ) axes[i].enableStepper(delta != 0);
-		// else if (delta != 0) axes[i].enableStepper(true);
+		else if (delta != 0) axes[i].enableStepper(true);
 	}
 	
-	// compute number of intervals for this move
-	intervals = max_delta;
+    
 	intervals_remaining = intervals;
-	const int32_t negative_half_interval = -intervals >> 1;
+	const int32_t negative_half_interval = -(intervals >> 1);
 	for (int i = 0; i < ALL_AXIS_COUNT; i++) {
 		axes[i].counter = negative_half_interval;
 	}
@@ -295,14 +325,22 @@ void enableAxis(uint8_t index, bool enable) {
 	}
 }
 
+void startRunning() {
+	if (is_running)
+		return;
+	is_running = true;
+	//getNextMove();
+}
+
 bool doInterrupt() {
 	if (is_running) {
-		if (--timer_counter == 0) {
+		timer_counter -= INTERVAL_IN_MICROSECONDS;
+		if (timer_counter <= 0) {
 			if (intervals_remaining-- == 0) {
-				if (!getNextMove()) {
+				//if (!getNextMove()) {
 					is_running = false;
 					return false;
-				}
+				//}
 			}
 		
 			for (int i = 0; i < ALL_AXIS_COUNT; i++) {

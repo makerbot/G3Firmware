@@ -2,6 +2,7 @@
 
 StepperAxis::StepperAxis() :
 interface(0) {
+    reset();
 }
 
 StepperAxis::StepperAxis(StepperInterface& stepper_interface) :
@@ -11,14 +12,15 @@ interface(&stepper_interface) {
 
 void StepperAxis::setTarget(const int32_t target_in,
 bool relative) {
-        target = target_in;
         if (relative) {
-                delta = target;
+                delta = target_in;
+		        target = position + target_in;
         } else {
-                delta = target - position;
+                delta = target_in - position;
+		        target = target_in;
         }
         direction = true;
-        if (delta != 0 && interface) {
+        if (delta != 0 && interface != 0) {
                 interface->setEnabled(true);
         }
         if (delta < 0) {

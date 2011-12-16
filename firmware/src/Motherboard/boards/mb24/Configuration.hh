@@ -28,7 +28,7 @@
 /// starvation; leave this at 64uS or greater unless you know what you're doing.
 #define INTERVAL_IN_MICROSECONDS 128
 // 8MHz / INTERVAL_IN_MICROSECONDS = 125000
-#define INTERVALS_PER_SECOND 62500
+#define INTERVALS_PER_SECOND (1000000 / INTERVAL_IN_MICROSECONDS)
 
 // --- Secure Digital Card configuration ---
 // NOTE: If SD support is enabled, it is implicitly assumed that the
@@ -152,8 +152,8 @@
 // THIS MUst BE A POWER OF 2! 4, 8, 16, 32, you get the idea...
 #define BLOCK_BUFFER_SIZE 16
 
-#define DEFAULT_ACCELERATION 10.0 /* mm/s/s */
-#define DEFAULT_MAX_XY_JERK 10.0
+#define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
+#define DEFAULT_MAX_XY_JERK 20.0
 #define DEFAULT_MAX_Z_JERK 0.2
 #define DEFAULT_MAX_A_JERK 0.2
 #define DEFAULT_MAX_B_JERK 0.2

@@ -14,6 +14,9 @@ inline T abs(T x) { return (x)>0?(x):-(x); }
 
 Point::Point()
 {
+	for (uint8_t i = 0; i < 5; i++) {
+		coordinates[i] = 0;
+	}
 }
 
 Point::Point(const Point &other)
@@ -69,6 +72,14 @@ const Point &Point::operator-(const Point &other) const {
 	}
 	return c;
 }
+
+Point &Point::operator=(const Point &other) {
+	for (uint8_t i = 0; i < 5; i++) {
+		coordinates[i] = other.coordinates[i];
+	}
+	return *this;
+}
+
 
 Point Point::abs() {
 	Point absPoint = Point();
