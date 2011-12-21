@@ -12,6 +12,7 @@
 #include "Timeout.hh"
 #include "InterfaceBoard.hh"
 #include "Interface.hh"
+#include "Version.hh"
 #include <util/delay.h>
 #include <stdlib.h>
 #include "SDCard.hh"
@@ -429,6 +430,59 @@ void MonitorMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 	}
 }
 
+void VersionMode::reset() {
+}
+
+void VersionMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	static PROGMEM prog_uchar version1[] = "Firmware Version";
+	static PROGMEM prog_uchar version2[] = "----------------";
+	static PROGMEM prog_uchar version3[] = "Motherboard: _._";
+	static PROGMEM prog_uchar version4[] = "   Extruder: _._";
+
+	if (forceRedraw) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(version1);
+
+		lcd.setCursor(0,1);
+		lcd.writeFromPgmspace(version2);
+
+		lcd.setCursor(0,2);
+		lcd.writeFromPgmspace(version3);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(version4);
+
+		//Display the motherboard version
+		lcd.setCursor(13, 2);
+		lcd.writeInt(firmware_version / 100, 1);
+
+		lcd.setCursor(15, 2);
+		lcd.writeInt(firmware_version % 100, 1);
+
+		//Display the extruder version
+		OutPacket responsePacket;
+
+		if (queryExtruderParameter(SLAVE_CMD_VERSION, responsePacket)) {
+			uint16_t extruderVersion = responsePacket.read16(1);
+
+			lcd.setCursor(13, 3);
+			lcd.writeInt(extruderVersion / 100, 1);
+
+			lcd.setCursor(15, 3);
+			lcd.writeInt(extruderVersion % 100, 1);
+		} else {
+			lcd.setCursor(13, 3);
+			lcd.writeString("X.X");
+		}
+	} else {
+	}
+}
+
+void VersionMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	interface::popScreen();
+}
 
 void Menu::update(LiquidCrystal& lcd, bool forceRedraw) {
 	static PROGMEM prog_uchar blankLine[] =  "                ";
@@ -560,7 +614,7 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 
 
 MainMenu::MainMenu() {
-	itemCount = 5;
+	itemCount = 6;
 	reset();
 }
 
@@ -568,6 +622,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	static PROGMEM prog_uchar monitor[] = "Monitor Mode";
 	static PROGMEM prog_uchar build[] =   "Build from SD";
 	static PROGMEM prog_uchar jog[] =   "Jog Mode";
+	static PROGMEM prog_uchar versions[] =   "Version";
 	static PROGMEM prog_uchar snake[] =   "Snake Game";
 
 	switch (index) {
@@ -584,6 +639,9 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		// blank
 		break;
 	case 4:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 5:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -604,6 +662,10 @@ void MainMenu::handleSelect(uint8_t index) {
                         interface::pushScreen(&jogger);
 			break;
 		case 4:
+			// Show build from SD screen
+                        interface::pushScreen(&versionMode);
+			break;
+		case 5:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;

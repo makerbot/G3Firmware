@@ -204,6 +204,20 @@ public:
 };
 
 
+class VersionMode: public Screen {
+private:
+
+public:
+	micros_t getUpdateRate() {return 500L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -218,6 +232,7 @@ private:
         MonitorMode monitorMode;
         SDMenu sdMenu;
         JogMode jogger;
+        VersionMode versionMode;
         SnakeMode snake;
 };
 
