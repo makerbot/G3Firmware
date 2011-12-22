@@ -78,6 +78,14 @@ void InterfaceBoard::doUpdate() {
 	screenStack[screenIndex]->update(lcd, false);
 }
 
+bool InterfaceBoard::isButtonPressed(ButtonArray::ButtonName button) {
+	bool buttonPressed = buttons.isButtonPressed(button);
+
+	if ( buttonPressed ) screenStack[screenIndex]->notifyButtonPressed(button);
+
+	return buttonPressed;
+}
+
 void InterfaceBoard::pushScreen(Screen* newScreen) {
 	if (screenIndex < SCREEN_STACK_DEPTH - 1) {
 		screenIndex++;

@@ -85,6 +85,10 @@ public:
         /// service the button input pad.
 	void doInterrupt();
 
+	/// This is called for a specific button and returns true if the
+	/// button is currently depressed
+	bool isButtonPressed(ButtonArray::ButtonName button);
+
         /// Add a new screen to the stack. This automatically calls reset()
         /// and then update() on the screen, to ensure that it displays
         /// properly. If there are more than SCREEN_STACK_DEPTH screens already

@@ -95,10 +95,12 @@ private:
 	enum distance_t {
 	  DISTANCE_SHORT,
 	  DISTANCE_LONG,
+	  DISTANCE_CONT,
 	};
 
 	distance_t jogDistance;
 	bool distanceChanged;
+	ButtonArray::ButtonName lastDirectionButtonPressed;
 
         void jog(ButtonArray::ButtonName direction);
 

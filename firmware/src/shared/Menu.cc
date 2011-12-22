@@ -105,6 +105,7 @@ void SplashScreen::reset() {
 void JogMode::reset() {
 	jogDistance = DISTANCE_SHORT;
 	distanceChanged = false;
+	lastDirectionButtonPressed = (ButtonArray::ButtonName)0;
 }
 
 void JogMode::update(LiquidCrystal& lcd, bool forceRedraw) {
@@ -115,6 +116,7 @@ void JogMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 	static PROGMEM prog_uchar distanceShort[] = "SHORT";
 	static PROGMEM prog_uchar distanceLong[] = "LONG";
+	static PROGMEM prog_uchar distanceCont[] = "CONT";
 
 	if (forceRedraw || distanceChanged) {
 		lcd.clear();
@@ -127,6 +129,9 @@ void JogMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			break;
 		case DISTANCE_LONG:
 			lcd.writeFromPgmspace(distanceLong);
+			break;
+		case DISTANCE_CONT:
+			lcd.writeFromPgmspace(distanceCont);
 			break;
 		}
 
@@ -141,6 +146,14 @@ void JogMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 		distanceChanged = false;
 	}
+
+	if ( jogDistance == DISTANCE_CONT ) {
+		if ( lastDirectionButtonPressed ) {
+			if (interface::isButtonPressed(lastDirectionButtonPressed))
+				JogMode::notifyButtonPressed(lastDirectionButtonPressed);
+			else	lastDirectionButtonPressed = (ButtonArray::ButtonName)0;
+		}
+	}
 }
 
 void JogMode::jog(ButtonArray::ButtonName direction) {
@@ -149,12 +162,17 @@ void JogMode::jog(ButtonArray::ButtonName direction) {
 	int32_t interval = 2000;
 	uint8_t steps;
 
+	if ( jogDistance == DISTANCE_CONT )	interval = 1000;
+
 	switch(jogDistance) {
 	case DISTANCE_SHORT:
 		steps = 20;
 		break;
 	case DISTANCE_LONG:
 		steps = 200;
+		break;
+	case DISTANCE_CONT:
+		steps = 50;
 		break;
 	}
 
@@ -179,6 +197,9 @@ void JogMode::jog(ButtonArray::ButtonName direction) {
 		break;
 	}
 
+	if ( jogDistance == DISTANCE_CONT )	lastDirectionButtonPressed = direction;
+	else					lastDirectionButtonPressed = (ButtonArray::ButtonName)0;
+
 	steppers::setTarget(position, interval);
 }
 
@@ -186,11 +207,17 @@ void JogMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 	switch (button) {
         case ButtonArray::ZERO:
         case ButtonArray::OK:
-		if (jogDistance == DISTANCE_SHORT) {
-			jogDistance = DISTANCE_LONG;
-		}
-		else {
-			jogDistance = DISTANCE_SHORT;
+		switch(jogDistance)
+		{
+			case DISTANCE_SHORT:
+				jogDistance = DISTANCE_LONG;
+				break;
+			case DISTANCE_LONG:
+				jogDistance = DISTANCE_CONT;
+				break;
+			case DISTANCE_CONT:
+				jogDistance = DISTANCE_SHORT;
+				break;
 		}
 		distanceChanged = true;
 		break;
