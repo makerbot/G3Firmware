@@ -1,34 +1,36 @@
 #include "StepperAxis.hh"
 
-StepperAxis::StepperAxis() :
-interface(0) {
+StepperAxis::StepperAxis() : interface(0) {
     reset();
 }
 
-StepperAxis::StepperAxis(StepperInterface& stepper_interface) :
-interface(&stepper_interface) {
+StepperAxis::StepperAxis(StepperInterface& stepper_interface) : interface(&stepper_interface) {
         reset();
 }
 
-void StepperAxis::setTarget(const int32_t target_in,
-bool relative) {
+void StepperAxis::setTarget(const int32_t target_in, bool relative) {
         if (relative) {
-                delta = target_in;
-		        target = position + target_in;
+                unscaled_delta = target_in;
+		        unscaled_target = unscaled_position + target_in;
         } else {
-                delta = target_in - position;
-		        target = target_in;
+                unscaled_delta = target_in - unscaled_position;
+		        unscaled_target = target_in;
         }
         direction = true;
-        if (delta != 0 && interface != 0) {
+        if (unscaled_delta != 0 && interface != 0) {
                 interface->setEnabled(true);
         }
-        if (delta < 0) {
-                delta = -delta;
+        if (unscaled_delta < 0) {
+                unscaled_delta = -unscaled_delta;
                 direction = false;
         }
-
-        full_delta = delta;
+		
+		if (scale_shift > 0) {
+			// scale these when set
+	        position = unscaled_position >> scale_shift;
+			target   = unscaled_target   >> scale_shift;
+	        delta    = unscaled_delta    >> scale_shift;
+		}
 }
 
 void StepperAxis::setHoming(const bool direction_in) {
@@ -36,7 +38,7 @@ void StepperAxis::setHoming(const bool direction_in) {
         if (interface != 0)
                 interface->setEnabled(true);
         delta = 1;
-        full_delta = 1;
+        unscaled_delta = 1;
 }
 
 void StepperAxis::definePosition(const int32_t position_in) {
@@ -50,12 +52,14 @@ void StepperAxis::enableStepper(bool enable) {
 
 void StepperAxis::reset() {
         position = 0;
+		unscaled_position =0;
         minimum = 0;
         maximum = 0;
         target = 0;
+		unscaled_target = 0;
         counter = 0;
         delta = 0;
-		full_delta = 0;
+		unscaled_delta = 0;
         scale_shift = 0;
 #if defined(SINGLE_SWITCH_ENDSTOPS) && (SINGLE_SWITCH_ENDSTOPS == 1)
         endstop_play = ENDSTOP_DEFAULT_PLAY;
@@ -64,18 +68,16 @@ void StepperAxis::reset() {
 }
 
 void StepperAxis::setScaleShift(uint8_t new_shift) {
-        int8_t shift_delta = new_shift - /*old*/ scale_shift;
-        scale_shift = new_shift;
+        if (scale_shift != new_shift) {
+			scale_shift = new_shift;
+
+	        // scale these when set
+	        position = unscaled_position >> scale_shift;
+			target   = unscaled_target   >> scale_shift;
+	        delta    = unscaled_delta    >> scale_shift;
         
-        // scale these when set
-        // recover these by remultiplying (shift_delta would be negative)
-        position >>= shift_delta;
-        target >>= shift_delta;
-        
-        // always go from the source on the delta
-        delta = full_delta >> scale_shift;
-        
-        // should we shift counter too?
+	        // should we shift counter too?
+	}
 }
 
 
@@ -124,6 +126,7 @@ bool StepperAxis::checkEndstop(const bool isHoming) {
 
 void StepperAxis::doInterrupt(const int32_t intervals) {
         counter += delta;
+		
         if (counter >= 0) {
                 counter -= intervals;
                 if (interface != 0) {

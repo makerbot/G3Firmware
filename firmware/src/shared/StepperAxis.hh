@@ -11,23 +11,25 @@
 class StepperAxis
 {
 public:
-        StepperInterface* interface;    ///< Interface this axis is connected to
-        volatile int32_t position;      ///< Current position of this axis, in steps
-        int32_t minimum;                ///< Minimum position, in steps
-        int32_t maximum;                ///< Maximum position, in steps
-        volatile int32_t target;        ///< Target position, in steps
-        volatile int32_t counter;       ///< Step counter; represents the proportion of
-                                        ///< a step so far passed.  When the counter hits
-                                        ///< zero, a step is taken.
-        volatile int32_t delta;         ///< Amount to increment counter per tick
-        volatile int32_t full_delta;    ///< Unscaled version of delta
-        volatile int32_t scale_shift;   ///< Amount to bit-shift position to get the actual value
-        volatile bool direction;        ///< True for positive, false for negative
+        StepperInterface* interface;         ///< Interface this axis is connected to
+        volatile int32_t position;           ///< Current position of this axis, in steps
+        volatile int32_t unscaled_position;  ///< Current position of this axis, in steps, unscaled by scale_shift
+        int32_t minimum;                     ///< Minimum position, in steps
+        int32_t maximum;                     ///< Maximum position, in steps
+        volatile int32_t target;             ///< Target position, in steps
+        volatile int32_t unscaled_target;    ///< Target position, in steps, unscaled by scale_shift
+        volatile int32_t counter;            ///< Step counter; represents the proportion of
+                                             ///< a step so far passed.  When the counter hits
+                                             ///< zero, a step is taken.
+        volatile int32_t delta;              ///< Amount to increment counter per tick
+        volatile int32_t unscaled_delta;     ///< Unscaled version of delta
+        volatile int32_t scale_shift;        ///< Amount to bit-shift position to get the actual value
+        volatile bool direction;             ///< True for positive, false for negative
 #if defined(SINGLE_SWITCH_ENDSTOPS) && (SINGLE_SWITCH_ENDSTOPS == 1)
-        volatile bool prev_direction;   ///< Record the previous direction for endstop detection
-        volatile int32_t endstop_play;  ///< Amount to move while endstop triggered, to see which way to move
-        
-        enum endstop_status_t {         ///< State of the endstop
+        volatile bool prev_direction;        ///< Record the previous direction for endstop detection
+        volatile int32_t endstop_play;       ///< Amount to move while endstop triggered, to see which way to move
+                                          
+        enum endstop_status_t {              ///< State of the endstop
             ESS_UNKNOWN,
             ESS_TRAVELING,
             ESS_AT_MAXIMUM,

@@ -23,8 +23,6 @@
 
 namespace steppers {
 
-#define INTERVAL_IN_MICROSECONDS_X_16 (INTERVAL_IN_MICROSECONDS<<4)
-
 volatile bool is_running;
 int32_t intervals;
 volatile int32_t intervals_remaining;
@@ -51,11 +49,13 @@ void init(Motherboard& motherboard) {
 	}
 	
 	axes[STEPRATE_AXIS] = StepperAxis();
+	timer_counter = 0;
 }
 
 void abort() {
 	is_running = false;
 	is_homing = false;
+	timer_counter = 0;
 }
 
 /// Define current position as given point
@@ -81,7 +81,7 @@ void setHoldZ(bool holdZ_in) {
 
 void setTarget(const Point& target, int32_t dda_interval) {
         int32_t max_delta = 0;
-        for (int i = 0; i < AXIS_COUNT; i++) {
+        for (int i = 0; i < STEPPER_COUNT; i++) {
                 axes[i].setTarget(target[i], false);
                 const int32_t delta = axes[i].delta;
                 // Only shut z axis on inactivity
@@ -95,10 +95,15 @@ void setTarget(const Point& target, int32_t dda_interval) {
         //intervals = ((max_delta * dda_interval) / INTERVAL_IN_MICROSECONDS);
 
 		axes[STEPRATE_AXIS].setScaleShift(0);
+		axes[STEPRATE_AXIS].definePosition(dda_interval);//dda_interval/INTERVAL_IN_MICROSECONDS
+		axes[STEPRATE_AXIS].setTarget(dda_interval, /*relative =*/ false);
+		
+		if (max_delta == 0) {
+			is_running = false;
+			return;
+		}
 
-		axes[STEPRATE_AXIS].definePosition(10000/INTERVAL_IN_MICROSECONDS);//dda_interval/INTERVAL_IN_MICROSECONDS
-		axes[STEPRATE_AXIS].setTarget(dda_interval/INTERVAL_IN_MICROSECONDS, /*relative =*/ false);
-
+		// WARNING: Edge case where axes[STEPRATE_AXIS].delta > INT32_MAX is unhandled
 		int8_t scale_shift = 0;
 		while ((axes[STEPRATE_AXIS].delta >> scale_shift) > max_delta) {
 			scale_shift++;
@@ -106,14 +111,15 @@ void setTarget(const Point& target, int32_t dda_interval) {
 		axes[STEPRATE_AXIS].setScaleShift(scale_shift);
 
 		// if (axes[STEPRATE_AXIS].delta > max_delta) {
-		//                 max_delta = axes[STEPRATE_AXIS].delta;
-		//         }
-	
-		timer_counter = axes[STEPRATE_AXIS].position<<axes[STEPRATE_AXIS].scale_shift;;
+		// 	max_delta = axes[STEPRATE_AXIS].delta;
+		// }
+		
+		// We use += here so that the odd rounded-off time from the last move is still waited out
+		timer_counter += axes[STEPRATE_AXIS].position << axes[STEPRATE_AXIS].scale_shift;
 
         intervals = max_delta;
         intervals_remaining = intervals;
-        const int32_t negative_half_interval = -intervals / 2;
+        const int32_t negative_half_interval = -(intervals>>1); // same as -(intervals/2), but faster (?)
         for (int i = 0; i < ALL_AXIS_COUNT; i++) {
                 axes[i].counter = negative_half_interval;
         }
@@ -347,7 +353,7 @@ bool doInterrupt() {
 				axes[i].doInterrupt(intervals);
 			}
 			
-			timer_counter = axes[STEPRATE_AXIS].position<<axes[STEPRATE_AXIS].scale_shift;
+			timer_counter += axes[STEPRATE_AXIS].position<<axes[STEPRATE_AXIS].scale_shift;
 		}
 		return is_running;
 	} else if (is_homing) {
