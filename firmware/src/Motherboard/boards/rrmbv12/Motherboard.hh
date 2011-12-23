@@ -64,6 +64,7 @@ public:
 	/// the board was initialized.  This value will wrap after
 	/// 2**16 microseconds; callers should compensate for this.
 	micros_t getCurrentMicros();
+	void resetCurrentSeconds();
 
 	/// Write an error code to the debug pin.
 	void indicateError(int errorCode);

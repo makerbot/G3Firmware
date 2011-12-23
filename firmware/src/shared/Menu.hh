@@ -193,7 +193,10 @@ class MonitorMode: public Screen {
 private:
 	CancelBuildMenu cancelBuildMenu;
 
-	uint8_t updatePhase;
+	uint8_t   updatePhase;
+	uint8_t   buildTimePhase;
+	seconds_t lastElapsedSeconds;
+	seconds_t extruderStartSeconds; 
 
 public:
 	micros_t getUpdateRate() {return 500L * 1000L;}

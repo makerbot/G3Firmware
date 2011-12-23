@@ -579,6 +579,11 @@ void stopBuild() {
 	do_host_reset = true; // indicate reset after response has been sent
 }
 
+bool isBuildComplete() {
+	if (( command::isEmpty() ) && ( ! sdcard::playbackHasNext() ))	return true;
+	return false;
+}
+
 }
 
 /* footnote 1: due to a protocol change, replicatiorG 0026 and newer can ONLY work with

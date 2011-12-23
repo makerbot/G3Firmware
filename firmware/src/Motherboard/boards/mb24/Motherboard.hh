@@ -49,6 +49,8 @@ private:
 
 	/// Microseconds since board initialization
 	volatile micros_t micros;
+	volatile micros_t countupMicros;
+	volatile seconds_t seconds;
 
 	/// Private constructor; use the singleton
 	Motherboard();
@@ -87,6 +89,8 @@ public:
 	/// the board was initialized.  This value will wrap after
 	/// 2**32 microseconds (ca. 70 minutes); callers should compensate for this.
 	micros_t getCurrentMicros();
+	micros_t getCurrentSeconds();
+	void resetCurrentSeconds();
 
 	/// Write an error code to the debug pin.
 	void indicateError(int errorCode);

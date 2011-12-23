@@ -146,6 +146,11 @@ micros_t Motherboard::getCurrentMicros() {
 void Motherboard::runMotherboardSlice() {
 }
 
+/// Do nothing, need this to stop compile error as it called from SDCard
+/// for firmware mb24
+void Motherboard::resetCurrentSeconds() {
+}
+
 /// Run the motherboard interrupt
 void Motherboard::doInterrupt() {
 	micros += INTERVAL_IN_MICROSECONDS;

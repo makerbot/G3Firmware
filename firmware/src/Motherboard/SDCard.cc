@@ -23,6 +23,7 @@
 #include "lib_sd/fat.h"
 #include "lib_sd/sd_raw.h"
 #include "lib_sd/partition.h"
+#include "Motherboard.hh"
 
 #ifndef USE_DYNAMIC_MEMORY
 #error Dynamic memory should be explicitly disabled in the G3 mobo.
@@ -190,6 +191,9 @@ bool createFile(char *name)
 bool capturing = false;
 bool playing = false;
 uint32_t capturedBytes = 0L;
+uint32_t countupBytes = 0L;
+uint32_t percentBytes = 0L;
+uint8_t percentPlayed = 0L;
 
 bool isPlaying() {
 	return playing;
@@ -207,6 +211,7 @@ SdErrorCode startCapture(char* filename)
     return result;
   }
   capturedBytes = 0L;
+  countupBytes = 0L;
   file = 0;
   // Always operate in truncation mode.
   deleteFile(filename);
@@ -255,6 +260,11 @@ bool has_more;
 void fetchNextByte() {
   int16_t read = fat_read_file(file, &next_byte, 1);
   has_more = read > 0;
+  countupBytes++;
+  if (countupBytes >= percentBytes) {
+    countupBytes -= percentBytes;
+    percentPlayed++;
+  }
 }
 
 bool playbackHasNext() {
@@ -275,13 +285,31 @@ SdErrorCode startPlayback(char* filename) {
     return result;
   }
   capturedBytes = 0L;
+
+  countupBytes = 0L;
+
   file = 0;
   if (!openFile(filename, &file) || file == 0) {
     return SD_ERR_FILE_NOT_FOUND;
   }
   playing = true;
+
+  percentPlayed = 0;
+  percentBytes = 0L;
+  int32_t off = 0L;
+  fat_seek_file(file, &off, FAT_SEEK_END);
+  percentBytes = off / 100L;
+  off = 0L;
+  fat_seek_file(file, &off, FAT_SEEK_SET);
+
+  Motherboard::getBoard().resetCurrentSeconds();
+
   fetchNextByte();
   return SD_SUCCESS;
+}
+
+uint8_t getPercentPlayed() {
+  return percentPlayed;
 }
 
 void playbackRewind(uint8_t bytes) {

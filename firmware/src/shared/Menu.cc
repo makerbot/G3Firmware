@@ -12,6 +12,7 @@
 #include "Timeout.hh"
 #include "InterfaceBoard.hh"
 #include "Interface.hh"
+#include "Motherboard.hh"
 #include "Version.hh"
 #include <util/delay.h>
 #include <stdlib.h>
@@ -68,6 +69,163 @@ bool queryExtruderParameter(uint8_t parameter, OutPacket& responsePacket) {
 
 	return true;
 }
+
+
+
+void strcat(char *buf, const char* str)
+{
+	char *ptr = buf;
+	while (*ptr) ptr++;
+	while (*str) *ptr++ = *str++;
+	*ptr++ = '\0';
+}
+
+
+int appendTime(char *buf, uint8_t buflen, uint32_t val)
+{
+	bool hasdigit = false;
+	uint8_t idx = 0;
+	uint8_t written = 0;
+
+	if (buflen < 1) {
+		return written;
+	}
+
+	while (idx < buflen && buf[idx]) idx++;
+	if (idx >= buflen-1) {
+		buf[buflen-1] = '\0';
+		return written;
+	}
+
+	uint8_t radidx = 0;
+	const uint8_t radixcount = 5;
+	const uint8_t houridx = 2;
+	const uint8_t minuteidx = 4;
+	uint32_t radixes[radixcount] = {360000, 36000, 3600, 600, 60};
+	if (val >= 3600000) {
+		val %= 3600000;
+	}
+	for (radidx = 0; radidx < radixcount; radidx++) {
+		char digit = '0';
+		uint8_t bit = 8;
+		uint32_t radshift = radixes[radidx] << 3;
+		for (; bit > 0; bit >>= 1, radshift >>= 1) {
+			if (val > radshift) {
+				val -= radshift;
+				digit += bit;
+			}
+		}
+		if (hasdigit || digit != '0' || radidx >= houridx) {
+			buf[idx++] = digit;
+			hasdigit = true;
+		} else {
+			buf[idx++] = ' ';
+		}
+		if (idx >= buflen) {
+			buf[buflen-1] = '\0';
+			return written;
+		}
+		written++;
+		if (radidx == houridx) {
+			buf[idx++] = 'h';
+			if (idx >= buflen) {
+				buf[buflen-1] = '\0';
+				return written;
+			}
+			written++;
+		}
+		if (radidx == minuteidx) {
+			buf[idx++] = 'm';
+			if (idx >= buflen) {
+				buf[buflen-1] = '\0';
+				return written;
+			}
+			written++;
+		}
+	}
+
+	if (idx < buflen) {
+		buf[idx] = '\0';
+	} else {
+		buf[buflen-1] = '\0';
+	}
+
+	return written;
+}
+
+
+
+int appendUint8(char *buf, uint8_t buflen, uint8_t val)
+{
+	bool hasdigit = false;
+	uint8_t written = 0;
+	uint8_t idx = 0;
+
+	if (buflen < 1) {
+		return written;
+	}
+
+	while (idx < buflen && buf[idx]) idx++;
+	if (idx >= buflen-1) {
+		buf[buflen-1] = '\0';
+		return written;
+	}
+
+	if (val >= 100) {
+		uint8_t res = val / 100;
+		val -= res * 100;
+		buf[idx++] = '0' + res;
+		if (idx >= buflen) {
+			buf[buflen-1] = '\0';
+			return written;
+		}
+		hasdigit = true;
+		written++;
+	} else {
+		buf[idx++] = ' ';
+		if (idx >= buflen) {
+			buf[buflen-1] = '\0';
+			return written;
+		}
+		written++;
+	}
+
+	if (val >= 10 || hasdigit) {
+		uint8_t res = val / 10;
+		val -= res * 10;
+		buf[idx++] = '0' + res;
+		if (idx >= buflen) {
+			buf[buflen-1] = '\0';
+			return written;
+		}
+		hasdigit = true;
+		written++;
+	} else {
+		buf[idx++] = ' ';
+		if (idx >= buflen) {
+			buf[buflen-1] = '\0';
+			return written;
+		}
+		written++;
+	}
+
+	buf[idx++] = '0' + val;
+	if (idx >= buflen) {
+		buf[buflen-1] = '\0';
+		return written;
+	}
+	written++;
+
+	if (idx < buflen) {
+		buf[idx] = '\0';
+	} else {
+		buf[buflen-1] = '\0';
+	}
+
+	return written;
+}
+
+
 
 void SplashScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
 	static PROGMEM prog_uchar splash1[] = "                ";
@@ -359,11 +517,20 @@ void SnakeMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 
 void MonitorMode::reset() {
 	updatePhase = 0;
+	buildTimePhase = 0;
+	extruderStartSeconds = 0;
 }
 
 void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar extruder_temp[] =   "Tool: ---/---C";
-	static PROGMEM prog_uchar platform_temp[] =   "Bed:  ---/---C";
+	static PROGMEM prog_uchar extruder_temp[]      =   "Tool: ---/---C";
+	static PROGMEM prog_uchar platform_temp[]      =   "Bed:  ---/---C";
+	static PROGMEM prog_uchar elapsed_time[]       =   "Elapsed:   0h00m";
+	static PROGMEM prog_uchar completed_percent[]  =   "Completed:   0%";
+	static PROGMEM prog_uchar time_left[]          =   "TimeLeft:  0h00m";
+	static PROGMEM prog_uchar time_left_calc[]     =   " calc..";
+	static PROGMEM prog_uchar time_left_1min[]     =   "  <1min";
+	static PROGMEM prog_uchar time_left_none[]     =   "   none";
+	char buf[17];
 
 	if (forceRedraw) {
 		lcd.clear();
@@ -375,6 +542,8 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		case host::HOST_STATE_BUILDING:
 		case host::HOST_STATE_BUILDING_FROM_SD:
 			lcd.writeString(host::getBuildName());
+			lcd.setCursor(0,1);
+			lcd.writeFromPgmspace(completed_percent);
 			break;
 		case host::HOST_STATE_ERROR:
 			lcd.writeString("error!");
@@ -386,8 +555,6 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 		lcd.setCursor(0,3);
 		lcd.writeFromPgmspace(platform_temp);
-
-	} else {
 	}
 
 
@@ -434,10 +601,77 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			lcd.writeString("XXX");
 		}
 		break;
+	case 4:
+		enum host::HostState hostState = host::getHostState();
+		
+		if ( (hostState != host::HOST_STATE_BUILDING ) && ( hostState != host::HOST_STATE_BUILDING_FROM_SD )) break;
+
+		seconds_t secs;
+
+		switch (buildTimePhase) {
+			case 0:
+				lcd.setCursor(0,1);
+				lcd.writeFromPgmspace(completed_percent);
+				lcd.setCursor(11,1);
+				buf[0] = '\0';
+				appendUint8(buf, sizeof(buf), sdcard::getPercentPlayed());
+				strcat(buf, "% ");
+				lcd.writeString(buf);
+				break;
+			case 1:
+				lcd.setCursor(0,1);
+				lcd.writeFromPgmspace(elapsed_time);
+				lcd.setCursor(9,1);
+				buf[0] = '\0';
+
+				if ( host::isBuildComplete() ) secs = lastElapsedSeconds; //We stop counting elapsed seconds when we are done
+				else {
+					lastElapsedSeconds = Motherboard::getBoard().getCurrentSeconds();
+					secs = lastElapsedSeconds;
+				}
+				appendTime(buf, sizeof(buf), (uint32_t)secs);
+				lcd.writeString(buf);
+				break;
+			case 2:
+				lcd.setCursor(0,1);
+				lcd.writeFromPgmspace(time_left);
+				lcd.setCursor(9,1);
+
+				if (( sdcard::getPercentPlayed() >= 1 ) && ( extruderStartSeconds )) {
+					buf[0] = '\0';
+					seconds_t currentSeconds = Motherboard::getBoard().getCurrentSeconds() - extruderStartSeconds;
+					float secsf = (((float)currentSeconds / (float)sdcard::getPercentPlayed()) * 100.0 )
+							 - (float)currentSeconds;
+
+					if ((secsf > 0.0 ) && (secsf < 60.0))
+						lcd.writeFromPgmspace(time_left_1min);	
+					else if (( secsf <= 0.0) || ( host::isBuildComplete() ))
+						lcd.writeFromPgmspace(time_left_none);
+					else {
+						appendTime(buf, sizeof(buf), (uint32_t)secsf);
+						lcd.writeString(buf);
+					}
+				}
+				else	lcd.writeFromPgmspace(time_left_calc);
+
+				//Set extruderStartSeconds to when the extruder starts extruding, so we can 
+				//get an accurate TimeLeft:
+				if ( ! extruderStartSeconds ) {
+					if (queryExtruderParameter(SLAVE_CMD_GET_MOTOR_1_PWM, responsePacket)) {
+						uint8_t pwm = responsePacket.read8(1);
+						if ( pwm ) extruderStartSeconds = Motherboard::getBoard().getCurrentSeconds();
+					}
+				}
+				break;
+		}
+	
+		buildTimePhase ++;
+		if ( buildTimePhase >= 3 )	buildTimePhase = 0;
+		break;
 	}
 
 	updatePhase++;
-	if (updatePhase > 3) {
+	if (updatePhase > 4) {
 		updatePhase = 0;
 	}
 }

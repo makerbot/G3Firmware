@@ -163,12 +163,36 @@ micros_t Motherboard::getCurrentMicros() {
 }
 
 
+/// Get the number of seconds that have passed since
+/// the board was booted or the timer reset.
+micros_t Motherboard::getCurrentSeconds() {
+  micros_t seconds_snapshot;
+  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+    seconds_snapshot = seconds;
+  }
+  return seconds_snapshot;
+}
+
+
+/// Reset the seconds counter to 0.
+void Motherboard::resetCurrentSeconds() {
+  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+    seconds = 0L;
+  }
+}
+
+
 /// Run the motherboard interrupt
 void Motherboard::doInterrupt() {
 	if (hasInterfaceBoard) {
                 interfaceBoard.doInterrupt();
 	}
 	micros += INTERVAL_IN_MICROSECONDS;
+	countupMicros += INTERVAL_IN_MICROSECONDS;
+	while (countupMicros > 1000000L) {
+		seconds += 1;
+		countupMicros -= 1000000L;
+	}
 	// Do not move steppers if the board is in a paused state
 	if (command::isPaused()) return;
 	steppers::doInterrupt();

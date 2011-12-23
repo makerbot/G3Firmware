@@ -63,6 +63,8 @@ sdcard::SdErrorCode startBuildFromSD();
 /// Stop the current build
 void stopBuild();
 
+/// Returns true if the build is completed
+bool isBuildComplete();
 }
 
 #endif // HOST_HH_

@@ -87,6 +87,9 @@ namespace sdcard {
     SdErrorCode startPlayback(char* filename);
 
 
+    /// Return the percentage of the file printed.
+    uint8_t getPercentPlayed();
+
     /// See if there is more data available in the playback file.
     /// \return True if there is more data in the file
     bool playbackHasNext();
