@@ -518,14 +518,16 @@ void SnakeMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 void MonitorMode::reset() {
 	updatePhase = 0;
 	buildTimePhase = 0;
-	extruderStartSeconds = 0;
+	buildComplete = false;
+	extruderStartSeconds = 0.0;
+	lastElapsedSeconds = 0.0;
 }
 
 void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	static PROGMEM prog_uchar extruder_temp[]      =   "Tool: ---/---C";
 	static PROGMEM prog_uchar platform_temp[]      =   "Bed:  ---/---C";
 	static PROGMEM prog_uchar elapsed_time[]       =   "Elapsed:   0h00m";
-	static PROGMEM prog_uchar completed_percent[]  =   "Completed:   0%";
+	static PROGMEM prog_uchar completed_percent[]  =   "Completed:   0% ";
 	static PROGMEM prog_uchar time_left[]          =   "TimeLeft:  0h00m";
 	static PROGMEM prog_uchar time_left_calc[]     =   " calc..";
 	static PROGMEM prog_uchar time_left_1min[]     =   "  <1min";
@@ -606,7 +608,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		
 		if ( (hostState != host::HOST_STATE_BUILDING ) && ( hostState != host::HOST_STATE_BUILDING_FROM_SD )) break;
 
-		seconds_t secs;
+		float secs;
 
 		switch (buildTimePhase) {
 			case 0:
@@ -614,7 +616,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				lcd.writeFromPgmspace(completed_percent);
 				lcd.setCursor(11,1);
 				buf[0] = '\0';
-				appendUint8(buf, sizeof(buf), sdcard::getPercentPlayed());
+				appendUint8(buf, sizeof(buf), (uint8_t)sdcard::getPercentPlayed());
 				strcat(buf, "% ");
 				lcd.writeString(buf);
 				break;
@@ -637,18 +639,18 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				lcd.writeFromPgmspace(time_left);
 				lcd.setCursor(9,1);
 
-				if (( sdcard::getPercentPlayed() >= 1 ) && ( extruderStartSeconds )) {
+				if (( sdcard::getPercentPlayed() >= 1.0 ) && ( extruderStartSeconds > 0.0)) {
 					buf[0] = '\0';
-					seconds_t currentSeconds = Motherboard::getBoard().getCurrentSeconds() - extruderStartSeconds;
-					float secsf = (((float)currentSeconds / (float)sdcard::getPercentPlayed()) * 100.0 )
-							 - (float)currentSeconds;
+					float currentSeconds = Motherboard::getBoard().getCurrentSeconds() - extruderStartSeconds;
+					secs = ((currentSeconds / sdcard::getPercentPlayed()) * 100.0 ) - currentSeconds;
 
-					if ((secsf > 0.0 ) && (secsf < 60.0))
+					if ((secs > 0.0 ) && (secs < 60.0) && ( ! buildComplete ) )
 						lcd.writeFromPgmspace(time_left_1min);	
-					else if (( secsf <= 0.0) || ( host::isBuildComplete() ))
+					else if (( secs <= 0.0) || ( host::isBuildComplete() ) || ( buildComplete ) ) {
+						buildComplete = true;
 						lcd.writeFromPgmspace(time_left_none);
-					else {
-						appendTime(buf, sizeof(buf), (uint32_t)secsf);
+					} else {
+						appendTime(buf, sizeof(buf), (uint32_t)secs);
 						lcd.writeString(buf);
 					}
 				}
@@ -656,7 +658,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 				//Set extruderStartSeconds to when the extruder starts extruding, so we can 
 				//get an accurate TimeLeft:
-				if ( ! extruderStartSeconds ) {
+				if ( extruderStartSeconds == 0.0 ) {
 					if (queryExtruderParameter(SLAVE_CMD_GET_MOTOR_1_PWM, responsePacket)) {
 						uint8_t pwm = responsePacket.read8(1);
 						if ( pwm ) extruderStartSeconds = Motherboard::getBoard().getCurrentSeconds();
@@ -664,7 +666,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				}
 				break;
 		}
-	
+
 		buildTimePhase ++;
 		if ( buildTimePhase >= 3 )	buildTimePhase = 0;
 		break;

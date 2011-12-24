@@ -89,7 +89,7 @@ public:
 	/// the board was initialized.  This value will wrap after
 	/// 2**32 microseconds (ca. 70 minutes); callers should compensate for this.
 	micros_t getCurrentMicros();
-	micros_t getCurrentSeconds();
+	float getCurrentSeconds();
 	void resetCurrentSeconds();
 
 	/// Write an error code to the debug pin.

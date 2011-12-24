@@ -190,10 +190,9 @@ bool createFile(char *name)
 
 bool capturing = false;
 bool playing = false;
+int32_t	 fileSizeBytes = 0L;
+int32_t  playedBytes = 0L;
 uint32_t capturedBytes = 0L;
-uint32_t countupBytes = 0L;
-uint32_t percentBytes = 0L;
-uint8_t percentPlayed = 0L;
 
 bool isPlaying() {
 	return playing;
@@ -211,7 +210,7 @@ SdErrorCode startCapture(char* filename)
     return result;
   }
   capturedBytes = 0L;
-  countupBytes = 0L;
+  playedBytes = 0L;
   file = 0;
   // Always operate in truncation mode.
   deleteFile(filename);
@@ -260,11 +259,7 @@ bool has_more;
 void fetchNextByte() {
   int16_t read = fat_read_file(file, &next_byte, 1);
   has_more = read > 0;
-  countupBytes++;
-  if (countupBytes >= percentBytes) {
-    countupBytes -= percentBytes;
-    percentPlayed++;
-  }
+  playedBytes++;
 }
 
 bool playbackHasNext() {
@@ -286,7 +281,7 @@ SdErrorCode startPlayback(char* filename) {
   }
   capturedBytes = 0L;
 
-  countupBytes = 0L;
+  playedBytes = 0L;
 
   file = 0;
   if (!openFile(filename, &file) || file == 0) {
@@ -294,11 +289,9 @@ SdErrorCode startPlayback(char* filename) {
   }
   playing = true;
 
-  percentPlayed = 0;
-  percentBytes = 0L;
   int32_t off = 0L;
   fat_seek_file(file, &off, FAT_SEEK_END);
-  percentBytes = off / 100L;
+  fileSizeBytes = off;
   off = 0L;
   fat_seek_file(file, &off, FAT_SEEK_SET);
 
@@ -308,8 +301,12 @@ SdErrorCode startPlayback(char* filename) {
   return SD_SUCCESS;
 }
 
-uint8_t getPercentPlayed() {
-  return percentPlayed;
+float getPercentPlayed() {
+  float percentPlayed = (float)(playedBytes * 100) / (float)fileSizeBytes;
+
+  if      ( percentPlayed > 100.0 )	return 100.0;
+  else if ( percentPlayed < 0.0 )	return 0.0;
+  else					return percentPlayed;
 }
 
 void playbackRewind(uint8_t bytes) {

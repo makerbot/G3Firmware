@@ -165,12 +165,14 @@ micros_t Motherboard::getCurrentMicros() {
 
 /// Get the number of seconds that have passed since
 /// the board was booted or the timer reset.
-micros_t Motherboard::getCurrentSeconds() {
+float Motherboard::getCurrentSeconds() {
   micros_t seconds_snapshot;
+  micros_t countupMicros_snapshot;
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-    seconds_snapshot = seconds;
+    countupMicros_snapshot  = countupMicros;
+    seconds_snapshot	    = seconds;
   }
-  return seconds_snapshot;
+  return (float)seconds_snapshot + ((float)countupMicros_snapshot / (float)1000000);
 }
 
 
