@@ -17,6 +17,9 @@
 #include <util/delay.h>
 #include <stdlib.h>
 #include "SDCard.hh"
+#include "EepromMap.hh"
+#include "Eeprom.hh"
+#include <avr/eeprom.h>
 
 
 #define HOST_PACKET_TIMEOUT_MS 20
@@ -25,8 +28,11 @@
 #define HOST_TOOL_RESPONSE_TIMEOUT_MS 50
 #define HOST_TOOL_RESPONSE_TIMEOUT_MICROS (1000L*HOST_TOOL_RESPONSE_TIMEOUT_MS)
 
-/// Send a query packet to the extruder
-bool queryExtruderParameter(uint8_t parameter, OutPacket& responsePacket) {
+/// Send a packet to the extruder.  If cmdType == EXTDR_CMD_SET, then "val" should
+/// contain the value to be written otherwise val is ignored.
+/// responsePacket is filled with the returned value
+bool extruderControl(uint8_t command, enum extruderCommandType cmdType,
+		     OutPacket& responsePacket, uint16_t val) {
 
 	Timeout acquire_lock_timeout;
 	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MS);
@@ -43,7 +49,8 @@ bool queryExtruderParameter(uint8_t parameter, OutPacket& responsePacket) {
 	// Fill the query packet. The first byte is the toolhead index, and the
 	// second is the
 	out.append8(0);
-	out.append8(parameter);
+	out.append8(command);
+	if ( cmdType == EXTDR_CMD_SET )	out.append16(val);	
 
 	// Timeouts are handled inside the toolslice code; there's no need
 	// to check for timeouts on this loop.
@@ -566,7 +573,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	switch (updatePhase) {
 	case 0:
 		lcd.setCursor(6,2);
-		if (queryExtruderParameter(SLAVE_CMD_GET_TEMP, responsePacket)) {
+		if (extruderControl(SLAVE_CMD_GET_TEMP, EXTDR_CMD_GET, responsePacket, 0)) {
 			uint16_t data = responsePacket.read16(1);
 			lcd.writeInt(data,3);
 		} else {
@@ -576,7 +583,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 	case 1:
 		lcd.setCursor(10,2);
-		if (queryExtruderParameter(SLAVE_CMD_GET_SP, responsePacket)) {
+		if (extruderControl(SLAVE_CMD_GET_SP, EXTDR_CMD_GET, responsePacket, 0)) {
 			uint16_t data = responsePacket.read16(1);
 			lcd.writeInt(data,3);
 		} else {
@@ -586,7 +593,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 	case 2:
 		lcd.setCursor(6,3);
-		if (queryExtruderParameter(SLAVE_CMD_GET_PLATFORM_TEMP, responsePacket)) {
+		if (extruderControl(SLAVE_CMD_GET_PLATFORM_TEMP, EXTDR_CMD_GET, responsePacket, 0)) {
 			uint16_t data = responsePacket.read16(1);
 			lcd.writeInt(data,3);
 		} else {
@@ -596,7 +603,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 	case 3:
 		lcd.setCursor(10,3);
-		if (queryExtruderParameter(SLAVE_CMD_GET_PLATFORM_SP, responsePacket)) {
+		if (extruderControl(SLAVE_CMD_GET_PLATFORM_SP, EXTDR_CMD_GET, responsePacket, 0)) {
 			uint16_t data = responsePacket.read16(1);
 			lcd.writeInt(data,3);
 		} else {
@@ -659,7 +666,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				//Set extruderStartSeconds to when the extruder starts extruding, so we can 
 				//get an accurate TimeLeft:
 				if ( extruderStartSeconds == 0.0 ) {
-					if (queryExtruderParameter(SLAVE_CMD_GET_MOTOR_1_PWM, responsePacket)) {
+					if (extruderControl(SLAVE_CMD_GET_MOTOR_1_PWM, EXTDR_CMD_GET, responsePacket, 0)) {
 						uint8_t pwm = responsePacket.read8(1);
 						if ( pwm ) extruderStartSeconds = Motherboard::getBoard().getCurrentSeconds();
 					}
@@ -727,7 +734,7 @@ void VersionMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		//Display the extruder version
 		OutPacket responsePacket;
 
-		if (queryExtruderParameter(SLAVE_CMD_VERSION, responsePacket)) {
+		if (extruderControl(SLAVE_CMD_VERSION, EXTDR_CMD_GET, responsePacket, 0)) {
 			uint16_t extruderVersion = responsePacket.read16(1);
 
 			lcd.setCursor(13, 3);
@@ -877,14 +884,15 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 
 
 MainMenu::MainMenu() {
-	itemCount = 6;
+	itemCount = 7;
 	reset();
 }
 
 void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	static PROGMEM prog_uchar monitor[] = "Monitor Mode";
 	static PROGMEM prog_uchar build[] =   "Build from SD";
-	static PROGMEM prog_uchar jog[] =   "Jog Mode";
+	static PROGMEM prog_uchar jog[] =     "Jog Mode";
+	static PROGMEM prog_uchar preheat[] = "Preheat";
 	static PROGMEM prog_uchar versions[] =   "Version";
 	static PROGMEM prog_uchar snake[] =   "Snake Game";
 
@@ -899,12 +907,15 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(jog);
 		break;
 	case 3:
-		// blank
+		lcd.writeFromPgmspace(preheat);
 		break;
 	case 4:
-		lcd.writeFromPgmspace(versions);
+		// blank
 		break;
 	case 5:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 6:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -924,11 +935,19 @@ void MainMenu::handleSelect(uint8_t index) {
 			// Show build from SD screen
                         interface::pushScreen(&jogger);
 			break;
+		case 3:
+			// Show preheat menu
+			interface::pushScreen(&preheatMenu);
+			preheatMenu.fetchTargetTemps();
+			break;
 		case 4:
+			// blank
+			break;
+		case 5:
 			// Show build from SD screen
                         interface::pushScreen(&versionMode);
 			break;
-		case 5:
+		case 6:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;
@@ -1045,6 +1064,225 @@ void SDMenu::handleSelect(uint8_t index) {
 		// TODO: report error
 		return;
 	}
+}
+
+
+void Tool0TempSetScreen::reset() {
+	value = eeprom::getEeprom8(eeprom::TOOL0_TEMP, 220);;
+}
+
+void Tool0TempSetScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
+	static PROGMEM prog_uchar message1[] = "Tool0 Targ Temp:";
+	static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
+
+	if (forceRedraw) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(message1);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(message4);
+	}
+
+
+	// Redraw tool info
+	lcd.setCursor(0,1);
+	lcd.writeInt(value,3);
+}
+
+void Tool0TempSetScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
+	switch (button) {
+        case ButtonArray::CANCEL:
+		interface::popScreen();
+		break;
+        case ButtonArray::ZERO:
+        case ButtonArray::OK:
+		eeprom_write_byte((uint8_t*)eeprom::TOOL0_TEMP,value);
+		interface::popScreen();
+		break;
+        case ButtonArray::ZPLUS:
+		// increment more
+		if (value <= 250) {
+			value += 5;
+		}
+		break;
+        case ButtonArray::ZMINUS:
+		// decrement more
+		if (value >= 5) {
+			value -= 5;
+		}
+		break;
+        case ButtonArray::YPLUS:
+		// increment less
+		if (value <= 254) {
+			value += 1;
+		}
+		break;
+        case ButtonArray::YMINUS:
+		// decrement less
+		if (value >= 1) {
+			value -= 1;
+		}
+		break;
+
+        case ButtonArray::XMINUS:
+        case ButtonArray::XPLUS:
+		break;
+	}
+}
+
+
+void PlatformTempSetScreen::reset() {
+	value = eeprom::getEeprom8(eeprom::PLATFORM_TEMP, 110);;
+}
+
+void PlatformTempSetScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
+	static PROGMEM prog_uchar message1[] = "Bed Target Temp:";
+	static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
+
+	if (forceRedraw) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(message1);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(message4);
+	}
+
+
+	// Redraw tool info
+	lcd.setCursor(0,1);
+	lcd.writeInt(value,3);
+}
+
+void PlatformTempSetScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
+	switch (button) {
+        case ButtonArray::CANCEL:
+		interface::popScreen();
+		break;
+        case ButtonArray::ZERO:
+        case ButtonArray::OK:
+		eeprom_write_byte((uint8_t*)eeprom::PLATFORM_TEMP,value);
+		interface::popScreen();
+		break;
+        case ButtonArray::ZPLUS:
+		// increment more
+		if (value <= 250) {
+			value += 5;
+		}
+		break;
+        case ButtonArray::ZMINUS:
+		// decrement more
+		if (value >= 5) {
+			value -= 5;
+		}
+		break;
+        case ButtonArray::YPLUS:
+		// increment less
+		if (value <= 254) {
+			value += 1;
+		}
+		break;
+        case ButtonArray::YMINUS:
+		// decrement less
+		if (value >= 1) {
+			value -= 1;
+		}
+		break;
+
+        case ButtonArray::XMINUS:
+        case ButtonArray::XPLUS:
+		break;
+	}
+}
+
+
+PreheatMenu::PreheatMenu() {
+	itemCount = 4;
+	reset();
+}
+
+void PreheatMenu::fetchTargetTemps() {
+	OutPacket responsePacket;
+	if (extruderControl(SLAVE_CMD_GET_SP, EXTDR_CMD_GET, responsePacket, 0)) {
+		tool0Temp = responsePacket.read16(1);
+	}
+	if (extruderControl(SLAVE_CMD_GET_PLATFORM_SP, EXTDR_CMD_GET, responsePacket, 0)) {
+		platformTemp = responsePacket.read16(1);
+	}
+}
+
+void PreheatMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+	static PROGMEM prog_uchar heat[]     = "Heat ";
+	static PROGMEM prog_uchar cool[]     = "Cool ";
+	static PROGMEM prog_uchar tool0[]    = "Tool0";
+	static PROGMEM prog_uchar platform[] = "Bed";
+	static PROGMEM prog_uchar tool0set[] = "Set Tool0 Temp";
+	static PROGMEM prog_uchar platset[]  = "Set Bed Temp";
+
+	switch (index) {
+	case 0:
+		fetchTargetTemps();
+		if (tool0Temp > 0) {
+			lcd.writeFromPgmspace(cool);
+		} else {
+			lcd.writeFromPgmspace(heat);
+		}
+		lcd.writeFromPgmspace(tool0);
+		break;
+	case 1:
+		if (platformTemp > 0) {
+			lcd.writeFromPgmspace(cool);
+		} else {
+			lcd.writeFromPgmspace(heat);
+		}
+		lcd.writeFromPgmspace(platform);
+		break;
+	case 2:
+		lcd.writeFromPgmspace(tool0set);
+		break;
+	case 3:
+		lcd.writeFromPgmspace(platset);
+		break;
+	}
+}
+
+void PreheatMenu::handleSelect(uint8_t index) {
+	OutPacket responsePacket;
+	switch (index) {
+		case 0:
+			// Toggle Extruder heater on/off
+			if (tool0Temp > 0) {
+				extruderControl(SLAVE_CMD_SET_TEMP, EXTDR_CMD_SET, responsePacket, 0);
+			} else {
+				uint8_t value = eeprom::getEeprom8(eeprom::TOOL0_TEMP, 220);
+				extruderControl(SLAVE_CMD_SET_TEMP, EXTDR_CMD_SET, responsePacket, (uint16_t)value);
+			}
+			fetchTargetTemps();
+			lastDrawIndex = 255; // forces redraw.
+			break;
+		case 1:
+			// Toggle Platform heater on/off
+			if (platformTemp > 0) {
+				extruderControl(SLAVE_CMD_SET_PLATFORM_TEMP, EXTDR_CMD_SET, responsePacket, 0);
+			} else {
+				uint8_t value = eeprom::getEeprom8(eeprom::PLATFORM_TEMP, 110);
+				extruderControl(SLAVE_CMD_SET_PLATFORM_TEMP, EXTDR_CMD_SET, responsePacket, value);
+			}
+			fetchTargetTemps();
+			lastDrawIndex = 255; // forces redraw.
+			break;
+		case 2:
+			// Show Extruder Temperature Setting Screen
+                        interface::pushScreen(&tool0TempSetScreen);
+			break;
+		case 3:
+			// Show Platform Temperature Setting Screen
+                        interface::pushScreen(&platTempSetScreen);
+			break;
+		}
 }
 
 #endif

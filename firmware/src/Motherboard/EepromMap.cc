@@ -30,6 +30,9 @@ void setDefaults() {
     eeprom_write_byte((uint8_t*)eeprom::AXIS_INVERSION,axis_invert);
     eeprom_write_byte((uint8_t*)eeprom::ENDSTOP_INVERSION,endstop_invert);
     eeprom_write_byte((uint8_t*)eeprom::MACHINE_NAME,0); // name is null
+    eeprom_write_byte((uint8_t*)eeprom::TOOL0_TEMP,220);
+    eeprom_write_byte((uint8_t*)eeprom::TOOL1_TEMP,220);
+    eeprom_write_byte((uint8_t*)eeprom::PLATFORM_TEMP,110);
 }
 
 }
