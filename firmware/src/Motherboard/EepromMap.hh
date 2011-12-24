@@ -53,6 +53,8 @@ const static uint16_t AXIS_HOME_POSITIONS		= 0x0060;
 const static uint16_t TOOL0_TEMP      = 0x0080;
 const static uint16_t TOOL1_TEMP      = 0x0081;
 const static uint16_t PLATFORM_TEMP   = 0x0082;
+const static uint16_t EXTRUDE_DURATION= 0x0083;
+const static uint16_t EXTRUDE_RPM     = 0x0084;
 
 /// Reset all data in the EEPROM to a default.
 void setDefaults();

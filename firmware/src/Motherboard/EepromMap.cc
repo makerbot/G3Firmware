@@ -33,6 +33,8 @@ void setDefaults() {
     eeprom_write_byte((uint8_t*)eeprom::TOOL0_TEMP,220);
     eeprom_write_byte((uint8_t*)eeprom::TOOL1_TEMP,220);
     eeprom_write_byte((uint8_t*)eeprom::PLATFORM_TEMP,110);
+    eeprom_write_byte((uint8_t*)eeprom::EXTRUDE_DURATION,1);
+    eeprom_write_byte((uint8_t*)eeprom::EXTRUDE_RPM,19);
 }
 
 }

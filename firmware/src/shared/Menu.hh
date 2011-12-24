@@ -279,6 +279,65 @@ private:
         PlatformTempSetScreen platTempSetScreen;
 };
 
+class ExtruderTooColdMenu: public Menu {
+public:
+	ExtruderTooColdMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class ExtruderSetRpmScreen: public Screen {
+private:
+	uint8_t rpm;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class ExtruderMode: public Screen {
+private:
+	enum extrudeSeconds {
+		EXTRUDE_SECS_CANCEL = 0,
+		EXTRUDE_SECS_1S     = 1,
+		EXTRUDE_SECS_2S     = 2,
+		EXTRUDE_SECS_5S     = 5,
+		EXTRUDE_SECS_10S    = 10,
+		EXTRUDE_SECS_30S    = 30,
+		EXTRUDE_SECS_60S    = 60,
+		EXTRUDE_SECS_90S    = 90,
+		EXTRUDE_SECS_120S   = 120,
+		EXTRUDE_SECS_240S   = 240,
+	};
+
+	enum extrudeSeconds extrudeSeconds;
+	bool timeChanged;
+	int16_t lastDirection;
+	ExtruderTooColdMenu extruderTooColdMenu;
+        ExtruderSetRpmScreen extruderSetRpmScreen;
+
+	uint8_t updatePhase;
+
+	void extrude(seconds_t steps, bool overrideTempCheck);
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+	void notifyButtonPressed(ButtonArray::ButtonName button);
+};
 
 class MainMenu: public Menu {
 public:
@@ -295,6 +354,7 @@ private:
         SDMenu sdMenu;
         JogMode jogger;
 	PreheatMenu preheatMenu;
+	ExtruderMode extruderMenu;
         VersionMode versionMode;
         SnakeMode snake;
 };

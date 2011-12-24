@@ -87,6 +87,8 @@ public:
   /** Added by MakerBot Industries to support storing strings in flash **/
   void writeInt(uint16_t value, uint8_t digits);
 
+  void writeFloat(float value, uint8_t decimalPlaces);
+
   void writeString(char message[]);
 
   void writeFromPgmspace(const prog_uchar message[]);

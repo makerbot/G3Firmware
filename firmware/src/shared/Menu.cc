@@ -28,6 +28,8 @@
 #define HOST_TOOL_RESPONSE_TIMEOUT_MS 50
 #define HOST_TOOL_RESPONSE_TIMEOUT_MICROS (1000L*HOST_TOOL_RESPONSE_TIMEOUT_MS)
 
+int16_t overrideExtrudeSeconds = 0;
+
 /// Send a packet to the extruder.  If cmdType == EXTDR_CMD_SET, then "val" should
 /// contain the value to be written otherwise val is ignored.
 /// responsePacket is filled with the returned value
@@ -400,6 +402,286 @@ void JogMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 	}
 }
 
+void ExtruderMode::reset() {
+	extrudeSeconds = (enum extrudeSeconds)eeprom::getEeprom8(eeprom::EXTRUDE_DURATION, 1);
+	updatePhase = 0;
+	timeChanged = false;
+	lastDirection = 1;
+	overrideExtrudeSeconds = 0;
+}
+
+void ExtruderMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	static PROGMEM prog_uchar extrude1[] = "Extrude: ";
+	static PROGMEM prog_uchar extrude2[] = "(set rpm)    Fwd";
+	static PROGMEM prog_uchar extrude3[] = " (stop)    (dur)";
+	static PROGMEM prog_uchar extrude4[] = "---/---C     Rev";
+	static PROGMEM prog_uchar secs[]     = "SECS";
+	static PROGMEM prog_uchar blank[]    = "       ";
+
+	if (overrideExtrudeSeconds)	extrude(overrideExtrudeSeconds, true);
+
+	if (forceRedraw) {
+		lcd.clear();
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(extrude1);
+
+		lcd.setCursor(0,1);
+		lcd.writeFromPgmspace(extrude2);
+
+		lcd.setCursor(0,2);
+		lcd.writeFromPgmspace(extrude3);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(extrude4);
+	}
+
+	if ((forceRedraw) || (timeChanged)) {
+		lcd.setCursor(9,0);
+		lcd.writeFromPgmspace(blank);
+		lcd.setCursor(9,0);
+		lcd.writeFloat((float)extrudeSeconds, 0);
+		lcd.writeFromPgmspace(secs);
+		timeChanged = false;
+	}
+
+	OutPacket responsePacket;
+	Point position;
+
+	// Redraw tool info
+	switch (updatePhase) {
+	case 0:
+		lcd.setCursor(0,3);
+		if (extruderControl(SLAVE_CMD_GET_TEMP, EXTDR_CMD_GET, responsePacket, 0)) {
+			uint16_t data = responsePacket.read16(1);
+			lcd.writeInt(data,3);
+		} else {
+			lcd.writeString("XXX");
+		}
+		break;
+
+	case 1:
+		lcd.setCursor(4,3);
+		if (extruderControl(SLAVE_CMD_GET_SP, EXTDR_CMD_GET, responsePacket, 0)) {
+			uint16_t data = responsePacket.read16(1);
+			lcd.writeInt(data,3);
+		} else {
+			lcd.writeString("XXX");
+		}
+		break;
+	}
+
+	updatePhase++;
+	if (updatePhase > 1) {
+		updatePhase = 0;
+	}
+}
+
+void ExtruderMode::extrude(seconds_t seconds, bool overrideTempCheck) {
+	//Check we're hot enough
+	if ( ! overrideTempCheck )
+	{
+		OutPacket responsePacket;
+		if (extruderControl(SLAVE_CMD_IS_TOOL_READY, EXTDR_CMD_GET, responsePacket, 0)) {
+			uint8_t data = responsePacket.read8(1);
+		
+			if ( ! data )
+			{
+				overrideExtrudeSeconds = seconds;
+				interface::pushScreen(&extruderTooColdMenu);
+				return;
+			}
+		}
+	}
+
+	Point position = steppers::getPosition();
+
+	float rpm = (float)eeprom::getEeprom8(eeprom::EXTRUDE_RPM, 19) / 10.0;
+
+	//60 * 1000000 = # uS in a minute
+	//200 * 8 = 200 steps per revolution * 1/8 stepping
+	int32_t interval = (int32_t)(60L * 1000000L) / (int32_t)((float)(200 * 8) * rpm);
+	int16_t stepsPerSecond = (int16_t)((200.0 * 8.0 * rpm) / 60.0);
+
+	if ( seconds == 0 )	steppers::abort();
+	else {
+		position[3] += seconds * stepsPerSecond;
+		steppers::setTarget(position, interval);
+	}
+
+	if (overrideTempCheck)	overrideExtrudeSeconds = 0;
+}
+
+void ExtruderMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	int16_t zReverse = -1;
+
+	switch (button) {
+        	case ButtonArray::OK:
+			switch(extrudeSeconds) {
+                		case EXTRUDE_SECS_1S:
+					extrudeSeconds = EXTRUDE_SECS_2S;
+					break;
+                		case EXTRUDE_SECS_2S:
+					extrudeSeconds = EXTRUDE_SECS_5S;
+					break;
+                		case EXTRUDE_SECS_5S:
+					extrudeSeconds = EXTRUDE_SECS_10S;
+					break;
+				case EXTRUDE_SECS_10S:
+					extrudeSeconds = EXTRUDE_SECS_30S;
+					break;
+				case EXTRUDE_SECS_30S:
+					extrudeSeconds = EXTRUDE_SECS_60S;
+					break;
+				case EXTRUDE_SECS_60S:
+					extrudeSeconds = EXTRUDE_SECS_90S;
+					break;
+				case EXTRUDE_SECS_90S:
+					extrudeSeconds = EXTRUDE_SECS_120S;
+					break;
+                		case EXTRUDE_SECS_120S:
+					extrudeSeconds = EXTRUDE_SECS_240S;
+					break;
+                		case EXTRUDE_SECS_240S:
+					extrudeSeconds = EXTRUDE_SECS_1S;
+					break;
+				default:
+					extrudeSeconds = EXTRUDE_SECS_1S;
+					break;
+			}
+
+			eeprom_write_byte((uint8_t *)eeprom::EXTRUDE_DURATION, (uint8_t)extrudeSeconds);
+
+			//If we're already extruding, change the time running
+			if (steppers::isRunning())
+				extrude((seconds_t)(zReverse * lastDirection * extrudeSeconds), false);
+
+			timeChanged = true;
+			break;
+        	case ButtonArray::YPLUS:
+			// Show Extruder RPM Setting Screen
+                        interface::pushScreen(&extruderSetRpmScreen);
+			break;
+        	case ButtonArray::ZERO:
+        	case ButtonArray::YMINUS:
+        	case ButtonArray::XMINUS:
+        	case ButtonArray::XPLUS:
+			extrude((seconds_t)EXTRUDE_SECS_CANCEL, true);
+        		break;
+        	case ButtonArray::ZMINUS:
+        	case ButtonArray::ZPLUS:
+			if ( button == ButtonArray::ZPLUS )	lastDirection = 1;
+			else					lastDirection = -1;
+			
+			extrude((seconds_t)(zReverse * lastDirection * extrudeSeconds), false);
+			break;
+       	 	case ButtonArray::CANCEL:
+               		interface::popScreen();
+			break;
+	}
+}
+
+
+
+ExtruderTooColdMenu::ExtruderTooColdMenu() {
+	itemCount = 4;
+	reset();
+}
+
+void ExtruderTooColdMenu::resetState() {
+	itemIndex = 2;
+	firstItemIndex = 2;
+}
+
+void ExtruderTooColdMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+	static PROGMEM prog_uchar warning[]  = "Tool0 too cold!";
+	static PROGMEM prog_uchar cancel[]   =  "Cancel";
+	static PROGMEM prog_uchar override[] =  "Override";
+
+	switch (index) {
+	case 0:
+		lcd.writeFromPgmspace(warning);
+		break;
+	case 1:
+		break;
+	case 2:
+		lcd.writeFromPgmspace(cancel);
+		break;
+	case 3:
+		lcd.writeFromPgmspace(override);
+		break;
+	}
+}
+
+void ExtruderTooColdMenu::handleSelect(uint8_t index) {
+	switch (index) {
+	case 2:
+		// Cancel extrude
+		overrideExtrudeSeconds = 0;
+		interface::popScreen();
+		break;
+	case 3:
+		// Override and extrude
+                interface::popScreen();
+		break;
+	}
+}
+
+void ExtruderSetRpmScreen::reset() {
+	rpm = eeprom::getEeprom8(eeprom::EXTRUDE_RPM, 19);
+}
+
+void ExtruderSetRpmScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
+	static PROGMEM prog_uchar message1[] = "Extruder RPM:";
+	static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
+	static PROGMEM prog_uchar blank[]    = " ";
+
+	if (forceRedraw) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(message1);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(message4);
+	}
+
+	// Redraw tool info
+	lcd.setCursor(0,1);
+	lcd.writeFloat((float)rpm / 10.0, 1);
+	lcd.writeFromPgmspace(blank);
+}
+
+void ExtruderSetRpmScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
+	switch (button) {
+		case ButtonArray::CANCEL:
+			interface::popScreen();
+			break;
+		case ButtonArray::ZERO:
+		case ButtonArray::OK:
+			eeprom_write_byte((uint8_t *)eeprom::EXTRUDE_RPM, rpm);
+			interface::popScreen();
+			break;
+		case ButtonArray::ZPLUS:
+			// increment more
+			if (rpm <= 250) rpm += 5;
+			break;
+		case ButtonArray::ZMINUS:
+			// decrement more
+			if (rpm >= 8) rpm -= 5;
+			break;
+		case ButtonArray::YPLUS:
+			// increment less
+			if (rpm <= 254) rpm += 1;
+			break;
+		case ButtonArray::YMINUS:
+			// decrement less
+			if (rpm >= 4) rpm -= 1;
+			break;
+		case ButtonArray::XMINUS:
+		case ButtonArray::XPLUS:
+			break;
+	}
+}
 
 void SnakeMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	static PROGMEM prog_uchar gameOver[] =  "GAME OVER!";
@@ -889,12 +1171,13 @@ MainMenu::MainMenu() {
 }
 
 void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
-	static PROGMEM prog_uchar monitor[] = "Monitor Mode";
-	static PROGMEM prog_uchar build[] =   "Build from SD";
-	static PROGMEM prog_uchar jog[] =     "Jog Mode";
-	static PROGMEM prog_uchar preheat[] = "Preheat";
-	static PROGMEM prog_uchar versions[] =   "Version";
-	static PROGMEM prog_uchar snake[] =   "Snake Game";
+	static PROGMEM prog_uchar monitor[] =  "Monitor";
+	static PROGMEM prog_uchar build[] =    "Build from SD";
+	static PROGMEM prog_uchar jog[] =      "Jog";
+	static PROGMEM prog_uchar preheat[] =  "Preheat";
+	static PROGMEM prog_uchar extruder[] = "Extrude";
+	static PROGMEM prog_uchar versions[] = "Version";
+	static PROGMEM prog_uchar snake[] =    "Snake Game";
 
 	switch (index) {
 	case 0:
@@ -910,7 +1193,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(preheat);
 		break;
 	case 4:
-		// blank
+		lcd.writeFromPgmspace(extruder);
 		break;
 	case 5:
 		lcd.writeFromPgmspace(versions);
@@ -941,7 +1224,8 @@ void MainMenu::handleSelect(uint8_t index) {
 			preheatMenu.fetchTargetTemps();
 			break;
 		case 4:
-			// blank
+			// Show extruder menu
+			interface::pushScreen(&extruderMenu);
 			break;
 		case 5:
 			// Show build from SD screen

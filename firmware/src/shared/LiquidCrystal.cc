@@ -281,6 +281,67 @@ void LiquidCrystal::writeInt(uint16_t value, uint8_t digits) {
 }
 
 
+//From: http://www.arduino.cc/playground/Code/PrintFloats
+//tim [at] growdown [dot] com   Ammended to write a float to lcd
+
+void LiquidCrystal::writeFloat(float value, uint8_t decimalPlaces) {
+	// this is used to cast digits 
+	int digit;
+	float tens = 0.1;
+	int tenscount = 0;
+	int i;
+	float tempfloat = value;
+
+	// make sure we round properly. this could use pow from <math.h>, but doesn't seem worth the import
+	// if this rounding step isn't here, the value  54.321 prints as 54.3209
+
+	// calculate rounding term d:   0.5/pow(10,decimalPlaces)  
+	float d = 0.5;
+	if (value < 0) d *= -1.0;
+
+	// divide by ten for each decimal place
+	for (i = 0; i < decimalPlaces; i++) d/= 10.0;    
+
+	// this small addition, combined with truncation will round our values properly 
+	tempfloat +=  d;
+
+	// first get value tens to be the large power of ten less than value
+	// tenscount isn't necessary but it would be useful if you wanted to know after this how many chars the number will take
+
+	if (value < 0)	tempfloat *= -1.0;
+	while ((tens * 10.0) <= tempfloat) {
+		tens *= 10.0;
+		tenscount += 1;
+	}
+
+	// write out the negative if needed
+	if (value < 0) write('-');
+
+	if (tenscount == 0) write('0');
+
+	for (i=0; i< tenscount; i++) {
+		digit = (int) (tempfloat/tens);
+		write(digit + '0');
+		tempfloat = tempfloat - ((float)digit * tens);
+		tens /= 10.0;
+	}
+
+	// if no decimalPlaces after decimal, stop now and return
+	if (decimalPlaces <= 0) return;
+
+	// otherwise, write the point and continue on
+	write('.');
+
+	// now write out each decimal place by shifting digits one by one into the ones place and writing the truncated value
+	for (i = 0; i < decimalPlaces; i++) {
+		tempfloat *= 10.0; 
+		digit = (int) tempfloat;
+		write(digit+'0');
+		// once written, subtract off that digit
+		tempfloat = tempfloat - (float) digit; 
+	}
+}
+
 void LiquidCrystal::writeString(char message[]) {
 	char* letter = message;
 	while (*letter != 0) {
