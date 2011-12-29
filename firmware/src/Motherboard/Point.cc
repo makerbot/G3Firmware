@@ -14,7 +14,7 @@ inline T abs(T x) { return (x)>0?(x):-(x); }
 
 Point::Point()
 {
-	for (uint8_t i = 0; i < 5; i++) {
+	for (uint16_t i = 0; i < 5; i++) {
 		coordinates[i] = 0;
 	}
 }
@@ -31,7 +31,7 @@ Point::Point(const Point &other)
 }
 
 
-Point::Point(int32_t x, int32_t y, int32_t z, int32_t a, int32_t b) {
+Point::Point(const int32_t x, const int32_t y, const int32_t z, const int32_t a, const int32_t b) {
 	coordinates[0] = x;
 	coordinates[1] = y;
 	coordinates[2] = z;
@@ -41,7 +41,7 @@ Point::Point(int32_t x, int32_t y, int32_t z, int32_t a, int32_t b) {
 #endif
 }
 
-Point::Point(int32_t x, int32_t y, int32_t z) {
+Point::Point(const int32_t x, const int32_t y, const int32_t z) {
 	coordinates[0] = x;
 	coordinates[1] = y;
 	coordinates[2] = z;
@@ -51,32 +51,32 @@ Point::Point(int32_t x, int32_t y, int32_t z) {
 #endif
 }
 
-const int32_t& Point::operator[](unsigned int index) const {
+const int32_t& Point::operator[](const unsigned int index) const {
 	return coordinates[index];
 }
 
-int32_t& Point::operator[](unsigned int index) {
+int32_t& Point::operator[](const unsigned int index) {
 	return coordinates[index];
 }
-
-// const Point &operator-(const Point &a, const Point &b) {
-// 	Point c = Point(a);
-// 	return c -= b;
-// }
 
 /// Subtraction operator, for fast deltas
-const Point &Point::operator-(const Point &other) const {
-	Point c = Point();
-	for (uint8_t i = 0; i < 5; i++) {
-		c.coordinates[i] = coordinates[i] - other.coordinates[i];
-	}
+Point operator- (const Point &a, const Point &b) {
+	Point c = Point(
+		a.coordinates[0] - b.coordinates[0],
+		a.coordinates[1] - b.coordinates[1],
+		a.coordinates[2] - b.coordinates[2],
+		a.coordinates[3] - b.coordinates[3],
+		a.coordinates[4] - b.coordinates[4]
+	);
 	return c;
 }
 
 Point &Point::operator=(const Point &other) {
-	for (uint8_t i = 0; i < 5; i++) {
-		coordinates[i] = other.coordinates[i];
-	}
+	coordinates[0] = other.coordinates[0];
+	coordinates[1] = other.coordinates[1];
+	coordinates[2] = other.coordinates[2];
+	coordinates[3] = other.coordinates[3];
+	coordinates[4] = other.coordinates[4];
 	return *this;
 }
 

@@ -189,11 +189,13 @@ bool getNextMove() {
 	}
 	
 	// reset steprate axis
-	axes[STEPRATE_AXIS].position <<= feedrate_scale_shift;
-	feedrate_scale_shift = 0;
+	if (feedrate_scale_shift != 0) {
+		axes[STEPRATE_AXIS].position = axes[STEPRATE_AXIS].position << feedrate_scale_shift;
+		feedrate_scale_shift = 0;
+	}
 	
 	// step_rate is steps/sec, step_timing is sec/step
-	if (!current_block) {
+	if (current_block == 0) {
 		FetchNext:
 		if (planner::isBufferEmpty())
 			return false;
@@ -208,27 +210,27 @@ bool getNextMove() {
 			for (int i = 0; i < STEPPER_COUNT; i++) {
 				// rearrange a little to avoid fractional math.
 				// Should be the same as: (accelerate_until/step_event_count) * steps[i]
-//				axes[i].setTarget((current_block->accelerate_until * current_block->steps[i]) / current_block->step_event_count, /*relative =*/ true);
-				axes[i].setTarget(current_block->steps[i], /*relative =*/ true);
+				axes[i].setTarget((current_block->accelerate_until * current_block->steps[i]) / current_block->step_event_count, /*relative =*/ true);
+				// axes[i].setTarget(current_block->steps[i], /*relative =*/ true);
 			}
 
 			// setup steprate axis
 			axes[STEPRATE_AXIS].definePosition(1000000/current_block->initial_rate);
 			axes[STEPRATE_AXIS].setTarget(1000000/current_block->nominal_rate, /*relative =*/ false);
-			
+			// axes[STEPRATE_AXIS].definePosition(1000000/current_block->nominal_rate);
+			// axes[STEPRATE_AXIS].setTarget(1000000/current_block->nominal_rate, /*relative =*/ false);
+			// 
 			max_delta = current_block->accelerate_until;
-			
-			// XXX
-			axes[STEPRATE_AXIS].definePosition(1000000/current_block->nominal_rate);
-			axes[STEPRATE_AXIS].setTarget(1000000/current_block->nominal_rate, /*relative =*/ false);
-			max_delta = current_block->step_event_count;
-			current_phase == DECELERATING;
+			// max_delta = current_block->step_event_count;
+			// 
+			// current_phase = DECELERATING;
+
 			
 		} else {
 			current_phase = IN_PLATEAU;
 		}
 	}
-#if 0	
+#if 1
 	if (current_phase == IN_PLATEAU && current_block->accelerate_until != current_block->decelerate_after) {
 		// setup all real axes
 		for (int i = 0; i < STEPPER_COUNT; i++) {
@@ -289,7 +291,6 @@ bool getNextMove() {
 	for (int i = 0; i < ALL_AXIS_COUNT; i++) {
 		axes[i].counter = negative_half_interval;
 	}
-
 	is_running = true;
 	return true;
 }

@@ -61,6 +61,7 @@
 #include <string.h> // for memmove and memcpy
 
 #include "Steppers.hh"
+#include "Point.hh"
 
 #define X_AXIS 0
 #define Y_AXIS 1
@@ -477,7 +478,7 @@ namespace planner {
 	
 	Block *getNextBlock() {
 		Block *block = block_buffer.getTail();
-		planner::block_buffer.bumpTail();
+		block_buffer.bumpTail();
 		return block;
 	}
 	
@@ -492,18 +493,33 @@ namespace planner {
 		// Mark block as not busy (Not executed by the stepper interrupt)
 		block->busy = false;
 
-		// calculate the difference between the current position and the target
-		Point delta = target - position;
+		// // calculate the difference between the current position and the target
+		// Point delta = target - position;
+		// 
+		// // set the number of steps and direction for each axis
+		// block->steps = target - position;
+
+		block->steps[0] = target[0] - position[0];
+		block->steps[1] = target[1] - position[1];
+		block->steps[2] = target[2] - position[2];
+		block->steps[3] = target[3] - position[3];
+		block->steps[4] = target[4] - position[4];
+
+		block->nominal_rate = 1000000/us_per_step; // (step/sec) Always > 0
 		
-		// set the number of steps and direction for each axis
-		block->steps = delta;
-		
+#if 1
 		// store the absolute number of steps in each direction, without direction
-		Point steps = delta.abs();
+		Point steps = Point(
+			abs(target[0] - position[0]),
+			abs(target[1] - position[1]),
+			abs(target[2] - position[2]),
+			abs(target[3] - position[3]),
+			abs(target[4] - position[4])
+		);
 		
 		block->step_event_count = 0;
 		uint8_t master_axis = 0;
-		for (int i = 1; i < AXIS_COUNT; i++) {
+		for (int i = 0; i < AXIS_COUNT; i++) {
 			if (steps[i] > block->step_event_count) {
 				block->step_event_count = steps[i];
 				master_axis = i;
@@ -623,14 +639,18 @@ namespace planner {
 		previous_nominal_speed = block->nominal_speed;
 
 		block->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
-
+#endif
 		// Update position
-		position = target;
+		position[0] = target[0];
+		position[1] = target[1];
+		position[2] = target[2];
+		position[3] = target[3];
+		position[4] = target[4];
 		
 		// Move buffer head -- should this move to after recalulate?
 		block_buffer.bumpHead();
 
-		// planner_recalculate();
+		planner_recalculate();
 		
 		steppers::startRunning();
 		return true;

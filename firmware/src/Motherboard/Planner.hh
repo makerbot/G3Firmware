@@ -39,7 +39,8 @@
 namespace planner {
 	// This struct is used when buffering the setup for each linear movement "nominal" values are as specified in 
 	// the source g-code and may never actually be reached if acceleration management is active.
-	typedef struct {
+	class Block {
+	public:
 	// Fields used by the bresenham algorithm for tracing the line
 		Point steps;  // Step count and direction (may be negative) along each axis
 		uint32_t step_event_count;           // The number of step events required to complete this block
@@ -74,7 +75,7 @@ namespace planner {
 		
 	// functions
 		void calculate_trapezoid(float exit_factor_speed);
-	} Block;
+	};
 
 	/// Initilaize the planner data structures
 	void init();
