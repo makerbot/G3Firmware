@@ -42,7 +42,7 @@ const static int NUMTEMPS = 20;
 // max adc: 1023
 typedef int16_t TempTable[NUMTEMPS][2];
 
-TempTable default_table PROGMEM = {
+const TempTable default_table PROGMEM = {
   {1, 841},
   {54, 255},
   {107, 209},

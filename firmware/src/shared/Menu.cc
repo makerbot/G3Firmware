@@ -237,10 +237,10 @@ int appendUint8(char *buf, uint8_t buflen, uint8_t val)
 
 
 void SplashScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar splash1[] = "                ";
-	static PROGMEM prog_uchar splash2[] = " Thing-O-Matic  ";
-	static PROGMEM prog_uchar splash3[] = "   ---------    ";
-	static PROGMEM prog_uchar splash4[] = "                ";
+	const static PROGMEM prog_uchar splash1[] = "                ";
+	const static PROGMEM prog_uchar splash2[] = " Thing-O-Matic  ";
+	const static PROGMEM prog_uchar splash3[] = "   ---------    ";
+	const static PROGMEM prog_uchar splash4[] = "                ";
 
 
 	if (forceRedraw) {
@@ -276,14 +276,14 @@ void JogMode::reset() {
 }
 
 void JogMode::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar jog1[] = "Jog mode: ";
-	static PROGMEM prog_uchar jog2[] = "  Y+          Z+";
-	static PROGMEM prog_uchar jog3[] = "X-  X+    (mode)";
-	static PROGMEM prog_uchar jog4[] = "  Y-          Z-";
+	const static PROGMEM prog_uchar jog1[] = "Jog mode: ";
+	const static PROGMEM prog_uchar jog2[] = "  Y+          Z+";
+	const static PROGMEM prog_uchar jog3[] = "X-  X+    (mode)";
+	const static PROGMEM prog_uchar jog4[] = "  Y-          Z-";
 
-	static PROGMEM prog_uchar distanceShort[] = "SHORT";
-	static PROGMEM prog_uchar distanceLong[] = "LONG";
-	static PROGMEM prog_uchar distanceCont[] = "CONT";
+	const static PROGMEM prog_uchar distanceShort[] = "SHORT";
+	const static PROGMEM prog_uchar distanceLong[] = "LONG";
+	const static PROGMEM prog_uchar distanceCont[] = "CONT";
 
 	if (forceRedraw || distanceChanged) {
 		lcd.clear();
@@ -411,12 +411,12 @@ void ExtruderMode::reset() {
 }
 
 void ExtruderMode::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar extrude1[] = "Extrude: ";
-	static PROGMEM prog_uchar extrude2[] = "(set rpm)    Fwd";
-	static PROGMEM prog_uchar extrude3[] = " (stop)    (dur)";
-	static PROGMEM prog_uchar extrude4[] = "---/---C     Rev";
-	static PROGMEM prog_uchar secs[]     = "SECS";
-	static PROGMEM prog_uchar blank[]    = "       ";
+	const static PROGMEM prog_uchar extrude1[] = "Extrude: ";
+	const static PROGMEM prog_uchar extrude2[] = "(set rpm)    Fwd";
+	const static PROGMEM prog_uchar extrude3[] = " (stop)    (dur)";
+	const static PROGMEM prog_uchar extrude4[] = "---/---C     Rev";
+	const static PROGMEM prog_uchar secs[]     = "SECS";
+	const static PROGMEM prog_uchar blank[]    = "       ";
 
 	if (overrideExtrudeSeconds)	extrude(overrideExtrudeSeconds, true);
 
@@ -593,9 +593,9 @@ void ExtruderTooColdMenu::resetState() {
 }
 
 void ExtruderTooColdMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
-	static PROGMEM prog_uchar warning[]  = "Tool0 too cold!";
-	static PROGMEM prog_uchar cancel[]   =  "Cancel";
-	static PROGMEM prog_uchar override[] =  "Override";
+	const static PROGMEM prog_uchar warning[]  = "Tool0 too cold!";
+	const static PROGMEM prog_uchar cancel[]   =  "Cancel";
+	const static PROGMEM prog_uchar override[] =  "Override";
 
 	switch (index) {
 	case 0:
@@ -631,9 +631,9 @@ void ExtruderSetRpmScreen::reset() {
 }
 
 void ExtruderSetRpmScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar message1[] = "Extruder RPM:";
-	static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
-	static PROGMEM prog_uchar blank[]    = " ";
+	const static PROGMEM prog_uchar message1[] = "Extruder RPM:";
+	const static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
+	const static PROGMEM prog_uchar blank[]    = " ";
 
 	if (forceRedraw) {
 		lcd.clear();
@@ -684,7 +684,7 @@ void ExtruderSetRpmScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
 }
 
 void SnakeMode::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar gameOver[] =  "GAME OVER!";
+	const static PROGMEM prog_uchar gameOver[] =  "GAME OVER!";
 
 	// If we are dead, restart the game.
 	if (!snakeAlive) {
@@ -813,14 +813,14 @@ void MonitorMode::reset() {
 }
 
 void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar extruder_temp[]      =   "Tool: ---/---C";
-	static PROGMEM prog_uchar platform_temp[]      =   "Bed:  ---/---C";
-	static PROGMEM prog_uchar elapsed_time[]       =   "Elapsed:   0h00m";
-	static PROGMEM prog_uchar completed_percent[]  =   "Completed:   0% ";
-	static PROGMEM prog_uchar time_left[]          =   "TimeLeft:  0h00m";
-	static PROGMEM prog_uchar time_left_calc[]     =   " calc..";
-	static PROGMEM prog_uchar time_left_1min[]     =   "  <1min";
-	static PROGMEM prog_uchar time_left_none[]     =   "   none";
+	const static PROGMEM prog_uchar extruder_temp[]      =   "Tool: ---/---C";
+	const static PROGMEM prog_uchar platform_temp[]      =   "Bed:  ---/---C";
+	const static PROGMEM prog_uchar elapsed_time[]       =   "Elapsed:   0h00m";
+	const static PROGMEM prog_uchar completed_percent[]  =   "Completed:   0% ";
+	const static PROGMEM prog_uchar time_left[]          =   "TimeLeft:  0h00m";
+	const static PROGMEM prog_uchar time_left_calc[]     =   " calc..";
+	const static PROGMEM prog_uchar time_left_1min[]     =   "  <1min";
+	const static PROGMEM prog_uchar time_left_none[]     =   "   none";
 	char buf[17];
 
 	if (forceRedraw) {
@@ -986,10 +986,10 @@ void VersionMode::reset() {
 }
 
 void VersionMode::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar version1[] = "Firmware Version";
-	static PROGMEM prog_uchar version2[] = "----------------";
-	static PROGMEM prog_uchar version3[] = "Motherboard: _._";
-	static PROGMEM prog_uchar version4[] = "   Extruder: _._";
+	const static PROGMEM prog_uchar version1[] = "Firmware Version";
+	const static PROGMEM prog_uchar version2[] = "----------------";
+	const static PROGMEM prog_uchar version3[] = "Motherboard: _._";
+	const static PROGMEM prog_uchar version4[] = "   Extruder: _._";
 
 	if (forceRedraw) {
 		lcd.clear();
@@ -1037,7 +1037,7 @@ void VersionMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 }
 
 void Menu::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar blankLine[] =  "                ";
+	const static PROGMEM prog_uchar blankLine[] =  "                ";
 
 	// Do we need to redraw the whole menu?
 	if ((itemIndex/LCD_SCREEN_HEIGHT) != (lastDrawIndex/LCD_SCREEN_HEIGHT)
@@ -1130,9 +1130,9 @@ void CancelBuildMenu::resetState() {
 }
 
 void CancelBuildMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
-	static PROGMEM prog_uchar cancel[] = "Cancel Build?";
-	static PROGMEM prog_uchar yes[] =   "Yes";
-	static PROGMEM prog_uchar no[] =   "No";
+	const static PROGMEM prog_uchar cancel[] = "Cancel Build?";
+	const static PROGMEM prog_uchar yes[] =   "Yes";
+	const static PROGMEM prog_uchar no[] =   "No";
 
 	switch (index) {
 	case 0:
@@ -1171,13 +1171,13 @@ MainMenu::MainMenu() {
 }
 
 void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
-	static PROGMEM prog_uchar monitor[] =  "Monitor";
-	static PROGMEM prog_uchar build[] =    "Build from SD";
-	static PROGMEM prog_uchar jog[] =      "Jog";
-	static PROGMEM prog_uchar preheat[] =  "Preheat";
-	static PROGMEM prog_uchar extruder[] = "Extrude";
-	static PROGMEM prog_uchar versions[] = "Version";
-	static PROGMEM prog_uchar snake[] =    "Snake Game";
+	const static PROGMEM prog_uchar monitor[] =  "Monitor";
+	const static PROGMEM prog_uchar build[] =    "Build from SD";
+	const static PROGMEM prog_uchar jog[] =      "Jog";
+	const static PROGMEM prog_uchar preheat[] =  "Preheat";
+	const static PROGMEM prog_uchar extruder[] = "Extrude";
+	const static PROGMEM prog_uchar versions[] = "Version";
+	const static PROGMEM prog_uchar snake[] =    "Snake Game";
 
 	switch (index) {
 	case 0:
@@ -1356,8 +1356,8 @@ void Tool0TempSetScreen::reset() {
 }
 
 void Tool0TempSetScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar message1[] = "Tool0 Targ Temp:";
-	static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
+	const static PROGMEM prog_uchar message1[] = "Tool0 Targ Temp:";
+	const static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
 
 	if (forceRedraw) {
 		lcd.clear();
@@ -1422,8 +1422,8 @@ void PlatformTempSetScreen::reset() {
 }
 
 void PlatformTempSetScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
-	static PROGMEM prog_uchar message1[] = "Bed Target Temp:";
-	static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
+	const static PROGMEM prog_uchar message1[] = "Bed Target Temp:";
+	const static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
 
 	if (forceRedraw) {
 		lcd.clear();
@@ -1499,12 +1499,12 @@ void PreheatMenu::fetchTargetTemps() {
 }
 
 void PreheatMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
-	static PROGMEM prog_uchar heat[]     = "Heat ";
-	static PROGMEM prog_uchar cool[]     = "Cool ";
-	static PROGMEM prog_uchar tool0[]    = "Tool0";
-	static PROGMEM prog_uchar platform[] = "Bed";
-	static PROGMEM prog_uchar tool0set[] = "Set Tool0 Temp";
-	static PROGMEM prog_uchar platset[]  = "Set Bed Temp";
+	const static PROGMEM prog_uchar heat[]     = "Heat ";
+	const static PROGMEM prog_uchar cool[]     = "Cool ";
+	const static PROGMEM prog_uchar tool0[]    = "Tool0";
+	const static PROGMEM prog_uchar platform[] = "Bed";
+	const static PROGMEM prog_uchar tool0set[] = "Set Tool0 Temp";
+	const static PROGMEM prog_uchar platset[]  = "Set Bed Temp";
 
 	switch (index) {
 	case 0:
