@@ -113,11 +113,11 @@ void reset() {
 }
 
 // Handle movement comands -- called from a few places
-void handleMovementCommand(uint8_t &command) {
+static void handleMovementCommand(const uint8_t &command) {
 	// if we're already moving, check to make sure the buffer isn't full
-	// if (mode == MOVING && planner::block_buffer.isFull()) {
-	// 	return; // we'll be back!
-	// }
+	if (mode == MOVING && planner::isBufferFull()) {
+		return; // we'll be back!
+	}
 	if (command == HOST_CMD_QUEUE_POINT_ABS) {
 		// check for completion
 		if (command_buffer.getLength() >= 17) {
@@ -127,7 +127,7 @@ void handleMovementCommand(uint8_t &command) {
 			int32_t y = pop32();
 			int32_t z = pop32();
 			int32_t dda = pop32();
-			planner::addMoveToBuffer(Point(x,y,z), dda); // <- this is a BAD IDEA
+			// planner::addMoveToBuffer(Point(x,y,z), dda); // <- this is a BAD IDEA
 		}
 	} else if (command == HOST_CMD_QUEUE_POINT_EXT) {
 		// check for completion
@@ -140,7 +140,7 @@ void handleMovementCommand(uint8_t &command) {
 			int32_t a = pop32();
 			int32_t b = pop32();
 			int32_t dda = pop32();
-			steppers::setTarget(Point(x,y,z,a,b), dda);
+			planner::addMoveToBuffer(Point(x,y,z,a,b), dda);
 		}
 	} else if (command == HOST_CMD_QUEUE_POINT_NEW) {
 		// check for completion
@@ -243,7 +243,7 @@ void runCommandSlice() {
 		if (command_buffer.getLength() > 0) {
 			uint8_t command = command_buffer[0];
 			
-			if (command == HOST_CMD_QUEUE_POINT_ABS || command == HOST_CMD_QUEUE_POINT_EXT || command == HOST_CMD_QUEUE_POINT_NEW) {
+			if (command == HOST_CMD_QUEUE_POINT_EXT) {
 				handleMovementCommand(command);
 			} else if (command == HOST_CMD_CHANGE_TOOL) {
 				if (command_buffer.getLength() >= 2) {

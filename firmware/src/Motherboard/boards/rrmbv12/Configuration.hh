@@ -28,7 +28,7 @@
 // starvation; leave this at 64uS or greater unless you know what you're doing.
 #define INTERVAL_IN_MICROSECONDS 64
 // 1000000 / INTERVAL_IN_MICROSECONDS = 125000
-#define INTERVALS_PER_SECOND (1000000 / INTERVAL_IN_MICROSECONDS)
+// #define INTERVALS_PER_SECOND (1000000 / INTERVAL_IN_MICROSECONDS)
 
 // The pin that connects to the /PS_ON pin on the PSU header.  This pin switches
 // on the PSU when pulled low.

@@ -10,27 +10,20 @@ StepperAxis::StepperAxis(StepperInterface& stepper_interface) : interface(&stepp
 
 void StepperAxis::setTarget(const int32_t target_in, bool relative) {
         if (relative) {
-                unscaled_delta = target_in;
-		        unscaled_target = unscaled_position + target_in;
+                delta = target_in;
+                target = position + target_in;
         } else {
-                unscaled_delta = target_in - unscaled_position;
-		        unscaled_target = target_in;
+                delta = target_in - position;
+                target = target_in;
         }
         direction = true;
-        if (unscaled_delta != 0 && interface != 0) {
+        if (delta != 0 && interface != 0) {
                 interface->setEnabled(true);
         }
-        if (unscaled_delta < 0) {
-                unscaled_delta = -unscaled_delta;
+        if (delta < 0) {
+                delta = -delta;
                 direction = false;
         }
-		
-		if (scale_shift > 0) {
-			// scale these when set
-	        position = unscaled_position >> scale_shift;
-			target   = unscaled_target   >> scale_shift;
-	        delta    = unscaled_delta    >> scale_shift;
-		}
 }
 
 void StepperAxis::setHoming(const bool direction_in) {
@@ -38,7 +31,6 @@ void StepperAxis::setHoming(const bool direction_in) {
         if (interface != 0)
                 interface->setEnabled(true);
         delta = 1;
-        unscaled_delta = 1;
 }
 
 void StepperAxis::definePosition(const int32_t position_in) {
@@ -52,32 +44,15 @@ void StepperAxis::enableStepper(bool enable) {
 
 void StepperAxis::reset() {
         position = 0;
-		unscaled_position =0;
         minimum = 0;
         maximum = 0;
         target = 0;
-		unscaled_target = 0;
         counter = 0;
         delta = 0;
-		unscaled_delta = 0;
-        scale_shift = 0;
 #if defined(SINGLE_SWITCH_ENDSTOPS) && (SINGLE_SWITCH_ENDSTOPS == 1)
         endstop_play = ENDSTOP_DEFAULT_PLAY;
         endstop_status = ESS_UNKNOWN;
 #endif //SINGLE_SWITCH_ENDSTOPS
-}
-
-void StepperAxis::setScaleShift(uint8_t new_shift) {
-        if (scale_shift != new_shift) {
-			scale_shift = new_shift;
-
-	        // scale these when set
-	        position = unscaled_position >> scale_shift;
-			target   = unscaled_target   >> scale_shift;
-	        delta    = unscaled_delta    >> scale_shift;
-        
-	        // should we shift counter too?
-	}
 }
 
 

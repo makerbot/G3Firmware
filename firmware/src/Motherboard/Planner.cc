@@ -92,6 +92,87 @@ inline T abs(T x) { return (x)>0?(x):-(x); }
 
 namespace planner {
 	
+	
+	// Super-simple circular buffer, where old nodes are reused
+	// TODO: Move to a seperate file
+	// WARNING WARNING WARNING: If the size of this buffer is not in the following list this WILL FAIL BADLY!
+	// (2, 4, 8, 16, 32, 64, 128)
+	template<typename T>
+	class ReusingCircularBufferTempl
+	{
+	public:
+		typedef T BufDataType;
+		
+	private:
+		volatile uint16_t head, tail;
+		uint16_t size;
+		uint16_t size_mask;
+		BufDataType* const data; /// Pointer to buffer data
+	
+	public:
+		ReusingCircularBufferTempl(int16_t size_in, BufDataType* buffer_in) : head(0), tail(0), size(size_in), size_mask(size_in-1), data(buffer_in) {
+			for (int16_t i = 0; i < size; i++) {
+				data[i] = BufDataType();
+			}
+		};
+		
+		inline BufDataType *getHead() {
+			return &data[head];
+		}
+		inline uint16_t getHeadIndex() {
+			return head;
+		}
+		
+		inline BufDataType *getTail() {
+			return &data[tail];
+		}
+		inline uint16_t getTailIndex() {
+			return tail;
+		}
+		
+		inline int16_t getNextIndex(uint16_t from) {
+			return ((from + 1) & size_mask);
+		}
+		
+		inline int16_t getPreviousIndex(uint16_t from) {
+			return (((from+size) - 1) & size_mask);
+		}
+		
+		inline BufDataType *getNextHead() {
+			return &data[getNextIndex(head)];
+		}
+		
+		inline BufDataType &operator[] (int16_t index) {
+			 // adding size should make negative indexes < size work ok
+			int16_t offset = (index + head + size) & size_mask;
+			return data[offset];
+		}
+		
+		// bump the head with buffer++. cannot return anything useful, so it doesn't
+		// WARNING: no sanity checks!
+		inline void bumpHead() {
+			head = getNextIndex(head);
+		}
+
+		// bump the tail with buffer--. cannot return anything useful, so it doesn't
+		// WARNING: no sanity checks!
+		inline void bumpTail() {
+			tail = getNextIndex(tail);
+		}
+		
+		inline bool isEmpty() {
+			return head == tail;
+		}
+		
+		inline bool isFull() {
+			return getNextIndex(head) == tail;
+		}
+		
+		inline int16_t getUsedCount() {
+			return ((head-tail+size) & size_mask);
+		}
+	};
+	
 	// this is very similar to the StepperAxis, but geared toward planning
 	struct PlannerAxis
 	{
@@ -200,10 +281,10 @@ namespace planner {
 		final_rate = ceil(nominal_rate*exit_factor); // (step/min)
 		
 		// Limit minimal step rate (Otherwise the timer will overflow.)
-		if(initial_rate <120)
-			initial_rate=120;
+		if(initial_rate < 120)
+			initial_rate = 120;
 		if(final_rate < 120)
-			final_rate=120;
+			final_rate = 120;
 
 		int32_t acceleration = acceleration_st;
 		int32_t accelerate_steps =
@@ -384,13 +465,26 @@ namespace planner {
 		}
 	}
 
+	bool isBufferFull() {
+		// return false;
+		return block_buffer.isFull();
+	}
+	
+	bool isBufferEmpty() {
+		// return false;
+		return block_buffer.isEmpty();
+	}
+	
+	Block *getNextBlock() {
+		Block *block = block_buffer.getTail();
+		planner::block_buffer.bumpTail();
+		return block;
+	}
+	
 	
 	// Buffer the move. IOW, add a new block, and recalculate the acceleration accordingly
 	bool addMoveToBuffer(const Point& target, int32_t us_per_step)
-	{
-		steppers::setTarget(target, us_per_step);
-		return true;
-		
+	{		
 		if (block_buffer.isFull())
 			return false;
 		
@@ -398,14 +492,6 @@ namespace planner {
 		// Mark block as not busy (Not executed by the stepper interrupt)
 		block->busy = false;
 
-		//steppers::setTarget(target, us_per_step);
-		block->nominal_rate = ceil(1000000/us_per_step); // (step/sec) Always > 0
-
-
-
-
-
-	  
 		// calculate the difference between the current position and the target
 		Point delta = target - position;
 		
@@ -421,6 +507,7 @@ namespace planner {
 			if (steps[i] > block->step_event_count) {
 				block->step_event_count = steps[i];
 				master_axis = i;
+				// steps_per_mm = block->step_event_count/block->millimeters;
 				
 				// WARNING, Edge case: Two axis got the same number of steps, but have different steps_per_mm values
 				//   No way to tell which one to choose.
@@ -428,21 +515,7 @@ namespace planner {
 			}
 		}
 
-
-		block->steps = target;
-		
-		// Update position
-		position = target;
-
-		block_buffer++;
-		steppers::startRunning();
-		
-		return true;
-
-
-
-		
-		// // Compute direction bits for this block 
+		// // Compute direction bits for this block -- UNUSED FOR NOW
 		// block->direction_bits = 0;
 		// for (int i = 0; i < AXIS_COUNT; i++) {
 		// 	if (target[i] < position[i]) { block->direction_bits |= (1<<i); }
@@ -456,13 +529,20 @@ namespace planner {
 		}
 		block->millimeters = sqrt(block->millimeters);
 		
-		float inverse_millimeters = 1.0/block->millimeters; // Inverse millimeters to remove multiple divides 
+		float inverse_millimeters = 1.0/block->millimeters; // Inverse millimeters to remove multiple divides
+		// Calculate 1 second/(seconds for this movement)
+		float inverse_second = 1000000/(us_per_step * block->step_event_count);
+		float steps_per_mm = block->step_event_count * inverse_millimeters;
 		
+		// we are given microseconds/step, and we need steps/mm, and steps/second
+		
+		// Calculate speed in steps/sec
+		uint32_t steps_per_second = 1000000/us_per_step;
+		float mm_per_second = block->millimeters * inverse_second;
+			  
 		// Calculate speed in mm/second for each axis. No divide by zero due to previous checks.
-		float inverse_second = (1000000.0/us_per_step)*block->step_event_count;
-
-		block->nominal_speed = block->millimeters * inverse_second; // (mm/sec) Always > 0
-		block->nominal_rate = ceil(1000000.0/us_per_step); // (step/sec) Always > 0
+		block->nominal_speed = mm_per_second; // (mm/sec) Always > 0
+		block->nominal_rate = steps_per_second; // (step/sec) Always > 0
 		
 		// TODO make sure we are going the minimum speed, at least
 		// if(feed_rate<minimumfeedrate) feed_rate=minimumfeedrate;
@@ -481,8 +561,7 @@ namespace planner {
 		
 		// TODO fancy frequency checks
 		
-		// Compute and limit the acceleration rate for the trapezoid generator.  
-		float steps_per_mm = block->step_event_count/block->millimeters;
+		// Compute and limit the acceleration rate for the trapezoid generator.
 		block->acceleration_st = ceil(acceleration * steps_per_mm); // convert to: acceleration steps/sec^2
 		// Limit acceleration per axis
 		for(int i=0; i < AXIS_COUNT; i++) {
@@ -549,11 +628,9 @@ namespace planner {
 		position = target;
 		
 		// Move buffer head -- should this move to after recalulate?
-		block_buffer++;
+		block_buffer.bumpHead();
 
-		//planner_recalculate();
-		
-		block->nominal_rate = us_per_step;
+		// planner_recalculate();
 		
 		steppers::startRunning();
 		return true;
@@ -579,6 +656,6 @@ namespace planner {
 
 	const Point getPosition()
 	{
-                return position;
+		return position;
 	}
 }

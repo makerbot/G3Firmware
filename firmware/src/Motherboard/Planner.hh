@@ -109,88 +109,11 @@ namespace planner {
 	
 	void setAxisStepsPerMM(float steps_per_mm, uint8_t axis);
 	
-	// Super-simple circular buffer, where old nodes are reused
-	// TODO: Move to a seperate file
-	// WARNING WARNING WARNING: If the size of this buffer is not in the following list this WILL FAIL BADLY!
-	// (2, 4, 8, 16, 32, 64, 128)
-	template<typename T>
-	class ReusingCircularBufferTempl
-	{
-	public:
-		typedef T BufDataType;
-		
-	private:
-		volatile int8_t head, tail;
-		int8_t size;
-		int8_t size_mask;
-		BufDataType* const data; /// Pointer to buffer data
+	bool isBufferFull();
+	bool isBufferEmpty();
 	
-	public:
-		ReusingCircularBufferTempl(int8_t size_in, BufDataType* buffer_in) : head(0), tail(0), size(size), size_mask(size-1), data(buffer_in) {
-			for (int8_t i = 0; i < size; i++) {
-				data[i] = BufDataType();
-			}
-		};
-		
-		inline BufDataType *getHead() {
-			return &data[head];
-		}
-		inline int8_t getHeadIndex() {
-			return head;
-		}
-		
-		inline BufDataType *getTail() {
-			return &data[tail];
-		}
-		inline int8_t getTailIndex() {
-			return tail;
-		}
-		
-		inline int8_t getNextIndex(int8_t from) {
-			return (from + 1) & size_mask;
-		}
-		
-		inline int8_t getPreviousIndex(int8_t from) {
-			return ((from+size) - 1) & size_mask;
-		}
-		
-		inline BufDataType *getNextHead() {
-			return &data[getNextIndex(head)];
-		}
-		
-		inline BufDataType &operator[] (int8_t index) {
-			 // adding size should make negative indexes < size work ok
-			int8_t offset = (index + head + size) & size_mask;
-			return data[offset];
-		}
-		
-		// bump the head with buffer++. cannot return anything useful, so it doesn't
-		// WARNING: no sanity checks!
-		inline void operator++(int) {
-			head = getNextIndex(head);
-		}
-
-		// bump the tail with buffer--. cannot return anything useful, so it doesn't
-		// WARNING: no sanity checks!
-		inline void operator--(int) {
-			tail = getNextIndex(tail);
-		}
-		
-		inline bool isEmpty() {
-			return head == tail;
-		}
-		
-		inline bool isFull() {
-			return getNextIndex(head) == tail;
-		}
-		
-		inline int8_t getUsedCount() {
-			return ((head-tail+size) & size_mask);
-		}
-	};
-
-	// Create a circular buffer of blocks to walk
-	extern ReusingCircularBufferTempl<Block> block_buffer;
+	// Fetches the *tail* and bumps the tail
+	Block *getNextBlock();
 }
 
 #endif /* end of include guard: PLANNER_HH */
