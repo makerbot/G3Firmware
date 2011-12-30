@@ -73,6 +73,10 @@
 #define HAS_ESTOP               1
 // The pin connected to the emergency stop
 #define ESTOP_PIN               Pin(PortE,4)
+// Macros for enabling interrupts on the the pin. In this case, INT4.
+#define ESTOP_ENABLE_RISING_INT { EICRB = 0x03; EIMSK |= 0x10; }
+#define ESTOP_ENABLE_FALLING_INT { EICRB = 0x02; EIMSK |= 0x10; }
+#define ESTOP_vect INT4_vect
 
 
 // --- Axis configuration ---

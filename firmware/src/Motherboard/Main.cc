@@ -28,6 +28,7 @@
 #include "SDCard.hh"
 #include "Eeprom.hh"
 #include "EepromMap.hh"
+#include "Errors.hh"
 
 void reset(bool hard_reset) {
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
@@ -37,6 +38,16 @@ void reset(bool hard_reset) {
 		command::reset();
 		eeprom::init();
 		board.reset();
+#ifdef HAS_ESTOP
+		const uint8_t estop_conf = eeprom::getEeprom8(eeprom::ESTOP_CONFIGURATION, 0);
+		if (estop_conf == eeprom::ESTOP_CONF_ACTIVE_HIGH) {
+			ESTOP_ENABLE_RISING_INT;
+		} else if (estop_conf == eeprom::ESTOP_CONF_ACTIVE_LOW) {
+			ESTOP_ENABLE_FALLING_INT;
+		}
+#endif
+
+
 		sei();
 		// If we've just come from a hard reset, wait for 2.5 seconds before
 		// trying to ping an extruder.  This gives the extruder time to boot
@@ -72,3 +83,18 @@ int main() {
 	}
 	return 0;
 }
+
+#ifdef HAS_ESTOP
+ISR(ESTOP_vect, ISR_NOBLOCK) {
+	// Emergency stop triggered; reset everything and kill the interface to RepG
+	INTERFACE_BAR_PIN.setValue(true);
+	INTERFACE_BAR_PIN.setDirection(true);
+	tool::reset();
+	steppers::abort();
+	command::reset();
+	UART::getHostUART().enable(false);
+	Motherboard::getBoard().indicateError(ERR_ESTOP);
+  
+}
+#endif
+

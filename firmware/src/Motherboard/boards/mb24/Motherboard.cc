@@ -132,6 +132,12 @@ void Motherboard::reset() {
 	// Configure the debug pin.
 	DEBUG_PIN.setDirection(true);
 
+#if HAS_ESTOP
+	// Configure the estop pin direction.
+	ESTOP_PIN.setDirection(false);
+#endif
+
+
 	// Check if the interface board is attached
         hasInterfaceBoard = interface::isConnected();
 
