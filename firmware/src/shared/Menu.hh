@@ -5,11 +5,6 @@
 #include "ButtonArray.hh"
 #include "LiquidCrystal.hh"
 
-enum extruderCommandType {
-	EXTDR_CMD_GET,
-	EXTDR_CMD_SET
-};
-
 /// The screen class defines a standard interface for anything that should
 /// be displayed on the LCD.
 class Screen {
@@ -339,6 +334,42 @@ public:
 	void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+class MoodLightSetRGBScreen: public Screen {
+private:
+	uint8_t red;
+	uint8_t green;
+	uint8_t blue;
+
+	int inputMode;	//0 = red, 1 = green, 2 = blue
+	bool redrawScreen;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+
+class MoodLightMode: public Screen {
+private:
+	uint8_t updatePhase;
+
+        MoodLightSetRGBScreen   moodLightSetRGBScreen;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+	void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -356,6 +387,7 @@ private:
 	PreheatMenu preheatMenu;
 	ExtruderMode extruderMenu;
         VersionMode versionMode;
+	MoodLightMode	moodLightMode;
         SnakeMode snake;
 };
 

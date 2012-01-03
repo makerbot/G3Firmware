@@ -68,6 +68,10 @@ void doUpdate() {
         board->doUpdate();
 }
 
+MoodLightController moodLightController() {
+	return board->moodLight;
+}
+
 
 }
 

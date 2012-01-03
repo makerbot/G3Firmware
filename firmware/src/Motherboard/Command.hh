@@ -31,6 +31,8 @@ void reset();
 /// Run the command thread slice.
 void runCommandSlice();
 
+void updateMoodStatus();
+
 /// Pause the command processor
 /// \param[in] pause If true, disable the command processor. If false, enable it.
 void pause(bool pause);

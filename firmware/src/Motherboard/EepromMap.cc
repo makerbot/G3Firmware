@@ -35,6 +35,10 @@ void setDefaults() {
     eeprom_write_byte((uint8_t*)eeprom::PLATFORM_TEMP,110);
     eeprom_write_byte((uint8_t*)eeprom::EXTRUDE_DURATION,1);
     eeprom_write_byte((uint8_t*)eeprom::EXTRUDE_RPM,19);
+    eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_SCRIPT,0);
+    eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_CUSTOM_RED,255);
+    eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_CUSTOM_GREEN,255);
+    eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_CUSTOM_BLUE,255);
 }
 
 }

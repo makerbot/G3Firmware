@@ -58,11 +58,15 @@ enum {
 	ESTOP_CONF_ACTIVE_LOW = 0x2
 };
 
-const static uint16_t TOOL0_TEMP      = 0x0080;
-const static uint16_t TOOL1_TEMP      = 0x0081;
-const static uint16_t PLATFORM_TEMP   = 0x0082;
-const static uint16_t EXTRUDE_DURATION= 0x0083;
-const static uint16_t EXTRUDE_RPM     = 0x0084;
+const static uint16_t TOOL0_TEMP      		= 0x0080;
+const static uint16_t TOOL1_TEMP      		= 0x0081;
+const static uint16_t PLATFORM_TEMP   		= 0x0082;
+const static uint16_t EXTRUDE_DURATION		= 0x0083;
+const static uint16_t EXTRUDE_RPM     		= 0x0084;
+const static uint16_t MOOD_LIGHT_SCRIPT		= 0x0085;
+const static uint16_t MOOD_LIGHT_CUSTOM_RED	= 0x0086;
+const static uint16_t MOOD_LIGHT_CUSTOM_GREEN	= 0x0087;
+const static uint16_t MOOD_LIGHT_CUSTOM_BLUE	= 0x0088;
 
 /// Reset all data in the EEPROM to a default.
 void setDefaults();

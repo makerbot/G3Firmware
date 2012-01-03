@@ -182,4 +182,11 @@
 #define INTERFACE_BAR_PIN       Pin(PortL,0)
 #define INTERFACE_DEBUG_PIN     Pin(PortB,7)
 
+//Pin mapping for Software I2C communication using analog pins
+//as digital pins.
+//This is primrarily for BlinkM MaxM, may not work for other I2C.
+#define HAS_MOOD_LIGHT		1
+#define SOFTWARE_I2C_SDA_PIN	Pin(PortK,0)	//Pin d on the BlinkM
+#define SOFTWARE_I2C_SCL_PIN	Pin(PortK,1)	//Pin c on the BlinkM
+
 #endif // BOARDS_RRMBV12_CONFIGURATION_HH_

@@ -28,7 +28,7 @@
 #include "Commands.hh"
 #include "Eeprom.hh"
 #include "EepromMap.hh"
-
+#include <avr/eeprom.h>
 
 /// Instantiate static motherboard instance
 Motherboard Motherboard::motherboard;
@@ -41,13 +41,15 @@ Motherboard::Motherboard() :
             LCD_D1_PIN,
             LCD_D2_PIN,
             LCD_D3_PIN),
+	moodLightController(SOFTWARE_I2C_SDA_PIN,
+		  	    SOFTWARE_I2C_SCL_PIN),
         interfaceBoard(buttonArray,
             lcd,
             INTERFACE_FOO_PIN,
             INTERFACE_BAR_PIN,
             &mainMenu,
-            &monitorMode)
-
+            &monitorMode,
+	    moodLightController)
 {
 	/// Set up the stepper pins on board creation
 #if STEPPER_COUNT > 0
@@ -97,6 +99,8 @@ Motherboard::Motherboard() :
 /// to any attached toolheads.
 void Motherboard::reset() {
 	indicateError(0); // turn off blinker
+
+	moodLightController.start();
 
 	// Init steppers
 	uint8_t axis_invert = eeprom::getEeprom8(eeprom::AXIS_INVERSION, 0);
@@ -215,6 +219,10 @@ void Motherboard::runMotherboardSlice() {
 	}
 }
 
+MoodLightController Motherboard::getMoodLightController() {
+	return moodLightController;
+}
+
 
 /// Timer one comparator match interrupt
 ISR(TIMER1_COMPA_vect) {
@@ -249,6 +257,28 @@ uint8_t Motherboard::getCurrentError() {
 	return blink_count;
 }
 
+void Motherboard::MoodLightSetRGBColor(uint8_t r, uint8_t g, uint8_t b, uint8_t fadeSpeed, uint8_t writeToEeprom) {
+	if ( writeToEeprom ) {
+		eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_CUSTOM_RED,  r);
+		eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_CUSTOM_GREEN,g);
+		eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_CUSTOM_BLUE, b);
+	} else {
+		moodLightController.blinkM.setFadeSpeed(fadeSpeed);
+		moodLightController.blinkM.fadeToRGB(r,g,b);
+	}
+}
+
+void Motherboard::MoodLightSetHSBColor(uint8_t r, uint8_t g, uint8_t b, uint8_t fadeSpeed) {
+	moodLightController.blinkM.setFadeSpeed(fadeSpeed);
+	moodLightController.blinkM.fadeToHSB(r,g,b);
+}
+
+void Motherboard::MoodLightPlayScript(uint8_t scriptId, uint8_t writeToEeprom) {
+	if ( writeToEeprom ) eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_SCRIPT,scriptId);
+	moodLightController.playScript(scriptId);
+}
+
+
 /// Timer2 overflow cycles that the LED remains on while blinking
 #define OVFS_ON 18
 /// Timer2 overflow cycles that the LED remains off while blinking
@@ -271,6 +301,8 @@ ISR(TIMER2_OVF_vect) {
 			blink_state = BLINK_OFF;
 			blink_ovfs_remaining = OVFS_OFF;
 			DEBUG_PIN.setValue(false);
+			if ( blink_count == ERR_ESTOP )
+				Motherboard::getBoard().getMoodLightController().debugLightSetValue(false);
 		} else if (blink_state == BLINK_OFF) {
 			if (blinked_so_far >= blink_count) {
 				blink_state = BLINK_PAUSE;
@@ -279,12 +311,16 @@ ISR(TIMER2_OVF_vect) {
 				blink_state = BLINK_ON;
 				blink_ovfs_remaining = OVFS_ON;
 				DEBUG_PIN.setValue(true);
+				if ( blink_count == ERR_ESTOP )
+					Motherboard::getBoard().getMoodLightController().debugLightSetValue(true);
 			}
 		} else if (blink_state == BLINK_PAUSE) {
 			blinked_so_far = 0;
 			blink_state = BLINK_ON;
 			blink_ovfs_remaining = OVFS_ON;
 			DEBUG_PIN.setValue(true);
+			if ( blink_count == ERR_ESTOP )
+				Motherboard::getBoard().getMoodLightController().debugLightSetValue(true);
 		}
 	}
 }

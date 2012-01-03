@@ -20,6 +20,7 @@
 #include "EepromMap.hh"
 #include "Eeprom.hh"
 #include <avr/eeprom.h>
+#include "ExtruderControl.hh"
 
 
 #define HOST_PACKET_TIMEOUT_MS 20
@@ -29,55 +30,6 @@
 #define HOST_TOOL_RESPONSE_TIMEOUT_MICROS (1000L*HOST_TOOL_RESPONSE_TIMEOUT_MS)
 
 int16_t overrideExtrudeSeconds = 0;
-
-/// Send a packet to the extruder.  If cmdType == EXTDR_CMD_SET, then "val" should
-/// contain the value to be written otherwise val is ignored.
-/// responsePacket is filled with the returned value
-bool extruderControl(uint8_t command, enum extruderCommandType cmdType,
-		     OutPacket& responsePacket, uint16_t val) {
-
-	Timeout acquire_lock_timeout;
-	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MS);
-	while (!tool::getLock()) {
-		if (acquire_lock_timeout.hasElapsed()) {
-			return false;
-		}
-	}
-	OutPacket& out = tool::getOutPacket();
-	InPacket& in = tool::getInPacket();
-	out.reset();
-	responsePacket.reset();
-
-	// Fill the query packet. The first byte is the toolhead index, and the
-	// second is the
-	out.append8(0);
-	out.append8(command);
-	if ( cmdType == EXTDR_CMD_SET )	out.append16(val);	
-
-	// Timeouts are handled inside the toolslice code; there's no need
-	// to check for timeouts on this loop.
-	tool::startTransaction();
-	tool::releaseLock();
-	// WHILE: bounded by tool timeout in runToolSlice
-	while (!tool::isTransactionDone()) {
-		tool::runToolSlice();
-	}
-	if (in.getErrorCode() == PacketError::PACKET_TIMEOUT) {
-		return false;
-	} else {
-		// Copy payload back. Start from 0-- we need the response code.
-		for (uint8_t i = 0; i < in.getLength(); i++) {
-			responsePacket.append8(in.read8(i));
-		}
-	}
-
-	// Check that the extruder was able to process the request
-	if (!rcCompare(responsePacket.read8(0),RC_OK)) {
-		return false;
-	}
-
-	return true;
-}
 
 
 
@@ -683,6 +635,202 @@ void ExtruderSetRpmScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
 	}
 }
 
+
+void MoodLightMode::reset() {
+	updatePhase = 0;
+}
+
+void MoodLightMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar mood1[] = "Mood: ";
+	const static PROGMEM prog_uchar mood3_1[] = "(set RGB)";
+	const static PROGMEM prog_uchar mood3_2[] = "(mood)";
+	const static PROGMEM prog_uchar blank[]   = "          ";
+	const static PROGMEM prog_uchar moodNotPresent1[] = "Mood Light not";
+	const static PROGMEM prog_uchar moodNotPresent2[] = "present!!";
+	const static PROGMEM prog_uchar moodNotPresent3[] = "See Thingiverse";
+	const static PROGMEM prog_uchar moodNotPresent4[] = "   thing:15347";
+
+	//If we have no mood light, point to thingiverse to make one
+	if ( ! interface::moodLightController().blinkM.blinkMIsPresent ) {
+		//Try once more to restart the mood light controller
+		if ( ! interface::moodLightController().start() ) {
+			if ( forceRedraw ) {
+				lcd.clear();
+				lcd.setCursor(0,0);
+				lcd.writeFromPgmspace(moodNotPresent1);
+				lcd.setCursor(0,1);
+				lcd.writeFromPgmspace(moodNotPresent2);
+				lcd.setCursor(0,2);
+				lcd.writeFromPgmspace(moodNotPresent3);
+				lcd.setCursor(0,3);
+				lcd.writeFromPgmspace(moodNotPresent4);
+			}
+		
+			return;
+		}
+	}
+
+	if (forceRedraw) {
+		lcd.clear();
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(mood1);
+
+		lcd.setCursor(10,2);
+		lcd.writeFromPgmspace(mood3_2);
+	}
+
+ 	//Redraw tool info
+	uint8_t scriptId = eeprom_read_byte((uint8_t *)eeprom::MOOD_LIGHT_SCRIPT);
+
+	switch (updatePhase) {
+	case 0:
+		lcd.setCursor(6, 0);
+		lcd.writeFromPgmspace(blank);	
+		lcd.setCursor(6, 0);
+		lcd.writeFromPgmspace(interface::moodLightController().scriptIdToStr(scriptId));	
+		break;
+
+	case 1:
+		lcd.setCursor(0, 2);
+		if ( scriptId == 1 )	lcd.writeFromPgmspace(mood3_1);
+		else			lcd.writeFromPgmspace(blank);	
+		break;
+	}
+
+	updatePhase++;
+	if (updatePhase > 1) {
+		updatePhase = 0;
+	}
+}
+
+
+
+void MoodLightMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	uint8_t scriptId;
+
+	if ( ! interface::moodLightController().blinkM.blinkMIsPresent )	interface::popScreen();
+
+	switch (button) {
+        	case ButtonArray::OK:
+			//Change the script to the next script id
+			scriptId = eeprom_read_byte((uint8_t *)eeprom::MOOD_LIGHT_SCRIPT);
+			scriptId = interface::moodLightController().nextScriptId(scriptId);
+			eeprom_write_byte((uint8_t *)eeprom::MOOD_LIGHT_SCRIPT, scriptId);
+			interface::moodLightController().playScript(scriptId);
+			break;
+
+        	case ButtonArray::ZERO:
+			scriptId = eeprom_read_byte((uint8_t *)eeprom::MOOD_LIGHT_SCRIPT);
+			if ( scriptId == 1 )
+			{
+				//Set RGB Values
+                        	interface::pushScreen(&moodLightSetRGBScreen);
+			}
+
+			break;
+
+        	case ButtonArray::YPLUS:
+        	case ButtonArray::YMINUS:
+        	case ButtonArray::XMINUS:
+        	case ButtonArray::XPLUS:
+        	case ButtonArray::ZMINUS:
+        	case ButtonArray::ZPLUS:
+        		break;
+
+       	 	case ButtonArray::CANCEL:
+               		interface::popScreen();
+			break;
+	}
+}
+
+
+void MoodLightSetRGBScreen::reset() {
+	inputMode = 0;	//Red
+	redrawScreen = false;
+
+	red   = eeprom::getEeprom8(eeprom::MOOD_LIGHT_CUSTOM_RED,   255);;
+	green = eeprom::getEeprom8(eeprom::MOOD_LIGHT_CUSTOM_GREEN, 255);;
+	blue  = eeprom::getEeprom8(eeprom::MOOD_LIGHT_CUSTOM_BLUE,  255);;
+}
+
+void MoodLightSetRGBScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar message1_red[]   = "Red:";
+	const static PROGMEM prog_uchar message1_green[] = "Green:";
+	const static PROGMEM prog_uchar message1_blue[]  = "Blue:";
+	const static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
+
+	if ((forceRedraw) || (redrawScreen)) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		if      ( inputMode == 0 ) lcd.writeFromPgmspace(message1_red);
+		else if ( inputMode == 1 ) lcd.writeFromPgmspace(message1_green);
+		else if ( inputMode == 2 ) lcd.writeFromPgmspace(message1_blue);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(message4);
+
+		redrawScreen = false;
+	}
+
+
+	// Redraw tool info
+	lcd.setCursor(0,1);
+	if      ( inputMode == 0 ) lcd.writeInt(red,  3);
+	else if ( inputMode == 1 ) lcd.writeInt(green,3);
+	else if ( inputMode == 2 ) lcd.writeInt(blue, 3);
+}
+
+void MoodLightSetRGBScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
+	uint8_t *value = &red;
+
+	if 	( inputMode == 1 )	value = &green;
+	else if ( inputMode == 2 )	value = &blue;
+
+	switch (button) {
+        case ButtonArray::CANCEL:
+		interface::popScreen();
+		break;
+        case ButtonArray::ZERO:
+        case ButtonArray::OK:
+		if ( inputMode < 2 ) {
+			inputMode ++;
+			redrawScreen = true;
+		} else {
+			eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_CUSTOM_RED,  red);
+			eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_CUSTOM_GREEN,green);
+			eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_CUSTOM_BLUE, blue);
+
+			//Set the color
+			interface::moodLightController().playScript(1);
+
+			interface::popScreen();
+		}
+		break;
+        case ButtonArray::ZPLUS:
+		// increment more
+		if (*value <= 245) *value += 10;
+		break;
+        case ButtonArray::ZMINUS:
+		// decrement more
+		if (*value >= 10) *value -= 10;
+		break;
+        case ButtonArray::YPLUS:
+		// increment less
+		if (*value <= 254) *value += 1;
+		break;
+        case ButtonArray::YMINUS:
+		// decrement less
+		if (*value >= 1) *value -= 1;
+		break;
+
+        case ButtonArray::XMINUS:
+        case ButtonArray::XPLUS:
+		break;
+	}
+}
+
+
 void SnakeMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	const static PROGMEM prog_uchar gameOver[] =  "GAME OVER!";
 
@@ -1166,7 +1314,7 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 
 
 MainMenu::MainMenu() {
-	itemCount = 7;
+	itemCount = 8;
 	reset();
 }
 
@@ -1176,6 +1324,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar jog[] =      "Jog";
 	const static PROGMEM prog_uchar preheat[] =  "Preheat";
 	const static PROGMEM prog_uchar extruder[] = "Extrude";
+	const static PROGMEM prog_uchar moodlight[]= "Mood Light";
 	const static PROGMEM prog_uchar versions[] = "Version";
 	const static PROGMEM prog_uchar snake[] =    "Snake Game";
 
@@ -1196,9 +1345,12 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(extruder);
 		break;
 	case 5:
-		lcd.writeFromPgmspace(versions);
+		lcd.writeFromPgmspace(moodlight);
 		break;
 	case 6:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 7:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -1228,10 +1380,14 @@ void MainMenu::handleSelect(uint8_t index) {
 			interface::pushScreen(&extruderMenu);
 			break;
 		case 5:
+			// Show Mood Light Mode
+                        interface::pushScreen(&moodLightMode);
+			break;
+		case 6:
 			// Show build from SD screen
                         interface::pushScreen(&versionMode);
 			break;
-		case 6:
+		case 7:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;

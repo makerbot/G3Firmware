@@ -26,6 +26,7 @@
 #include <avr/eeprom.h>
 #include "EepromMap.hh"
 #include "SDCard.hh"
+#include "ExtruderControl.hh"
 
 namespace command {
 
@@ -36,6 +37,10 @@ CircularBuffer command_buffer(COMMAND_BUFFER_SIZE, buffer_data);
 bool outstanding_tool_command = false;
 
 bool paused = false;
+
+uint16_t statusDivisor = 0;
+uint32_t recentCommandClock = 0;
+uint32_t recentCommandTime = 0;
 
 uint16_t getRemainingCapacity() {
 	uint16_t sz;
@@ -111,8 +116,67 @@ void reset() {
 	mode = READY;
 }
 
+
+//Executes a slave command
+//Returns true if everything is okay, otherwise false in case of error
+//The result from the command is stored in result
+
+bool querySlaveCmd(uint8_t cmd, uint8_t *result) {
+	bool ret = false;
+
+	if (tool::getLock()) {
+		OutPacket& out = tool::getOutPacket();
+		InPacket& in = tool::getInPacket();
+		out.reset();
+		out.append8(tool::getCurrentToolheadIndex());
+		out.append8(SLAVE_CMD_GET_TOOL_STATUS);
+		tool::startTransaction();
+
+		// WHILE: bounded by timeout in runToolSlice
+		while (!tool::isTransactionDone()) {
+			tool::runToolSlice();
+		}
+		if (!in.hasError()) {
+			*result = in.read8(1);
+			ret = true;
+		}
+		else ret = false;
+		tool::releaseLock();
+	}
+
+	return ret;
+}
+
+
+bool isToolReady() {
+	uint8_t result;
+
+	if (querySlaveCmd(SLAVE_CMD_GET_TOOL_STATUS, &result)) {
+		if (result & 0x01) return true;
+	}
+
+	return false;
+}
+
+
+bool isPlatformReady() {
+	uint8_t result;
+
+	if (querySlaveCmd(SLAVE_CMD_IS_PLATFORM_READY, &result)) {
+		if (result != 0)  return true;
+	}
+	return false;
+}
+
+
 // A fast slice for processing commands and refilling the stepper queue, etc.
 void runCommandSlice() {
+	recentCommandClock ++;
+
+#ifdef HAS_MOOD_LIGHT
+	updateMoodStatus();
+#endif
+
 	if (sdcard::isPlaying()) {
 		while (command_buffer.getRemainingCapacity() > 0 && sdcard::playbackHasNext()) {
 			command_buffer.push(sdcard::playbackNext());
@@ -120,6 +184,7 @@ void runCommandSlice() {
 	}
 	if (paused) { return; }
 	if (mode == HOMING) {
+		recentCommandTime = recentCommandClock;
 		if (!steppers::isRunning()) {
 			mode = READY;
 		} else if (homing_timeout.hasElapsed()) {
@@ -128,9 +193,11 @@ void runCommandSlice() {
 		}
 	}
 	if (mode == MOVING) {
+		recentCommandTime = recentCommandClock;
 		if (!steppers::isRunning()) { mode = READY; }
 	}
 	if (mode == DELAY) {
+		recentCommandTime = recentCommandClock;
 		// check timers
 		if (delay_timeout.hasElapsed()) {
 			mode = READY;
@@ -139,46 +206,15 @@ void runCommandSlice() {
 	if (mode == WAIT_ON_TOOL) {
 		if (tool_wait_timeout.hasElapsed()) {
 			mode = READY;
-		} else if (tool::getLock()) {
-			OutPacket& out = tool::getOutPacket();
-			InPacket& in = tool::getInPacket();
-			out.reset();
-			out.append8(tool::getCurrentToolheadIndex());
-			out.append8(SLAVE_CMD_GET_TOOL_STATUS);
-			tool::startTransaction();
-			// WHILE: bounded by timeout in runToolSlice
-			while (!tool::isTransactionDone()) {
-				tool::runToolSlice();
-			}
-			if (!in.hasError()) {
-				if (in.read8(1) & 0x01) {
-					mode = READY;
-				}
-			}
-			tool::releaseLock();
+		} else if (isToolReady()) {
+			mode = READY;
 		}
 	}
 	if (mode == WAIT_ON_PLATFORM) {
-		// FIXME: Duplicates most code from WAIT_ON_TOOL
 		if (tool_wait_timeout.hasElapsed()) {
 			mode = READY;
-		} else if (tool::getLock()) {
-			OutPacket& out = tool::getOutPacket();
-			InPacket& in = tool::getInPacket();
-			out.reset();
-			out.append8(tool::getCurrentToolheadIndex());
-			out.append8(SLAVE_CMD_IS_PLATFORM_READY);
-			tool::startTransaction();
-			// WHILE: bounded by timeout in runToolSlice
-			while (!tool::isTransactionDone()) {
-				tool::runToolSlice();
-			}
-			if (!in.hasError()) {
-				if (in.read8(1) != 0) {
-					mode = READY;
-				}
-			}
-			tool::releaseLock();
+		} else if (isPlatformReady()) {
+			mode = READY;
 		}
 	}
 	if (mode == READY) {
@@ -361,9 +397,162 @@ void runCommandSlice() {
 						}
 					}
 				}
+			} else if (command == HOST_CMD_MOOD_LIGHT_SET_RGB ) {
+				// check for completion
+				if (command_buffer.getLength() >= 21) {
+					command_buffer.pop(); // remove the command code
+					int32_t r = pop32();
+					int32_t g = pop32();
+					int32_t b = pop32();
+					int32_t fadeSpeed = pop32();
+					int32_t writeToEeprom = pop32();
+#ifdef HAS_MOOD_LIGHT
+					Motherboard::getBoard().MoodLightSetRGBColor((uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)fadeSpeed, (uint8_t)writeToEeprom);
+#endif
+				}
+			} else if (command == HOST_CMD_MOOD_LIGHT_SET_HSB ) {
+				// check for completion
+				if (command_buffer.getLength() >= 17) {
+					command_buffer.pop(); // remove the command code
+					int32_t h = pop32();
+					int32_t s = pop32();
+					int32_t b = pop32();
+					int32_t fadeSpeed = pop32();
+#ifdef HAS_MOOD_LIGHT
+					Motherboard::getBoard().MoodLightSetHSBColor((uint8_t)h, (uint8_t)s, (uint8_t)b, (uint8_t)fadeSpeed);
+#endif
+				}
+			} else if (command == HOST_CMD_MOOD_LIGHT_PLAY_SCRIPT ) {
+				// check for completion
+				if (command_buffer.getLength() >= 9) {
+					command_buffer.pop(); // remove the command code
+					int32_t scriptId = pop32();
+					int32_t writeToEeprom = pop32();
+#ifdef HAS_MOOD_LIGHT
+					Motherboard::getBoard().MoodLightPlayScript((uint8_t)scriptId, (uint8_t)writeToEeprom);
+#endif
+				}
 			} else {
 			}
 		}
 	}
 }
+
+
+#ifdef HAS_MOOD_LIGHT
+
+#define STOCHASTIC_PERCENT(v, a, b)		(((v - a) / (b - a)) * 100.0)
+#define MAX2(a,b)				((a >= b)?a:b)
+#define STATUS_DIVISOR_TIME_PER_STATUS_CHANGE	4000
+#define RECENT_COMMAND_TIMEOUT			4000 * 10
+
+void updateMoodStatus() {
+	MoodLightController moodLight = Motherboard::getBoard().getMoodLightController();
+
+	//If we're not set to the Bot Status Script, then there's no need to check anything
+	if ( moodLight.getLastScriptPlayed() != 0 ) return;
+
+	//Implement a divisor so we don't get called on every turn, we don't
+	//want to overload the interrupt loop when we don't need frequent changes	
+	statusDivisor ++;
+
+	if ( statusDivisor < STATUS_DIVISOR_TIME_PER_STATUS_CHANGE )	return;
+	statusDivisor = 0;
+
+	//Certain states don't require us to check as often,
+	//save some CPU cycles
+
+	enum moodLightStatus lastMlStatus = moodLight.getLastStatus();
+
+	//If printing and recent commands, do nothing
+	if ((lastMlStatus == MOOD_LIGHT_STATUS_PRINTING) &&
+	    ( recentCommandTime >= (recentCommandClock - RECENT_COMMAND_TIMEOUT )))	return;
+	
+ 	enum moodLightStatus mlStatus = MOOD_LIGHT_STATUS_IDLE;
+
+	//Get the status of the tool head and platform
+
+	//Figure out how hot or cold we are
+	bool toolReady     = isToolReady();
+	bool platformReady = isPlatformReady();
+
+	OutPacket responsePacket;
+	uint16_t toolTemp=0, toolTempSetPoint=0, platformTemp=0, platformTempSetPoint=0;
+
+	if (extruderControl(SLAVE_CMD_GET_TEMP, EXTDR_CMD_GET, responsePacket, 0))
+		toolTemp = responsePacket.read16(1);
+
+	if (extruderControl(SLAVE_CMD_GET_SP, EXTDR_CMD_GET, responsePacket, 0))
+		toolTempSetPoint = responsePacket.read16(1);
+
+	if (extruderControl(SLAVE_CMD_GET_PLATFORM_TEMP, EXTDR_CMD_GET, responsePacket, 0))
+		platformTemp = responsePacket.read16(1);
+
+	if (extruderControl(SLAVE_CMD_GET_PLATFORM_SP, EXTDR_CMD_GET, responsePacket, 0))
+		platformTempSetPoint = responsePacket.read16(1);
+	
+
+	float percentHotTool, percentHotPlatform;
+
+	if ( toolTempSetPoint == 0 ) {
+		//We're cooling.  0% = 48C  100% = 240C
+		percentHotTool = STOCHASTIC_PERCENT((float)toolTemp, 48.0, 240.0);
+		if ( percentHotTool > 100.0 )	percentHotTool = 100.0;
+		if ( percentHotTool < 0.0 )	percentHotTool = 0.0;
+	} else {
+		//We're heating.  0% = 18C  100% = Set Point 
+		percentHotTool = STOCHASTIC_PERCENT((float)toolTemp, 18.0, (float)toolTempSetPoint);
+		if ( percentHotTool > 100.0 )	percentHotTool = 100.0;
+		if ( percentHotTool < 0.0 )	percentHotTool = 0.0;
+
+		if ( toolReady )			percentHotTool = 100.0;
+		else if ( percentHotTool >= 100.0 )	percentHotTool = 99.0;
+	}
+
+	if ( platformTempSetPoint == 0 ) {
+		//We're cooling.  0% = 48C  100% = 120C
+		percentHotPlatform = STOCHASTIC_PERCENT((float)platformTemp, 48.0, 120.0);
+		if ( percentHotPlatform > 100.0 )	percentHotPlatform = 100.0;
+		if ( percentHotPlatform < 0.0 )		percentHotPlatform = 0.0;
+	} else {
+		//We're heating.  0% = 18C  100% = Set Point 
+		percentHotPlatform = STOCHASTIC_PERCENT((float)platformTemp, 18.0, (float)platformTempSetPoint);
+		if ( percentHotPlatform > 100.0 )	percentHotPlatform = 100.0;
+		if ( percentHotPlatform < 0.0 )		percentHotPlatform = 0.0;
+
+		if ( platformReady )			percentHotPlatform = 100.0;
+		else if ( percentHotPlatform >= 100.0 )	percentHotPlatform = 99.0;
+	}
+
+	//Are we heating or cooling
+	bool heating = false;
+	if (( toolTempSetPoint != 0 ) || ( platformTempSetPoint != 0 ))	heating = true;
+
+	if ( heating ) {
+		//If we're heating and tool and platform are 100%, then we're not cooling anymore, we're printing
+		if (( percentHotTool >= 100.0 ) && ( percentHotPlatform >= 100.0 ) &&
+	    	    ( recentCommandTime >= (recentCommandClock - RECENT_COMMAND_TIMEOUT ))) {
+			mlStatus = MOOD_LIGHT_STATUS_PRINTING;
+		} else {
+			mlStatus = MOOD_LIGHT_STATUS_HEATING;
+		}
+	} else {
+		//If we're cooling and tool and platform are 0%, then we're not cooling anymore
+		if  (( percentHotTool <= 0.0 ) && ( percentHotPlatform <= 0.0 )) {
+			mlStatus = MOOD_LIGHT_STATUS_IDLE;
+		} else {
+			mlStatus = MOOD_LIGHT_STATUS_COOLING;
+		}
+	}
+
+
+	float percentHot = MAX2(percentHotTool, percentHotPlatform);
+
+	Motherboard::getBoard().getMoodLightController().displayStatus(mlStatus, percentHot);
+
+	lastMlStatus = mlStatus;
+}
+
+#endif
+
 }

@@ -23,6 +23,7 @@
 #include "Menu.hh"
 #include "InterfaceBoard.hh"
 #include "LiquidCrystal.hh"
+#include "MoodLightController.hh"
 #include "Types.hh"
 
 // TODO: This style interface is weird; find a way to replace it.
@@ -66,6 +67,7 @@ void doUpdate();
 /// much impact.
 micros_t getUpdateRate();
 
+MoodLightController moodLightController();
 }
 
 #endif
