@@ -1314,7 +1314,7 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 
 
 MainMenu::MainMenu() {
-	itemCount = 8;
+	itemCount = 9;
 	reset();
 }
 
@@ -1324,6 +1324,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar jog[] =      "Jog";
 	const static PROGMEM prog_uchar preheat[] =  "Preheat";
 	const static PROGMEM prog_uchar extruder[] = "Extrude";
+	const static PROGMEM prog_uchar homeAxis[] = "Home Axis";
 	const static PROGMEM prog_uchar moodlight[]= "Mood Light";
 	const static PROGMEM prog_uchar versions[] = "Version";
 	const static PROGMEM prog_uchar snake[] =    "Snake Game";
@@ -1345,12 +1346,15 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(extruder);
 		break;
 	case 5:
-		lcd.writeFromPgmspace(moodlight);
+		lcd.writeFromPgmspace(homeAxis);
 		break;
 	case 6:
-		lcd.writeFromPgmspace(versions);
+		lcd.writeFromPgmspace(moodlight);
 		break;
 	case 7:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 8:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -1380,14 +1384,18 @@ void MainMenu::handleSelect(uint8_t index) {
 			interface::pushScreen(&extruderMenu);
 			break;
 		case 5:
+			// Show home axis
+			interface::pushScreen(&homeAxisMode);
+			break;
+		case 6:
 			// Show Mood Light Mode
                         interface::pushScreen(&moodLightMode);
 			break;
-		case 6:
+		case 7:
 			// Show build from SD screen
                         interface::pushScreen(&versionMode);
 			break;
-		case 7:
+		case 8:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;
@@ -1723,6 +1731,78 @@ void PreheatMenu::handleSelect(uint8_t index) {
                         interface::pushScreen(&platTempSetScreen);
 			break;
 		}
+}
+
+void HomeAxisMode::reset() {
+}
+
+void HomeAxisMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar home1[] = "Home Axis: ";
+	const static PROGMEM prog_uchar home2[] = "  Y            Z";
+	const static PROGMEM prog_uchar home3[] = "X   X           ";
+	const static PROGMEM prog_uchar home4[] = "  Y            Z";
+
+	if (forceRedraw) {
+		lcd.clear();
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(home1);
+
+		lcd.setCursor(0,1);
+		lcd.writeFromPgmspace(home2);
+
+		lcd.setCursor(0,2);
+		lcd.writeFromPgmspace(home3);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(home4);
+	}
+}
+
+void HomeAxisMode::home(ButtonArray::ButtonName direction) {
+	uint8_t axis = 0;
+	bool 	maximums;
+
+	switch(direction) {
+	        case ButtonArray::XMINUS:
+      		case ButtonArray::XPLUS:
+			axis 	 = 0x01;
+			maximums = false;
+			break;
+        	case ButtonArray::YMINUS:
+        	case ButtonArray::YPLUS:
+			axis 	 = 0x02;
+			maximums = false;
+			break;
+        	case ButtonArray::ZMINUS:
+        	case ButtonArray::ZPLUS:
+			axis 	 = 0x04;
+			maximums = true;
+			break;
+	}
+
+	steppers::startHoming(maximums, axis, (uint32_t)2000);
+}
+
+void HomeAxisMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	switch (button) {
+        	case ButtonArray::YMINUS:
+        	case ButtonArray::ZMINUS:
+        	case ButtonArray::YPLUS:
+        	case ButtonArray::ZPLUS:
+        	case ButtonArray::XMINUS:
+        	case ButtonArray::XPLUS:
+			home(button);
+			break;
+        	case ButtonArray::ZERO:
+        	case ButtonArray::OK:
+        	case ButtonArray::CANCEL:
+			steppers::abort();
+			steppers::enableAxis(0, false);
+			steppers::enableAxis(1, false);
+			steppers::enableAxis(2, false);
+               		interface::popScreen();
+			break;
+	}
 }
 
 #endif
