@@ -384,6 +384,17 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+class SteppersMenu: public Menu {
+public:
+	SteppersMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -401,6 +412,7 @@ private:
 	PreheatMenu preheatMenu;
 	ExtruderMode extruderMenu;
 	HomeAxisMode homeAxisMode;
+	SteppersMenu steppersMenu;
         VersionMode versionMode;
 	MoodLightMode	moodLightMode;
         SnakeMode snake;

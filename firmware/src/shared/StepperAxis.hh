@@ -70,6 +70,10 @@ public:
         /// \param[in] enable If true, enable the axis; otherwise, disable it.
         void enableStepper(bool enable);
 
+        /// Reports if the stepper motor driver on the given axis is enabled
+        /// \param[in] returns true if enabled, otherwise false
+	bool isEnabledStepper();
+
         /// Reset to initial state
         void reset();
 

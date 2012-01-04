@@ -47,6 +47,10 @@ namespace steppers {
     /// \param[in] enable If true, enable the axis. If false, disable.
     void enableAxis(uint8_t index, bool enable);
 
+    /// Reports if the axis is enabled or not
+    /// \param[in] index Index of the axis to enable or disable
+    bool isEnabledAxis(uint8_t index);
+
     /// Instruct the stepper subsystem to move the machine to the
     /// given position.
     /// \param[in] target Position to move to

@@ -41,6 +41,10 @@ void StepperAxis::enableStepper(bool enable) {
         interface->setEnabled(enable);
 }
 
+bool StepperAxis::isEnabledStepper() {
+        return interface->getEnabled();
+}
+
 void StepperAxis::reset() {
         position = 0;
         minimum = 0;

@@ -134,6 +134,13 @@ void enableAxis(uint8_t index, bool enable) {
 	}
 }
 
+/// Report if the given axis is enabled or disabled
+bool isEnabledAxis(uint8_t index) {
+        if (index < STEPPER_COUNT) {
+                axes[index].isEnabledStepper();
+	}
+}
+
 bool doInterrupt() {
 	if (is_running) {
 		if (intervals_remaining-- == 0) {

@@ -50,6 +50,11 @@ void StepperInterface::setEnabled(bool enabled) {
 	enable_pin.setValue(!enabled);
 }
 
+bool StepperInterface::getEnabled() {
+	// The A3982 stepper driver chip has an inverted enable.
+	return ! enable_pin.getValue();
+}
+
 bool StepperInterface::isAtMaximum() {
         if (max_pin.isNull()) return false;
 	bool v = max_pin.getValue();

@@ -68,6 +68,9 @@ public:
         /// \param[in] True to enable the motor
 	void setEnabled(bool enabled);
 
+	/// Returns true if the stepper motor is enabled
+	bool getEnabled();
+
         /// Check if the maximum endstop has been triggered for this axis.
         /// \return True if the axis has triggered its maximum endstop
 	bool isAtMaximum();

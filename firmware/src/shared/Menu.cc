@@ -1320,7 +1320,7 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 
 
 MainMenu::MainMenu() {
-	itemCount = 9;
+	itemCount = 10;
 	reset();
 }
 
@@ -1331,6 +1331,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar preheat[] =  "Preheat";
 	const static PROGMEM prog_uchar extruder[] = "Extrude";
 	const static PROGMEM prog_uchar homeAxis[] = "Home Axis";
+	const static PROGMEM prog_uchar steppersS[]= "Steppers";
 	const static PROGMEM prog_uchar moodlight[]= "Mood Light";
 	const static PROGMEM prog_uchar versions[] = "Version";
 	const static PROGMEM prog_uchar snake[] =    "Snake Game";
@@ -1355,12 +1356,15 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(homeAxis);
 		break;
 	case 6:
-		lcd.writeFromPgmspace(moodlight);
+		lcd.writeFromPgmspace(steppersS);
 		break;
 	case 7:
-		lcd.writeFromPgmspace(versions);
+		lcd.writeFromPgmspace(moodlight);
 		break;
 	case 8:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 9:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -1394,14 +1398,18 @@ void MainMenu::handleSelect(uint8_t index) {
 			interface::pushScreen(&homeAxisMode);
 			break;
 		case 6:
+			// Show steppers menu
+			interface::pushScreen(&steppersMenu);
+			break;
+		case 7:
 			// Show Mood Light Mode
                         interface::pushScreen(&moodLightMode);
 			break;
-		case 7:
+		case 8:
 			// Show build from SD screen
                         interface::pushScreen(&versionMode);
 			break;
-		case 8:
+		case 9:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;
@@ -1807,6 +1815,61 @@ void HomeAxisMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 			steppers::enableAxis(1, false);
 			steppers::enableAxis(2, false);
                		interface::popScreen();
+			break;
+	}
+}
+
+SteppersMenu::SteppersMenu() {
+	itemCount = 4;
+	reset();
+}
+
+void SteppersMenu::resetState() {
+	if (( steppers::isEnabledAxis(0) ) ||
+	    ( steppers::isEnabledAxis(1) ) ||
+	    ( steppers::isEnabledAxis(2) ) ||
+	    ( steppers::isEnabledAxis(3) ))	itemIndex = 3;
+	else					itemIndex = 2;
+	firstItemIndex = 2;
+}
+
+void SteppersMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+	const static PROGMEM prog_uchar title[]  = "Stepper Motors:";
+	const static PROGMEM prog_uchar disable[]   =  "Disable";
+	const static PROGMEM prog_uchar enable[] =  "Enable";
+
+	switch (index) {
+	case 0:
+		lcd.writeFromPgmspace(title);
+		break;
+	case 1:
+		break;
+	case 2:
+		lcd.writeFromPgmspace(disable);
+		break;
+	case 3:
+		lcd.writeFromPgmspace(enable);
+		break;
+	}
+}
+
+void SteppersMenu::handleSelect(uint8_t index) {
+	switch (index) {
+		case 2:
+			//Disable Steppers
+			steppers::enableAxis(0, false);
+			steppers::enableAxis(1, false);
+			steppers::enableAxis(2, false);
+			steppers::enableAxis(3, false);
+			interface::popScreen();
+			break;
+		case 3:
+			//Enable Steppers
+			steppers::enableAxis(0, true);
+			steppers::enableAxis(1, true);
+			steppers::enableAxis(2, true);
+			steppers::enableAxis(3, true);
+                	interface::popScreen();
 			break;
 	}
 }
