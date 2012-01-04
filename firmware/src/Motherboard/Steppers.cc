@@ -141,6 +141,22 @@ bool isEnabledAxis(uint8_t index) {
 	}
 }
 
+bool isAtMaximum(uint8_t index) {
+        if (index < STEPPER_COUNT) {
+                return axes[index].isAtMaximum();
+	}
+	return false;
+}
+
+
+bool isAtMinimum(uint8_t index) {
+        if (index < STEPPER_COUNT) {
+                return axes[index].isAtMinimum();
+	}
+	return false;
+}
+
+
 bool doInterrupt() {
 	if (is_running) {
 		if (intervals_remaining-- == 0) {

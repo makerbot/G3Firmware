@@ -395,6 +395,19 @@ protected:
 	void handleSelect(uint8_t index);
 };
 
+class TestEndStopsMode: public Screen {
+private:
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -413,6 +426,7 @@ private:
 	ExtruderMode extruderMenu;
 	HomeAxisMode homeAxisMode;
 	SteppersMenu steppersMenu;
+	TestEndStopsMode testEndStopsMode;
         VersionMode versionMode;
 	MoodLightMode	moodLightMode;
         SnakeMode snake;

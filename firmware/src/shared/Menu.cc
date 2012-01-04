@@ -1320,7 +1320,7 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 
 
 MainMenu::MainMenu() {
-	itemCount = 10;
+	itemCount = 11;
 	reset();
 }
 
@@ -1333,6 +1333,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar homeAxis[] = "Home Axis";
 	const static PROGMEM prog_uchar steppersS[]= "Steppers";
 	const static PROGMEM prog_uchar moodlight[]= "Mood Light";
+	const static PROGMEM prog_uchar endStops[] = "Test End Stops";
 	const static PROGMEM prog_uchar versions[] = "Version";
 	const static PROGMEM prog_uchar snake[] =    "Snake Game";
 
@@ -1362,9 +1363,12 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(moodlight);
 		break;
 	case 8:
-		lcd.writeFromPgmspace(versions);
+		lcd.writeFromPgmspace(endStops);
 		break;
 	case 9:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 10:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -1406,10 +1410,14 @@ void MainMenu::handleSelect(uint8_t index) {
                         interface::pushScreen(&moodLightMode);
 			break;
 		case 8:
+			// Show test end stops menu
+			interface::pushScreen(&testEndStopsMode);
+			break;
+		case 9:
 			// Show build from SD screen
                         interface::pushScreen(&versionMode);
 			break;
-		case 9:
+		case 10:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;
@@ -1870,6 +1878,61 @@ void SteppersMenu::handleSelect(uint8_t index) {
 			steppers::enableAxis(2, true);
 			steppers::enableAxis(3, true);
                 	interface::popScreen();
+			break;
+	}
+}
+
+void TestEndStopsMode::reset() {
+}
+
+void TestEndStopsMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar test1[] = "Test End Stops: ";
+	const static PROGMEM prog_uchar test2[] = "(press end stop)";
+	const static PROGMEM prog_uchar test3[] = "XMin:N    YMin:N";
+	const static PROGMEM prog_uchar test4[] = "ZMax:N";
+	const static PROGMEM prog_uchar strY[]  = "Y";
+	const static PROGMEM prog_uchar strN[]  = "N";
+
+	if (forceRedraw) {
+		lcd.clear();
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(test1);
+
+		lcd.setCursor(0,1);
+		lcd.writeFromPgmspace(test2);
+
+		lcd.setCursor(0,2);
+		lcd.writeFromPgmspace(test3);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(test4);
+	}
+
+	lcd.setCursor(5, 2);
+	if ( steppers::isAtMinimum(0) ) lcd.writeFromPgmspace(strY);
+	else				lcd.writeFromPgmspace(strN);
+
+	lcd.setCursor(15, 2);
+	if ( steppers::isAtMinimum(1) ) lcd.writeFromPgmspace(strY);
+	else				lcd.writeFromPgmspace(strN);
+
+	lcd.setCursor(5, 3);
+	if ( steppers::isAtMaximum(2) ) lcd.writeFromPgmspace(strY);
+	else				lcd.writeFromPgmspace(strN);
+}
+
+void TestEndStopsMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	switch (button) {
+        	case ButtonArray::YMINUS:
+        	case ButtonArray::ZMINUS:
+        	case ButtonArray::YPLUS:
+        	case ButtonArray::ZPLUS:
+        	case ButtonArray::XMINUS:
+        	case ButtonArray::XPLUS:
+        	case ButtonArray::ZERO:
+        	case ButtonArray::OK:
+        	case ButtonArray::CANCEL:
+               		interface::popScreen();
 			break;
 	}
 }

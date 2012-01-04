@@ -142,3 +142,13 @@ bool StepperAxis::doHoming(const int32_t intervals) {
         }
         return true;
 }
+
+
+bool StepperAxis::isAtMaximum() {
+	return interface->isAtMaximum();
+}
+
+
+bool StepperAxis::isAtMinimum() {
+	return interface->isAtMinimum();
+}

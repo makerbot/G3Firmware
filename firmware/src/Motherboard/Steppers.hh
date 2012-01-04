@@ -96,6 +96,12 @@ namespace steppers {
     ///                  through the entire build. If false, it will be
     ///                  disabled when not moving.
     void setHoldZ(bool holdZ);
+
+    //Returns true if the end stop is current depressed
+    bool isAtMaximum(uint8_t index);
+
+    //Returns true if the end stop is current depressed
+    bool isAtMinimum(uint8_t index);
 };
 
 #endif // STEPPERS_HH_
