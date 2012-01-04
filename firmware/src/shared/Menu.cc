@@ -1435,10 +1435,15 @@ void MainMenu::handleSelect(uint8_t index) {
 
 SDMenu::SDMenu() {
 	reset();
+	updatePhase = 0;
+	drawItemLockout = false;
 }
 
 void SDMenu::resetState() {
 	itemCount = countFiles();
+	updatePhase = 0;
+	lastItemIndex = 0;
+	drawItemLockout = false;
 }
 
 // Count the number of files on the SD card
@@ -1510,7 +1515,7 @@ void SDMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		return;
 	}
 
-	const uint8_t MAX_FILE_LEN = LCD_SCREEN_WIDTH;
+	const uint8_t MAX_FILE_LEN = host::MAX_FILE_LEN;
 	char fnbuf[MAX_FILE_LEN];
 
         if ( !getFilename(index, fnbuf, MAX_FILE_LEN) ) {
@@ -1518,10 +1523,51 @@ void SDMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		return;
 	}
 
+	//Figure out length of filename
+	uint8_t filenameLength;
+	for (filenameLength = 0; (filenameLength < MAX_FILE_LEN) && (fnbuf[filenameLength] != 0); filenameLength++) ;
+
 	uint8_t idx;
-	for (idx = 0; (idx < MAX_FILE_LEN) && (fnbuf[idx] != 0); idx++) {
-		lcd.write(fnbuf[idx]);
+	uint8_t longFilenameOffset = 0;
+	uint8_t displayWidth = LCD_SCREEN_WIDTH - 1;
+
+	//Support scrolling filenames that are longer than the lcd screen
+	if (filenameLength >= displayWidth) longFilenameOffset = updatePhase % (filenameLength - displayWidth + 1);
+
+	for (idx = 0; (idx < displayWidth) && (fnbuf[longFilenameOffset + idx] != 0) &&
+		      ((longFilenameOffset + idx) < MAX_FILE_LEN); idx++)
+		lcd.write(fnbuf[longFilenameOffset + idx]);
+
+	//Clear out the rest of the line
+	while ( idx < displayWidth ) {
+		lcd.write(' ');
+		idx ++;
 	}
+}
+
+void SDMenu::update(LiquidCrystal& lcd, bool forceRedraw) {
+	
+	if (( ! forceRedraw ) && ( ! drawItemLockout )) {
+		//Redraw the last item if we have changed
+		if (((itemIndex/LCD_SCREEN_HEIGHT) == (lastDrawIndex/LCD_SCREEN_HEIGHT)) &&
+		     ( itemIndex != lastItemIndex ))  {
+			lcd.setCursor(1,lastItemIndex % LCD_SCREEN_HEIGHT);
+			drawItem(lastItemIndex, lcd);
+		}
+		lastItemIndex = itemIndex;
+
+		lcd.setCursor(1,itemIndex % LCD_SCREEN_HEIGHT);
+		drawItem(itemIndex, lcd);
+	}
+
+	Menu::update(lcd, forceRedraw);
+
+	updatePhase ++;
+}
+
+void SDMenu::notifyButtonPressed(ButtonArray::ButtonName button) {
+	updatePhase = 0;
+	Menu::notifyButtonPressed(button);
 }
 
 void SDMenu::handleSelect(uint8_t index) {
@@ -1529,6 +1575,8 @@ void SDMenu::handleSelect(uint8_t index) {
 		// TODO: report error
 		return;
 	}
+
+	drawItemLockout = true;
 
 	char* buildName = host::getBuildName();
 

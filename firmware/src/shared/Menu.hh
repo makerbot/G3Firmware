@@ -160,10 +160,19 @@ public:
 
 
 class SDMenu: public Menu {
+private:
+	uint8_t updatePhase;
+	uint8_t lastItemIndex;
+	bool	drawItemLockout;
 public:
 	SDMenu();
 
 	void resetState();
+
+	micros_t getUpdateRate() {return 500L * 1000L;}
+	void notifyButtonPressed(ButtonArray::ButtonName button);
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
 protected:
 	uint8_t countFiles();
 
