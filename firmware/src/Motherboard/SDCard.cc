@@ -128,6 +128,9 @@ SdErrorCode directoryNextEntry(char* buffer, uint8_t bufsize) {
 	uint8_t tries = 5;
 	while (tries) {
 		if (fat_read_dir(dd, &entry)) {
+			//Ignore non-file, system or hidden files
+			if ( entry.attributes & (FAT_ATTRIB_HIDDEN | FAT_ATTRIB_SYSTEM | FAT_ATTRIB_VOLUME | FAT_ATTRIB_DIR ))
+				continue;
 			int i;
 			for (i = 0; (i < bufsize-1) && entry.long_name[i] != 0; i++) {
 				buffer[i] = entry.long_name[i];
