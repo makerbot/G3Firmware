@@ -349,6 +349,10 @@ void JogMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 		jog(button);
 		break;
         case ButtonArray::CANCEL:
+		steppers::abort();
+		steppers::enableAxis(0, false);
+		steppers::enableAxis(1, false);
+		steppers::enableAxis(2, false);
                 interface::popScreen();
 		break;
 	}
@@ -527,6 +531,8 @@ void ExtruderMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 			extrude((seconds_t)(zReverse * lastDirection * extrudeSeconds), false);
 			break;
        	 	case ButtonArray::CANCEL:
+			steppers::abort();
+			steppers::enableAxis(3, false);
                		interface::popScreen();
 			break;
 	}
