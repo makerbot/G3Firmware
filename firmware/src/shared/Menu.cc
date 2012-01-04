@@ -29,6 +29,8 @@
 #define HOST_TOOL_RESPONSE_TIMEOUT_MS 50
 #define HOST_TOOL_RESPONSE_TIMEOUT_MICROS (1000L*HOST_TOOL_RESPONSE_TIMEOUT_MS)
 
+#define MAX_ITEMS_PER_SCREEN 4
+
 int16_t overrideExtrudeSeconds = 0;
 
 
@@ -1243,6 +1245,7 @@ void Menu::handleCancel() {
 }
 
 void Menu::notifyButtonPressed(ButtonArray::ButtonName button) {
+	uint8_t steps = MAX_ITEMS_PER_SCREEN;
 	switch (button) {
         case ButtonArray::ZERO:
         case ButtonArray::OK:
@@ -1252,18 +1255,24 @@ void Menu::notifyButtonPressed(ButtonArray::ButtonName button) {
 		handleCancel();
 		break;
         case ButtonArray::YMINUS:
+		steps = 1;
         case ButtonArray::ZMINUS:
 		// increment index
-		if (itemIndex < itemCount - 1) {
-			itemIndex++;
-		}
+		if      (itemIndex < itemCount - steps) 
+			itemIndex+=steps;
+		else if (itemIndex==itemCount-1)
+			itemIndex=firstItemIndex;
+		else	itemIndex=itemCount-1;
 		break;
         case ButtonArray::YPLUS:
+		steps = 1;
         case ButtonArray::ZPLUS:
 		// decrement index
-		if (itemIndex > firstItemIndex) {
-			itemIndex--;
-		}
+		if      (itemIndex-steps > firstItemIndex)
+			itemIndex-=steps;
+		else if (itemIndex==firstItemIndex)
+			itemIndex=itemCount - 1;
+		else	itemIndex=firstItemIndex;
 		break;
 
         case ButtonArray::XMINUS:
@@ -1274,7 +1283,7 @@ void Menu::notifyButtonPressed(ButtonArray::ButtonName button) {
 
 
 CancelBuildMenu::CancelBuildMenu() {
-	itemCount = 4;
+	itemCount = MAX_ITEMS_PER_SCREEN;
 	reset();
 }
 
