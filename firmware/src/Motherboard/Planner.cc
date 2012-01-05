@@ -682,13 +682,13 @@ namespace planner {
 		block->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
 #endif
 
-		block->accelerate_until = block->step_event_count / 3;
-		block->decelerate_after = block->step_event_count - block->accelerate_until;
+		block->accelerate_until = 10;
+		block->decelerate_after = block->step_event_count - 20;
 
 		block->initial_rate = 120;
 		block->final_rate   = 240;
 		
-		block->start_position = position;
+		block->target = target;
 
 		// Update position
 		position[0] = target[0];

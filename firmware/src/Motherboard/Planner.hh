@@ -43,7 +43,7 @@ namespace planner {
 	public:
 	// Fields used by the bresenham algorithm for tracing the line
 		Point steps;  // Step count and direction (may be negative) along each axis
-		Point start_position;  // Step count and direction (may be negative) along each axis
+		Point target;  // Step count and direction (may be negative) along each axis
 		uint32_t step_event_count;           // The number of step events required to complete this block
 		int32_t accelerate_until;                    // The index of the step event on which to stop acceleration
 		int32_t decelerate_after;                    // The index of the step event on which to start decelerating
@@ -74,7 +74,7 @@ namespace planner {
 		uint32_t acceleration_st;                     // acceleration steps/sec^2
 		uint8_t busy;
 		
-		Block() : steps(), start_position() {};
+		Block() : steps(), target() {};
 		
 	// functions
 		void calculate_trapezoid(float exit_factor_speed);
