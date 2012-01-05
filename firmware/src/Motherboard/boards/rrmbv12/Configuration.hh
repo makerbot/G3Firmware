@@ -158,6 +158,7 @@
 // THIS MUst BE A POWER OF 2! 4, 8, 16, 32, you get the idea...
 #define BLOCK_BUFFER_SIZE 16
 
+//#define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
 #define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
 #define DEFAULT_MAX_XY_JERK 20.0
 #define DEFAULT_MAX_Z_JERK 0.4

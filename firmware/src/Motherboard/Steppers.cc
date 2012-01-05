@@ -19,6 +19,7 @@
 #include "Steppers.hh"
 #include "StepperAxis.hh"
 #include "Planner.hh"
+#include <math.h>
 #include <stdint.h>
 
 namespace steppers {
@@ -38,6 +39,14 @@ volatile bool is_homing;
 
 bool holdZ = false;
 
+planner::Block *current_block;
+
+enum {
+	ACCELERATING = 1,
+	IN_PLATEAU,
+	DECELERATING
+} current_phase; // pretend we are just leaving a block
+
 bool isRunning() {
 	return is_running || is_homing;
 }
@@ -52,6 +61,8 @@ void init(Motherboard& motherboard) {
 	axes[STEPRATE_AXIS] = StepperAxis();
 	timer_counter = 0;
 	feedrate_scale_shift = 0;
+	current_phase = DECELERATING;
+	current_block = 0;
 }
 
 void abort() {
@@ -164,28 +175,22 @@ is_running = true;
 }
 */
 
-planner::Block *current_block = 0;
-enum {
-	ACCELERATING = 1,
-	IN_PLATEAU,
-	DECELERATING
-} current_phase = DECELERATING; // pretend we are just leaving a block
-
 // load up the next movment
 // WARNING: called from inside the ISR, so get out fast
 bool getNextMove() {
 	uint32_t max_delta = 0;
+	int32_t new_interval_position = 0;
 	is_running = false;
-
+	
 	if (current_phase == DECELERATING) {
-		current_phase == ACCELERATING;
+		current_phase = ACCELERATING;
 		current_block = 0;
 	}
 	else if (current_phase == ACCELERATING) {
-		current_phase == IN_PLATEAU;
+		current_phase = IN_PLATEAU;
 	}
 	else if (current_phase == IN_PLATEAU) {
-		current_phase == DECELERATING;
+		current_phase = DECELERATING;
 	}
 	
 	// reset steprate axis
@@ -203,68 +208,58 @@ bool getNextMove() {
 		current_block = planner::getNextBlock();
 		// Mark block as busy (being executed by the stepper interrupt)
 		current_block->busy = true;
-
-		current_phase = ACCELERATING;
-		if (current_block->accelerate_until > 0) {
-			// setup all real axes
-			for (int i = 0; i < STEPPER_COUNT; i++) {
-				// rearrange a little to avoid fractional math.
-				// Should be the same as: (accelerate_until/step_event_count) * steps[i]
-				axes[i].setTarget((current_block->accelerate_until * current_block->steps[i]) / current_block->step_event_count, /*relative =*/ true);
-				// axes[i].setTarget(current_block->steps[i], /*relative =*/ true);
-			}
-
-			// setup steprate axis
-			axes[STEPRATE_AXIS].definePosition(1000000/current_block->initial_rate);
-			axes[STEPRATE_AXIS].setTarget(1000000/current_block->nominal_rate, /*relative =*/ false);
-			// axes[STEPRATE_AXIS].definePosition(1000000/current_block->nominal_rate);
-			// axes[STEPRATE_AXIS].setTarget(1000000/current_block->nominal_rate, /*relative =*/ false);
-			// 
-			max_delta = current_block->accelerate_until;
-			// max_delta = current_block->step_event_count;
-			// 
-			// current_phase = DECELERATING;
-
-			
-		} else {
-			current_phase = IN_PLATEAU;
+		
+		// make sure we start at the starting speed
+		axes[STEPRATE_AXIS].definePosition(1000000/current_block->initial_rate);
+		for (int i = 0; i < STEPPER_COUNT; i++) {
+			axes[i].position = current_block->start_position[i];
 		}
+
+		// if (current_block->accelerate_until > 0) {
+			 // force this
+			current_phase = ACCELERATING;
+			
+			// setup all real axes
+			max_delta = current_block->accelerate_until;
+			new_interval_position = current_block->accelerate_until;
+
+			// setup steprate axis target
+			axes[STEPRATE_AXIS].setTarget(1000000/current_block->nominal_rate, /*relative =*/ false);
+		// } else {
+		// 	current_phase = IN_PLATEAU;
+		// }
 	}
-#if 1
+
 	if (current_phase == IN_PLATEAU && current_block->accelerate_until != current_block->decelerate_after) {
 		// setup all real axes
-		for (int i = 0; i < STEPPER_COUNT; i++) {
-			// rearrange a little to avoid fractional math.
-			// Should be the same as: (decelerate_after/step_event_count) * steps[i]
-			axes[i].setTarget((current_block->decelerate_after * current_block->steps[i]) / current_block->step_event_count, /*relative =*/ true);
-		}
+		max_delta = current_block->decelerate_after - current_block->accelerate_until;
+		new_interval_position = current_block->decelerate_after;
 
-		// setup steprate axis, using the current position properly
+		// setup steprate axis target, using the current position properly
 		axes[STEPRATE_AXIS].setTarget(1000000/current_block->nominal_rate, /*relative =*/ false);
 
-		max_delta = current_block->step_event_count - current_block->accelerate_until - current_block->decelerate_after;
 	} else {
 		current_phase = DECELERATING;
 	}
 
 	if (current_phase == DECELERATING && current_block->decelerate_after != current_block->step_event_count) {
-		// setup all real axes
-		for (int i = 0; i < STEPPER_COUNT; i++) {
-			// rearrange a little to avoid fractional math.
-			// Should be the same as: (decelerate_after/step_event_count) * steps[i]
-			axes[i].setTarget((current_block->decelerate_after * current_block->steps[i]) / current_block->step_event_count, /*relative =*/ true);
-		}
+		max_delta = current_block->step_event_count - current_block->decelerate_after;
+		new_interval_position = current_block->step_event_count;
 
-		// setup steprate axis, using the current position properly
+		// setup steprate axis target, using the current position properly
 		axes[STEPRATE_AXIS].setTarget(1000000/current_block->final_rate, /*relative =*/ false);
 	} else {
-		current_phase = ACCELERATING;
 		// My apologies for a goto, but we're in a hurry! -Rob
 		goto FetchNext;
 	}
-#endif
+
 	for (int i = 0; i < STEPPER_COUNT; i++) {
-		const int32_t delta = axes[i].delta;
+		// rearrange a little to avoid fractional math.
+		// Should be the same as: (max_delta/step_event_count) * steps[i]
+		const int32_t delta = floor(((float)new_interval_position * (float)current_block->steps[i]) / (float)current_block->step_event_count);
+		
+		axes[i].setTarget(current_block->start_position[i] + delta, /*relative =*/ false);
+
 		// Only shut z axis on inactivity
 		if (i == 2 && !holdZ) axes[i].enableStepper(delta != 0);
 		else if (delta != 0) axes[i].enableStepper(true);
@@ -330,9 +325,9 @@ bool doInterrupt() {
 		timer_counter -= INTERVAL_IN_MICROSECONDS;
 		if (timer_counter <= 0) {
 			if (intervals_remaining-- == 0) {
-				// if (!getNextMove()) {
+				if (!getNextMove()) {
 					is_running = false;
-				// }
+				}
 			} else {
 
 				for (int i = 0; i < ALL_AXIS_COUNT; i++) {

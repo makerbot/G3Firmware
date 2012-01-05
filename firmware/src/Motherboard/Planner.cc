@@ -74,15 +74,28 @@
 /* Setup some utilities */
 
 // undefine stdlib's abs if encountered
-#ifdef abs
-#undef abs
+// #ifdef abs
+// #undef abs
+// #endif
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
 #endif
 
-inline const int32_t& min(const int32_t& a, const int32_t& b) { return (a)<(b)?(a):(b); }
-inline const int32_t& max(const int32_t& a, const int32_t& b) { return (a)>(b)?(a):(b); }
+template <typename T>
+inline const T& min(const T& a, const T& b) { return (a)<(b)?(a):(b); }
+// template inline const int32_t& min(const int32_t&, const int32_t&);
+// template inline const uint32_t& min(const uint32_t&, const uint32_t&);
 
 template <typename T>
-inline T abs(T x) { return (x)>0?(x):-(x); }
+inline const T& max(const T& a, const T& b) { return (a)>(b)?(a):(b); }
+// template inline const int32_t& max(const int32_t&, const int32_t&);
+// template inline const uint32_t& max(const uint32_t&, const uint32_t&);
+
+// template <typename T>
+// inline T abs(T x) { return (x)>0?(x):-(x); }
 
 // #define constrain(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
 // #define round(x)     ((x)>=0?(long)((x)+0.5):(long)((x)-0.5))
@@ -172,6 +185,11 @@ namespace planner {
 		inline int16_t getUsedCount() {
 			return ((head-tail+size) & size_mask);
 		}
+		
+		inline void clear() {
+			head = 0;
+			tail = 0;
+		}
 	};
 	
 	// this is very similar to the StepperAxis, but geared toward planning
@@ -193,7 +211,7 @@ namespace planner {
 	
 	PlannerAxis axes[AXIS_COUNT];
 	
-	float acceleration;
+	float default_acceleration;
 	Point position; // the current position (planning-wise, not bot/stepper-wise) in steps
 	float previous_speed[AXIS_COUNT]; // Speed of previous path line segment
 	float previous_nominal_speed; // Nominal speed of previous path line segment
@@ -206,7 +224,7 @@ namespace planner {
 	void init()
 	{
 		for (int i = 0; i < AXIS_COUNT; i++) {
-			axes[i] = PlannerAxis(); // redundant, or a reset?
+			// axes[i] = PlannerAxis(); // redundant, or a reset?
 			previous_speed[i] = 0.0;
 		}
 		
@@ -234,9 +252,9 @@ namespace planner {
 	}
 
 	void setAcceleration(float new_acceleration) {
-		acceleration = new_acceleration;
+		default_acceleration = new_acceleration;
 		// for (int i = 0; i < AXIS_COUNT; i++) {
-		// 	axes[i].max_acceleration = acceleration * axes[i].steps_per_mm;
+		// 	axes[i].max_acceleration = default_acceleration * axes[i].steps_per_mm;
 		// }
 	}
 	
@@ -274,12 +292,13 @@ namespace planner {
 	}
 
 	// Calculates trapezoid parameters so that the entry- and exit-speed is compensated by the provided factors.
+	// calculate_trapezoid_for_block(block, block->entry_speed/block->nominal_speed, exit_factor_speed/block->nominal_speed);
 	void Block::calculate_trapezoid(float exit_factor_speed) {
 		float entry_factor = entry_speed/nominal_speed;
 		float exit_factor = exit_factor_speed/nominal_speed;
 		
-		initial_rate = ceil(nominal_rate*entry_factor); // (step/min)
-		final_rate = ceil(nominal_rate*exit_factor); // (step/min)
+		initial_rate = ceil((float)nominal_rate*entry_factor); // (step/min)
+		final_rate = ceil((float)nominal_rate*exit_factor); // (step/min)
 		
 		// Limit minimal step rate (Otherwise the timer will overflow.)
 		if(initial_rate < 120)
@@ -302,8 +321,8 @@ namespace planner {
 		if (plateau_steps < 0) {
 			accelerate_steps = ceil(
 				intersection_distance(initial_rate, final_rate, acceleration, step_event_count));
-			accelerate_steps = max(accelerate_steps, 0); // Check limits due to numerical round-off
-			accelerate_steps = min(accelerate_steps, step_event_count);
+			accelerate_steps = max(accelerate_steps, 0L); // Check limits due to numerical round-off
+			accelerate_steps = min(accelerate_steps, (int32_t)step_event_count);
 			plateau_steps = 0;
 		}
 
@@ -485,7 +504,7 @@ namespace planner {
 	
 	// Buffer the move. IOW, add a new block, and recalculate the acceleration accordingly
 	bool addMoveToBuffer(const Point& target, int32_t us_per_step)
-	{		
+	{
 		if (block_buffer.isFull())
 			return false;
 		
@@ -507,30 +526,25 @@ namespace planner {
 
 		block->nominal_rate = 1000000/us_per_step; // (step/sec) Always > 0
 		
-#if 1
 		// store the absolute number of steps in each direction, without direction
 		Point steps = Point(
-			abs(target[0] - position[0]),
-			abs(target[1] - position[1]),
-			abs(target[2] - position[2]),
-			abs(target[3] - position[3]),
-			abs(target[4] - position[4])
+			abs(block->steps[0]),
+			abs(block->steps[1]),
+			abs(block->steps[2]),
+			abs(block->steps[3]),
+			abs(block->steps[4])
 		);
 		
 		block->step_event_count = 0;
-		uint8_t master_axis = 0;
+		// uint8_t master_axis = 0;
 		for (int i = 0; i < AXIS_COUNT; i++) {
-			if (steps[i] > block->step_event_count) {
+			if (block->step_event_count < steps[i]) {
 				block->step_event_count = steps[i];
-				master_axis = i;
-				// steps_per_mm = block->step_event_count/block->millimeters;
-				
-				// WARNING, Edge case: Two axis got the same number of steps, but have different steps_per_mm values
-				//   No way to tell which one to choose.
-				// Need to change the call interface to fix this, though.
+				// master_axis = i;
 			}
 		}
 
+#if 0
 		// // Compute direction bits for this block -- UNUSED FOR NOW
 		// block->direction_bits = 0;
 		// for (int i = 0; i < AXIS_COUNT; i++) {
@@ -538,17 +552,17 @@ namespace planner {
 		// }
 		
 		float delta_mm[AXIS_COUNT];
-		block->millimeters = 0;
+		block->millimeters = 0.0;
 		for (int i = 0; i < AXIS_COUNT; i++) {
-			delta_mm[i] = steps[i]/axes[i].steps_per_mm;
+			delta_mm[i] = ((float)steps[i])/axes[i].steps_per_mm;
 			block->millimeters += delta_mm[i] * delta_mm[i];
 		}
 		block->millimeters = sqrt(block->millimeters);
 		
 		float inverse_millimeters = 1.0/block->millimeters; // Inverse millimeters to remove multiple divides
 		// Calculate 1 second/(seconds for this movement)
-		float inverse_second = 1000000/(us_per_step * block->step_event_count);
-		float steps_per_mm = block->step_event_count * inverse_millimeters;
+		float inverse_second = 1000000.0/(float)(us_per_step * block->step_event_count);
+		float steps_per_mm = (float)block->step_event_count * inverse_millimeters;
 		
 		// we are given microseconds/step, and we need steps/mm, and steps/second
 		
@@ -568,7 +582,7 @@ namespace planner {
 			current_speed[i] = delta_mm[i] * inverse_second;
 		}
 
-		// Limit speed per axis (already done in RepG)
+		// // Limit speed per axis (already done in RepG)
 		// float speed_factor = 1.0; //factor <=1 do decrease speed
 		// for(int i=0; i < AXIS_COUNT; i++) {
 		// 	if(abs(current_speed[i]) > max_feedrate[i])
@@ -577,21 +591,42 @@ namespace planner {
 		
 		// TODO fancy frequency checks
 		
+		
+		// // Correct the speed  
+		// if( speed_factor < 1.0) {
+		// 	//    Serial.print("speed factor : "); Serial.println(speed_factor);
+		// 	for(int i=0; i < 4; i++) {
+		// 		if(abs(current_speed[i]) > max_feedrate[i])
+		// 			speed_factor = min(speed_factor, max_feedrate[i] / abs(current_speed[i]));
+		// 		/*     
+		// 		if(speed_factor < 0.1) {
+		// 			Serial.print("speed factor : "); Serial.println(speed_factor);
+		// 			Serial.print("current_speed"); Serial.print(i); Serial.print(" : "); Serial.println(current_speed[i]);
+		// 		}
+		// 		*/
+		// 	}
+		// 	for(unsigned char i=0; i < 4; i++) {
+		// 		current_speed[i] *= speed_factor;
+		// 	}
+		// 	block->nominal_speed *= speed_factor;
+		// 	block->nominal_rate *= speed_factor;
+		// }
+
 		// Compute and limit the acceleration rate for the trapezoid generator.
-		block->acceleration_st = ceil(acceleration * steps_per_mm); // convert to: acceleration steps/sec^2
+		block->acceleration_st = ceil(default_acceleration * steps_per_mm); // convert to: acceleration steps/sec^2
 		// Limit acceleration per axis
 		for(int i=0; i < AXIS_COUNT; i++) {
-			if(((float)block->acceleration_st * (float)steps[i] / (float)block->step_event_count) > axes[i].max_acceleration)
+			if((uint32_t)((float)block->acceleration_st * (float)steps[i] / (float)block->step_event_count) > axes[i].max_acceleration)
 				block->acceleration_st = axes[i].max_acceleration;
 		}
 		block->acceleration = block->acceleration_st / steps_per_mm;
-		block->acceleration_rate = (long)((float)block->acceleration_st * 8.388608); //WHOA! Where is this coming from?!?
+		block->acceleration_rate = (int32_t)((float)block->acceleration_st * 8.388608); //WHOA! Where is this coming from?!?
 		
 		// Compute the speed trasitions, or "jerks"
 		// Start with a safe speed
-		float vmax_junction = max_xy_jerk/2;
+		float vmax_junction = max_xy_jerk/2.0;
 		{
-			float half_max_z_axis_jerk = axes[Z_AXIS].max_axis_jerk/2;
+			float half_max_z_axis_jerk = axes[Z_AXIS].max_axis_jerk/2.0;
 			if(abs(current_speed[Z_AXIS]) > half_max_z_axis_jerk) 
 				vmax_junction = half_max_z_axis_jerk;
 		}
@@ -617,7 +652,7 @@ namespace planner {
 		block->max_entry_speed = vmax_junction;
 		
 		// Initialize block entry speed. Compute based on deceleration to user-defined MINIMUM_PLANNER_SPEED.
-		double v_allowable = max_allowable_speed(-block->acceleration,MINIMUM_PLANNER_SPEED,block->millimeters);
+		float v_allowable = max_allowable_speed(-block->acceleration,MINIMUM_PLANNER_SPEED,block->millimeters);
 		block->entry_speed = min(vmax_junction, v_allowable);
 		
 		// Initialize planner efficiency flags
@@ -635,11 +670,26 @@ namespace planner {
 		block->recalculate_flag = true; // Always calculate trapezoid for new block
 
 		// Update previous path unit_vector and nominal speed
-		memcpy(previous_speed, current_speed, sizeof(previous_speed)); // previous_speed[] = current_speed[]
+		// memcpy(previous_speed, current_speed, sizeof(previous_speed)); // previous_speed[] = current_speed[]
+		previous_speed[0] = current_speed[0];
+		previous_speed[1] = current_speed[1];
+		previous_speed[2] = current_speed[2];
+		previous_speed[3] = current_speed[3];
+		previous_speed[4] = current_speed[4];
+
 		previous_nominal_speed = block->nominal_speed;
 
 		block->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
 #endif
+
+		block->accelerate_until = block->step_event_count / 3;
+		block->decelerate_after = block->step_event_count - block->accelerate_until;
+
+		block->initial_rate = 120;
+		block->final_rate   = 240;
+		
+		block->start_position = position;
+
 		// Update position
 		position[0] = target[0];
 		position[1] = target[1];
@@ -650,7 +700,7 @@ namespace planner {
 		// Move buffer head -- should this move to after recalulate?
 		block_buffer.bumpHead();
 
-		planner_recalculate();
+		//planner_recalculate();
 		
 		steppers::startRunning();
 		return true;
@@ -662,7 +712,18 @@ namespace planner {
 	{
 		// STUB
 	}
-
+	
+	void abort() {
+		position = steppers::getPosition();
+		
+		// reset speed
+		for (int i = 0; i < AXIS_COUNT; i++) {
+			previous_speed[i] = 0.0;
+		}
+		
+		block_buffer.clear();
+	}
+	
 	void definePosition(const Point& new_position)
 	{
 		position = new_position;
