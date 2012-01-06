@@ -39,8 +39,8 @@ bool outstanding_tool_command = false;
 bool paused = false;
 
 uint16_t statusDivisor = 0;
-uint32_t recentCommandClock = 0;
-uint32_t recentCommandTime = 0;
+volatile uint32_t recentCommandClock = 0;
+volatile uint32_t recentCommandTime = 0;
 
 uint16_t getRemainingCapacity() {
 	uint16_t sz;
@@ -184,7 +184,6 @@ void runCommandSlice() {
 	}
 	if (paused) { return; }
 	if (mode == HOMING) {
-		recentCommandTime = recentCommandClock;
 		if (!steppers::isRunning()) {
 			mode = READY;
 		} else if (homing_timeout.hasElapsed()) {
@@ -193,11 +192,9 @@ void runCommandSlice() {
 		}
 	}
 	if (mode == MOVING) {
-		recentCommandTime = recentCommandClock;
 		if (!steppers::isRunning()) { mode = READY; }
 	}
 	if (mode == DELAY) {
-		recentCommandTime = recentCommandClock;
 		// check timers
 		if (delay_timeout.hasElapsed()) {
 			mode = READY;
@@ -222,6 +219,7 @@ void runCommandSlice() {
 		if (command_buffer.getLength() > 0) {
 			uint8_t command = command_buffer[0];
 			if (command == HOST_CMD_QUEUE_POINT_ABS) {
+				recentCommandTime = recentCommandClock;
 				// check for completion
 				if (command_buffer.getLength() >= 17) {
 					command_buffer.pop(); // remove the command code
@@ -233,6 +231,7 @@ void runCommandSlice() {
 					steppers::setTarget(Point(x,y,z),dda);
 				}
 			} else if (command == HOST_CMD_QUEUE_POINT_EXT) {
+				recentCommandTime = recentCommandClock;
 				// check for completion
 				if (command_buffer.getLength() >= 25) {
 					command_buffer.pop(); // remove the command code
@@ -246,6 +245,7 @@ void runCommandSlice() {
 					steppers::setTarget(Point(x,y,z,a,b),dda);
 				}
 			} else if (command == HOST_CMD_QUEUE_POINT_NEW) {
+				recentCommandTime = recentCommandClock;
 				// check for completion
 				if (command_buffer.getLength() >= 26) {
 					command_buffer.pop(); // remove the command code
@@ -265,6 +265,7 @@ void runCommandSlice() {
                                         tool::setCurrentToolheadIndex(command_buffer.pop());
 				}
 			} else if (command == HOST_CMD_ENABLE_AXES) {
+				recentCommandTime = recentCommandClock;
 				if (command_buffer.getLength() >= 2) {
 					command_buffer.pop(); // remove the command code
 					uint8_t axes = command_buffer.pop();
@@ -444,20 +445,21 @@ void runCommandSlice() {
 #define STOCHASTIC_PERCENT(v, a, b)		(((v - a) / (b - a)) * 100.0)
 #define MAX2(a,b)				((a >= b)?a:b)
 #define STATUS_DIVISOR_TIME_PER_STATUS_CHANGE	4000
-#define RECENT_COMMAND_TIMEOUT			4000 * 10
+#define RECENT_COMMAND_TIMEOUT			4000 * 200
 
 void updateMoodStatus() {
-	MoodLightController moodLight = Motherboard::getBoard().getMoodLightController();
-
-	//If we're not set to the Bot Status Script, then there's no need to check anything
-	if ( moodLight.getLastScriptPlayed() != 0 ) return;
-
 	//Implement a divisor so we don't get called on every turn, we don't
 	//want to overload the interrupt loop when we don't need frequent changes	
 	statusDivisor ++;
 
 	if ( statusDivisor < STATUS_DIVISOR_TIME_PER_STATUS_CHANGE )	return;
 	statusDivisor = 0;
+
+	MoodLightController moodLight = Motherboard::getBoard().getMoodLightController();
+
+	//If we're not set to the Bot Status Script, then there's no need to check anything
+	if ( moodLight.getLastScriptPlayed() != 0 ) return;
+
 
 	//Certain states don't require us to check as often,
 	//save some CPU cycles
@@ -534,14 +536,18 @@ void updateMoodStatus() {
 	    	    ( recentCommandTime >= (recentCommandClock - RECENT_COMMAND_TIMEOUT ))) {
 			mlStatus = MOOD_LIGHT_STATUS_PRINTING;
 		} else {
-			mlStatus = MOOD_LIGHT_STATUS_HEATING;
+			//We can't go from printing back to heating
+			if ( lastMlStatus != MOOD_LIGHT_STATUS_PRINTING ) mlStatus = MOOD_LIGHT_STATUS_HEATING;
+			else						  mlStatus = MOOD_LIGHT_STATUS_PRINTING;
 		}
 	} else {
 		//If we're cooling and tool and platform are 0%, then we're not cooling anymore
 		if  (( percentHotTool <= 0.0 ) && ( percentHotPlatform <= 0.0 )) {
 			mlStatus = MOOD_LIGHT_STATUS_IDLE;
 		} else {
-			mlStatus = MOOD_LIGHT_STATUS_COOLING;
+			//We can't go from idle back to cooling
+			if ( lastMlStatus != MOOD_LIGHT_STATUS_IDLE ) mlStatus = MOOD_LIGHT_STATUS_COOLING;
+			else					      mlStatus = MOOD_LIGHT_STATUS_IDLE;
 		}
 	}
 
