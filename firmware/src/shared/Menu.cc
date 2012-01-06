@@ -968,6 +968,7 @@ void MonitorMode::reset() {
 	lastElapsedSeconds = 0.0;
 }
 
+
 void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	const static PROGMEM prog_uchar extruder_temp[]      =   "Tool: ---/---C";
 	const static PROGMEM prog_uchar platform_temp[]      =   "Bed:  ---/---C";
@@ -977,6 +978,8 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	const static PROGMEM prog_uchar time_left_calc[]     =   " calc..";
 	const static PROGMEM prog_uchar time_left_1min[]     =   "  <1min";
 	const static PROGMEM prog_uchar time_left_none[]     =   "   none";
+	const static PROGMEM prog_uchar zpos[] 		     =   "ZPos:           ";
+	const static PROGMEM prog_uchar zpos_mm[] 	     =   "mm";
 	char buf[17];
 
 	if (forceRedraw) {
@@ -1055,6 +1058,11 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 		float secs;
 
+		//Holding the zero button stops rotation
+        	if ( ! interface::isButtonPressed(ButtonArray::OK) ) buildTimePhase ++;
+
+		if ( buildTimePhase >= 4 )	buildTimePhase = 0;
+
 		switch (buildTimePhase) {
 			case 0:
 				lcd.setCursor(0,1);
@@ -1110,10 +1118,20 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 					}
 				}
 				break;
-		}
+			case 3:
+				lcd.setCursor(0,1);
+				lcd.writeFromPgmspace(zpos);
+				lcd.setCursor(6,1);
 
-		buildTimePhase ++;
-		if ( buildTimePhase >= 3 )	buildTimePhase = 0;
+				Point position = steppers::getPosition();
+			
+				//Divide by 200m because there are 200 steps per mm
+				lcd.writeFloat((float)position[2] / 200.0, 3);
+
+				lcd.writeFromPgmspace(zpos_mm);
+				break;
+		}
+	
 		break;
 	}
 
