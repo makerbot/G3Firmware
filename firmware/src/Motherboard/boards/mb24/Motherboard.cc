@@ -205,8 +205,7 @@ void Motherboard::doInterrupt() {
 		seconds += 1;
 		countupMicros -= 1000000L;
 	}
-	// Do not move steppers if the board is in a paused state
-	if (command::isPaused()) return;
+
 	steppers::doInterrupt();
 }
 

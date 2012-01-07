@@ -35,6 +35,10 @@ bool isRunning() {
 	return is_running || is_homing;
 }
 
+bool isHoming() {
+	return is_homing;
+}
+
 //public:
 void init(Motherboard& motherboard) {
 	is_running = false;

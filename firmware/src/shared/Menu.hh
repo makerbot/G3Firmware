@@ -186,6 +186,25 @@ protected:
 };
 
 
+class PauseMode: public Screen {
+private:
+	ButtonArray::ButtonName lastDirectionButtonPressed;
+
+        void jog(ButtonArray::ButtonName direction);
+
+	uint8_t pauseState;
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+
 class CancelBuildMenu: public Menu {
 public:
 	CancelBuildMenu();
@@ -195,6 +214,9 @@ protected:
 	void drawItem(uint8_t index, LiquidCrystal& lcd);
 
 	void handleSelect(uint8_t index);
+private:
+	PauseMode	pauseMode;
+	bool		pauseDisabled;
 };
 
 

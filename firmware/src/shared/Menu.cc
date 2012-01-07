@@ -33,6 +33,7 @@
 
 int16_t overrideExtrudeSeconds = 0;
 
+Point pausedPosition;
 
 
 void strcat(char *buf, const char* str)
@@ -1303,35 +1304,57 @@ void Menu::notifyButtonPressed(ButtonArray::ButtonName button) {
 CancelBuildMenu::CancelBuildMenu() {
 	itemCount = MAX_ITEMS_PER_SCREEN;
 	reset();
+	pauseDisabled = false;
+	if ( steppers::isHoming() )	pauseDisabled = true;
 }
 
 void CancelBuildMenu::resetState() {
-	itemIndex = 2;
-	firstItemIndex = 2;
+	pauseDisabled = false;	
+	if ( steppers::isHoming() )	pauseDisabled = true;
+
+	if ( pauseDisabled )	itemIndex = 2;
+	else			itemIndex = 1;
+
+	firstItemIndex = itemIndex;
 }
 
 void CancelBuildMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
-	const static PROGMEM prog_uchar cancel[] = "Cancel Build?";
-	const static PROGMEM prog_uchar yes[] =   "Yes";
-	const static PROGMEM prog_uchar no[] =   "No";
+	const static PROGMEM prog_uchar stop[]   = "Stop Build?";
+	const static PROGMEM prog_uchar pause[]  = "Pause      ";
+	const static PROGMEM prog_uchar abort[]  = "Abort Print";
+	const static PROGMEM prog_uchar cancel[] = "Cancel     ";
+
+	if ( steppers::isHoming() )	pauseDisabled = true;
 
 	switch (index) {
 	case 0:
-		lcd.writeFromPgmspace(cancel);
+		lcd.writeFromPgmspace(stop);
 		break;
 	case 1:
+		if ( ! pauseDisabled ) {
+			lcd.writeFromPgmspace(pause);
+		}
 		break;
 	case 2:
-		lcd.writeFromPgmspace(yes);
+		lcd.writeFromPgmspace(abort);
 		break;
 	case 3:
-		lcd.writeFromPgmspace(no);
+		lcd.writeFromPgmspace(cancel);
 		break;
 	}
 }
 
 void CancelBuildMenu::handleSelect(uint8_t index) {
+	int32_t interval = 2000;
+
 	switch (index) {
+	case 1:
+		// Pause
+		if ( ! pauseDisabled ) {
+			command::pause(true);
+			interface::pushScreen(&pauseMode);
+		}
+		break;
 	case 2:
 		// Cancel build, returning to whatever menu came before monitor mode.
 		// TODO: Cancel build.
@@ -1339,7 +1362,7 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 		host::stopBuild();
 		break;
 	case 3:
-		// Don't cancel, just close dialog.
+		// Don't cancel print, just close dialog.
                 interface::popScreen();
 		break;
 	}
@@ -2010,6 +2033,159 @@ void TestEndStopsMode::notifyButtonPressed(ButtonArray::ButtonName button) {
                		interface::popScreen();
 			break;
 	}
+}
+
+void PauseMode::reset() {
+	pauseState = 0;
+	lastDirectionButtonPressed = (ButtonArray::ButtonName)0;
+}
+
+void PauseMode::jog(ButtonArray::ButtonName direction) {
+	uint8_t steps = 50;
+	bool extrude = false;
+	int32_t interval = 1000;
+	Point position = steppers::getPosition();
+
+	switch(direction) {
+       		case ButtonArray::XMINUS:
+			position[0] -= steps;
+			break;
+        	case ButtonArray::XPLUS:
+			position[0] += steps;
+			break;
+        	case ButtonArray::YMINUS:
+			position[1] -= steps;
+			break;
+       	 	case ButtonArray::YPLUS:
+			position[1] += steps;
+			break;
+        	case ButtonArray::ZMINUS:
+			position[2] -= steps;
+			break;
+       		case ButtonArray::ZPLUS:
+			position[2] += steps;
+			break;
+		case ButtonArray::OK:
+		case ButtonArray::ZERO:
+			float rpm = (float)eeprom::getEeprom8(eeprom::EXTRUDE_RPM, 19) / 10.0;
+
+			//60 * 1000000 = # uS in a minute
+			//200 * 8 = 200 steps per revolution * 1/8 stepping
+			interval = (int32_t)(60L * 1000000L) / (int32_t)((float)(200 * 8) * rpm);
+			int16_t stepsPerSecond = (int16_t)((200.0 * 8.0 * rpm) / 60.0);
+
+			//Handle reverse
+			if ( direction == ButtonArray::OK )	stepsPerSecond *= -1;
+
+			//Extrude for 0.5 seconds
+			position[3] += 0.5 * stepsPerSecond;
+			break;
+	}
+
+	lastDirectionButtonPressed = direction;
+
+	steppers::setTarget(position, interval);
+}
+
+
+void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar waitForCurrentCommand[] = "Entering pause..";
+	const static PROGMEM prog_uchar movingZ[] 		= "Moving Z up 2mm ";
+	const static PROGMEM prog_uchar leavingPaused[]		= "Leaving pause.. ";
+	const static PROGMEM prog_uchar paused1[] 		= "Paused:         ";
+	const static PROGMEM prog_uchar paused2[] 		= "   Y+         Z+";
+	const static PROGMEM prog_uchar paused3[] 		= "X- Rev X+  (Fwd)";
+	const static PROGMEM prog_uchar paused4[] 		= "   Y-         Z-";
+
+	int32_t interval = 2000;
+	Point newPosition = pausedPosition;
+
+	if (forceRedraw)	lcd.clear();
+
+	lcd.setCursor(0,0);
+
+	switch (pauseState) {
+		case 0:	//Entered pause, waiting for steppers to finish last command
+			lcd.writeFromPgmspace(waitForCurrentCommand);
+
+			if ( ! steppers::isRunning()) pauseState ++;
+			break;
+
+		case 1: //Last command finished, record current position and move
+			//Z away from build
+			lcd.writeFromPgmspace(movingZ);
+
+			pausedPosition = steppers::getPosition();
+			newPosition = pausedPosition;
+			newPosition[2] += 2 * 200;	//200 because of the number of steps per mm
+			steppers::setTarget(newPosition, interval);
+			
+			pauseState ++;
+			break;
+
+		case 2: //Wait for the Z move up to complete
+			lcd.writeFromPgmspace(movingZ);
+			if ( ! steppers::isRunning()) {
+				pauseState ++;
+
+				//We write this here to avoid tieing up the processor
+				//in the next state
+				lcd.clear();
+				lcd.writeFromPgmspace(paused1);
+				lcd.setCursor(0,1);
+				lcd.writeFromPgmspace(paused2);
+				lcd.setCursor(0,2);
+				lcd.writeFromPgmspace(paused3);
+				lcd.setCursor(0,3);
+				lcd.writeFromPgmspace(paused4);
+			}
+			break;
+	
+		case 3: //We're now paused
+			break;
+
+		case 4: //Leaving paused, wait for any steppers to finish
+			lcd.clear();
+			lcd.writeFromPgmspace(leavingPaused);
+			if ( ! steppers::isRunning()) pauseState ++;
+			break;
+
+		case 5:	//Return to original position
+			lcd.writeFromPgmspace(leavingPaused);
+
+			//The extruders may have moved, so it doesn't make sense
+			//to go back to the old position, or we'll eject the filament
+			newPosition = steppers::getPosition();
+			pausedPosition[3] = newPosition[3];
+			pausedPosition[4] = newPosition[4];
+
+			steppers::setTarget(pausedPosition, interval);
+			pauseState ++;
+			break;
+
+		case 6: //Wait for return to original position
+			lcd.writeFromPgmspace(leavingPaused);
+			if ( ! steppers::isRunning()) {
+				pauseState = 0;
+                		interface::popScreen();
+                		interface::popScreen();
+				command::pause(false);
+			}
+			break;
+	}
+
+	if ( lastDirectionButtonPressed ) {
+		if (interface::isButtonPressed(lastDirectionButtonPressed))
+			jog(lastDirectionButtonPressed);
+		else	lastDirectionButtonPressed = (ButtonArray::ButtonName)0;
+	}
+}
+
+void PauseMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	if ( button == ButtonArray::CANCEL ) {
+		if ( pauseState == 3 )	pauseState ++;
+	}
+	else jog(button);
 }
 
 #endif

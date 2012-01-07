@@ -38,6 +38,9 @@ namespace steppers {
     ///         otherwise.
     bool isRunning();
 
+    /// Returns true if the stepper subsystem is homing
+    bool isHoming();
+
     /// Abort the current motion and set the stepper subsystem to
     /// the not-running state.
     void abort();
