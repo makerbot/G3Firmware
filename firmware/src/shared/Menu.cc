@@ -224,23 +224,86 @@ void SplashScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
 void SplashScreen::reset() {
 }
 
+UserViewMenu::UserViewMenu() {
+	itemCount = 4;
+	reset();
+}
+
+void UserViewMenu::resetState() {
+        uint8_t jogModeSettings = eeprom::getEeprom8(eeprom::JOG_MODE_SETTINGS, 0);
+
+	if ( jogModeSettings & 0x01 )	itemIndex = 3;
+	else				itemIndex = 2;
+
+	firstItemIndex = 2;
+}
+
+void UserViewMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+	const static PROGMEM prog_uchar msg[]  = "X/Y Direction:";
+	const static PROGMEM prog_uchar model[]= "Model View";
+	const static PROGMEM prog_uchar user[] = "User View";
+
+	switch (index) {
+	case 0:
+		lcd.writeFromPgmspace(msg);
+		break;
+	case 1:
+		break;
+	case 2:
+		lcd.writeFromPgmspace(model);
+		break;
+	case 3:
+		lcd.writeFromPgmspace(user);
+		break;
+	}
+}
+
+void UserViewMenu::handleSelect(uint8_t index) {
+	uint8_t jogModeSettings = eeprom::getEeprom8(eeprom::JOG_MODE_SETTINGS, 0);
+
+	switch (index) {
+	case 2:
+		// Model View
+		eeprom_write_byte((uint8_t *)eeprom::JOG_MODE_SETTINGS, (jogModeSettings & (uint8_t)0xFE));
+		interface::popScreen();
+		break;
+	case 3:
+		// User View
+		eeprom_write_byte((uint8_t *)eeprom::JOG_MODE_SETTINGS, (jogModeSettings | (uint8_t)0x01));
+                interface::popScreen();
+		break;
+	}
+}
+
 void JogMode::reset() {
-	jogDistance = DISTANCE_SHORT;
+	uint8_t jogModeSettings = eeprom::getEeprom8(eeprom::JOG_MODE_SETTINGS, 0);
+
+	jogDistance = (enum distance_t)((jogModeSettings >> 1 ) & 0x07);
+	if ( jogDistance > DISTANCE_CONT ) jogDistance = DISTANCE_SHORT;
+
 	distanceChanged = false;
 	lastDirectionButtonPressed = (ButtonArray::ButtonName)0;
+
+	userViewMode = jogModeSettings & 0x01;
+	userViewModeChanged = false;
 }
 
 void JogMode::update(LiquidCrystal& lcd, bool forceRedraw) {
-	const static PROGMEM prog_uchar jog1[] = "Jog mode: ";
-	const static PROGMEM prog_uchar jog2[] = "  Y+          Z+";
-	const static PROGMEM prog_uchar jog3[] = "X-  X+    (mode)";
-	const static PROGMEM prog_uchar jog4[] = "  Y-          Z-";
+	const static PROGMEM prog_uchar jog1[]      = "Jog mode: ";
+	const static PROGMEM prog_uchar jog2[] 	    = "   Y+         Z+";
+	const static PROGMEM prog_uchar jog3[]      = "X- V  X+  (mode)";
+	const static PROGMEM prog_uchar jog4[]      = "   Y-         Z-";
+	const static PROGMEM prog_uchar jog2_user[] = "  Y           Z+";
+	const static PROGMEM prog_uchar jog3_user[] = "X V X     (mode)";
+	const static PROGMEM prog_uchar jog4_user[] = "  Y           Z-";
 
 	const static PROGMEM prog_uchar distanceShort[] = "SHORT";
 	const static PROGMEM prog_uchar distanceLong[] = "LONG";
 	const static PROGMEM prog_uchar distanceCont[] = "CONT";
 
-	if (forceRedraw || distanceChanged) {
+	if ( userViewModeChanged ) userViewMode = eeprom::getEeprom8(eeprom::JOG_MODE_SETTINGS, 0) & 0x01;
+
+	if (forceRedraw || distanceChanged || userViewModeChanged) {
 		lcd.clear();
 		lcd.setCursor(0,0);
 		lcd.writeFromPgmspace(jog1);
@@ -258,15 +321,19 @@ void JogMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		}
 
 		lcd.setCursor(0,1);
-		lcd.writeFromPgmspace(jog2);
+		if ( userViewMode )	lcd.writeFromPgmspace(jog2_user);
+		else			lcd.writeFromPgmspace(jog2);
 
 		lcd.setCursor(0,2);
-		lcd.writeFromPgmspace(jog3);
+		if ( userViewMode )	lcd.writeFromPgmspace(jog3_user);
+		else			lcd.writeFromPgmspace(jog3);
 
 		lcd.setCursor(0,3);
-		lcd.writeFromPgmspace(jog4);
+		if ( userViewMode )	lcd.writeFromPgmspace(jog4_user);
+		else			lcd.writeFromPgmspace(jog4);
 
 		distanceChanged = false;
+		userViewModeChanged    = false;
 	}
 
 	if ( jogDistance == DISTANCE_CONT ) {
@@ -282,7 +349,7 @@ void JogMode::jog(ButtonArray::ButtonName direction) {
 	Point position = steppers::getPosition();
 
 	int32_t interval = 2000;
-	uint8_t steps;
+	int32_t steps;
 
 	if ( jogDistance == DISTANCE_CONT )	interval = 1000;
 
@@ -298,18 +365,23 @@ void JogMode::jog(ButtonArray::ButtonName direction) {
 		break;
 	}
 
+	//Reverse direction of X and Y if we're in User View Mode and
+	//not model mode
+	uint32_t vMode = 1;
+	if ( userViewMode ) vMode = -1;;
+
 	switch(direction) {
         case ButtonArray::XMINUS:
-		position[0] -= steps;
+		position[0] -= vMode * steps;
 		break;
         case ButtonArray::XPLUS:
-		position[0] += steps;
+		position[0] += vMode * steps;
 		break;
         case ButtonArray::YMINUS:
-		position[1] -= steps;
+		position[1] -= vMode * steps;
 		break;
         case ButtonArray::YPLUS:
-		position[1] += steps;
+		position[1] += vMode * steps;
 		break;
         case ButtonArray::ZMINUS:
 		position[2] -= steps;
@@ -328,6 +400,9 @@ void JogMode::jog(ButtonArray::ButtonName direction) {
 void JogMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 	switch (button) {
         case ButtonArray::ZERO:
+		userViewModeChanged = true;
+		interface::pushScreen(&userViewMenu);
+		break;
         case ButtonArray::OK:
 		switch(jogDistance)
 		{
@@ -342,6 +417,7 @@ void JogMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 				break;
 		}
 		distanceChanged = true;
+		eeprom_write_byte((uint8_t *)eeprom::JOG_MODE_SETTINGS, userViewMode | (jogDistance << 1));
 		break;
         case ButtonArray::YMINUS:
         case ButtonArray::ZMINUS:

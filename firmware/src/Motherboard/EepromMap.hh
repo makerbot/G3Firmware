@@ -68,6 +68,10 @@ const static uint16_t MOOD_LIGHT_CUSTOM_RED	= 0x0086;
 const static uint16_t MOOD_LIGHT_CUSTOM_GREEN	= 0x0087;
 const static uint16_t MOOD_LIGHT_CUSTOM_BLUE	= 0x0088;
 
+//Bit 1 is Model mode or user view mode (user view mode = bit set)
+//Bit 2-4 are the jog mode distance 0 = short, 1 = long, 2 = cont
+const static uint16_t JOG_MODE_SETTINGS		= 0x0089;
+
 /// Reset all data in the EEPROM to a default.
 void setDefaults();
 

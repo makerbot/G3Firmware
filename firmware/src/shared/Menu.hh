@@ -89,17 +89,31 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+class UserViewMenu: public Menu {
+public:
+	UserViewMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
 
 class JogMode: public Screen {
 private:
 	enum distance_t {
-	  DISTANCE_SHORT,
+	  DISTANCE_SHORT = 0,
 	  DISTANCE_LONG,
 	  DISTANCE_CONT,
 	};
 
+	UserViewMenu userViewMenu;
+
 	distance_t jogDistance;
 	bool distanceChanged;
+	bool userViewMode;
+	bool userViewModeChanged;
 	ButtonArray::ButtonName lastDirectionButtonPressed;
 
         void jog(ButtonArray::ButtonName direction);
