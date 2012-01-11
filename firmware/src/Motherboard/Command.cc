@@ -129,7 +129,7 @@ bool querySlaveCmd(uint8_t cmd, uint8_t *result) {
 		InPacket& in = tool::getInPacket();
 		out.reset();
 		out.append8(tool::getCurrentToolheadIndex());
-		out.append8(SLAVE_CMD_GET_TOOL_STATUS);
+		out.append8(cmd);
 		tool::startTransaction();
 
 		// WHILE: bounded by timeout in runToolSlice
