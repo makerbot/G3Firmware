@@ -105,6 +105,7 @@ include_paths = ['shared', 'Motherboard','Motherboard/boards/%s' % platform, '.'
 flags=[
 	'-DF_CPU='+str(f_cpu),
 	'-DVERSION='+str(version),
+	'-D__PROG_TYPES_COMPAT__', # see http://www.nongnu.org/avr-libc//changes-1.8.html
 	'-mmcu='+mcu,
 	'-g',
 	'-Os',
