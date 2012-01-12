@@ -209,6 +209,23 @@ private:
 	uint8_t pauseState;
 
 public:
+	bool autoPause;
+
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+
+class PauseAtZPosScreen: public Screen {
+private:
+	float pauseAtZPos;
+
+public:
 	micros_t getUpdateRate() {return 50L * 1000L;}
 
 	void update(LiquidCrystal& lcd, bool forceRedraw);
@@ -224,13 +241,15 @@ public:
 	CancelBuildMenu();
 
 	void resetState();
+
 protected:
 	void drawItem(uint8_t index, LiquidCrystal& lcd);
 
 	void handleSelect(uint8_t index);
 private:
-	PauseMode	pauseMode;
-	bool		pauseDisabled;
+	PauseMode		pauseMode;
+	bool			pauseDisabled;
+	PauseAtZPosScreen	pauseAtZPosScreen;
 };
 
 
@@ -243,6 +262,8 @@ private:
 	float   lastElapsedSeconds;
 	float   extruderStartSeconds; 
 	bool	buildComplete;		//For solving floating point rounding issues
+	PauseMode pauseMode;
+	bool	pausePushLockout;
 
 public:
 	micros_t getUpdateRate() {return 500L * 1000L;}

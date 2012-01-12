@@ -1043,6 +1043,8 @@ void MonitorMode::reset() {
 	buildComplete = false;
 	extruderStartSeconds = 0.0;
 	lastElapsedSeconds = 0.0;
+	pausePushLockout = false;
+	pauseMode.autoPause = false;
 }
 
 
@@ -1058,6 +1060,15 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	const static PROGMEM prog_uchar zpos[] 		     =   "ZPos:           ";
 	const static PROGMEM prog_uchar zpos_mm[] 	     =   "mm";
 	char buf[17];
+
+	if ( command::isPaused() ) {
+		if ( ! pausePushLockout ) {
+			pausePushLockout = true;
+			pauseMode.autoPause = true;
+			interface::pushScreen(&pauseMode);
+			return;
+		}
+	} else pausePushLockout = false;
 
 	if (forceRedraw) {
 		lcd.clear();
@@ -1082,8 +1093,11 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 		lcd.setCursor(0,3);
 		lcd.writeFromPgmspace(platform_temp);
-	}
 
+		lcd.setCursor(15,3);
+		if ( command::getPauseAtZPos() == 0.0 )	lcd.write(' ');
+		else					lcd.write('*');
+	}
 
 	OutPacket responsePacket;
 
@@ -1127,6 +1141,10 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		} else {
 			lcd.writeString("XXX");
 		}
+
+		lcd.setCursor(15,3);
+		if ( command::getPauseAtZPos() == 0.0 )	lcd.write(' ');
+		else					lcd.write('*');
 		break;
 	case 4:
 		enum host::HostState hostState = host::getHostState();
@@ -1378,27 +1396,35 @@ void Menu::notifyButtonPressed(ButtonArray::ButtonName button) {
 
 
 CancelBuildMenu::CancelBuildMenu() {
-	itemCount = MAX_ITEMS_PER_SCREEN;
+	pauseMode.autoPause = false;
+	itemCount = 5;
 	reset();
 	pauseDisabled = false;
 	if ( steppers::isHoming() )	pauseDisabled = true;
 }
 
 void CancelBuildMenu::resetState() {
+	pauseMode.autoPause = false;
 	pauseDisabled = false;	
 	if ( steppers::isHoming() )	pauseDisabled = true;
 
-	if ( pauseDisabled )	itemIndex = 2;
-	else			itemIndex = 1;
+	if ( pauseDisabled )	{
+		itemIndex = 2;
+		itemCount = 4;
+	} else {
+		itemIndex = 1;
+		itemCount = 5;
+	}
 
 	firstItemIndex = itemIndex;
 }
 
 void CancelBuildMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar stop[]   = "Stop Build?";
-	const static PROGMEM prog_uchar pause[]  = "Pause      ";
-	const static PROGMEM prog_uchar abort[]  = "Abort Print";
-	const static PROGMEM prog_uchar cancel[] = "Cancel     ";
+	const static PROGMEM prog_uchar pause[]  = "Pause        ";
+	const static PROGMEM prog_uchar abort[]  = "Abort Print  ";
+	const static PROGMEM prog_uchar cancel[] = "Cancel       ";
+	const static PROGMEM prog_uchar pauseZ[] = "Pause at ZPos";
 
 	if ( steppers::isHoming() )	pauseDisabled = true;
 
@@ -1407,15 +1433,16 @@ void CancelBuildMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(stop);
 		break;
 	case 1:
-		if ( ! pauseDisabled ) {
-			lcd.writeFromPgmspace(pause);
-		}
+		if ( ! pauseDisabled ) lcd.writeFromPgmspace(pause);
 		break;
 	case 2:
 		lcd.writeFromPgmspace(abort);
 		break;
 	case 3:
 		lcd.writeFromPgmspace(cancel);
+		break;
+	case 4:
+		if ( ! pauseDisabled ) lcd.writeFromPgmspace(pauseZ);
 		break;
 	}
 }
@@ -1428,6 +1455,7 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 		// Pause
 		if ( ! pauseDisabled ) {
 			command::pause(true);
+			pauseMode.autoPause = false;
 			interface::pushScreen(&pauseMode);
 		}
 		break;
@@ -1440,6 +1468,9 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 	case 3:
 		// Don't cancel print, just close dialog.
                 interface::popScreen();
+		break;
+	case 4:
+		if ( ! pauseDisabled ) interface::pushScreen(&pauseAtZPosScreen);
 		break;
 	}
 }
@@ -2221,6 +2252,7 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			break;
 
 		case 4: //Leaving paused, wait for any steppers to finish
+			if ( autoPause ) command::pauseAtZPos(0.0);
 			lcd.clear();
 			lcd.writeFromPgmspace(leavingPaused);
 			if ( ! steppers::isRunning()) pauseState ++;
@@ -2244,8 +2276,8 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			if ( ! steppers::isRunning()) {
 				pauseState = 0;
                 		interface::popScreen();
-                		interface::popScreen();
 				command::pause(false);
+				if ( ! autoPause ) interface::popScreen();
 			}
 			break;
 	}
@@ -2262,6 +2294,71 @@ void PauseMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 		if ( pauseState == 3 )	pauseState ++;
 	}
 	else jog(button);
+}
+
+void PauseAtZPosScreen::reset() {
+	float currentPause = command::getPauseAtZPos();
+	if ( currentPause == 0.0 ) {
+		Point position = steppers::getPosition();
+		pauseAtZPos = (float)position[2] / 200.0;
+	} else  pauseAtZPos = currentPause;
+}
+
+void PauseAtZPosScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar message1[] = "Pause at ZPos:";
+	const static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
+	const static PROGMEM prog_uchar mm[]    = "mm   ";
+
+	if (forceRedraw) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(message1);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(message4);
+	}
+
+	// Redraw tool info
+	lcd.setCursor(0,1);
+	lcd.writeFloat((float)pauseAtZPos, 3);
+	lcd.writeFromPgmspace(mm);
+}
+
+void PauseAtZPosScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
+	switch (button) {
+		case ButtonArray::OK:
+		case ButtonArray::ZERO:
+			//Set the pause
+			command::pauseAtZPos(pauseAtZPos);
+		case ButtonArray::CANCEL:
+			interface::popScreen();
+			interface::popScreen();
+			break;
+		case ButtonArray::ZPLUS:
+			// increment more
+			if (pauseAtZPos <= 250) pauseAtZPos += 1.0;
+			break;
+		case ButtonArray::ZMINUS:
+			// decrement more
+			if (pauseAtZPos >= 1.0) pauseAtZPos -= 1.0;
+			else			pauseAtZPos = 0.0;
+			break;
+		case ButtonArray::YPLUS:
+			// increment less
+			if (pauseAtZPos <= 254) pauseAtZPos += 0.05;
+			break;
+		case ButtonArray::YMINUS:
+			// decrement less
+			if (pauseAtZPos >= 0.05) pauseAtZPos -= 0.05;
+			else			 pauseAtZPos = 0.0;
+			break;
+		case ButtonArray::XMINUS:
+		case ButtonArray::XPLUS:
+			break;
+	}
+
+	if ( pauseAtZPos < 0.001 )	pauseAtZPos = 0.0;
 }
 
 #endif

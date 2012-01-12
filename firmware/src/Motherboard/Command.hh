@@ -41,6 +41,14 @@ void pause(bool pause);
 /// \return True if it is disabled, false if it is enabled.
 bool isPaused();
 
+/// \Pause at >= a Z Position provded in mm
+/// 0 cancels pauseAtZPos
+void pauseAtZPos(float zpos);
+
+/// Get the current pauseAtZPos position
+/// \return the z position set for pausing, otherwise 0
+float getPauseAtZPos();
+
 /// Check the remaining capacity of the command buffer
 /// \return Amount of space left in the buffer, in bytes
 uint16_t getRemainingCapacity();

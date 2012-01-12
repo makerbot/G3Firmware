@@ -41,6 +41,7 @@ bool paused = false;
 uint16_t statusDivisor = 0;
 volatile uint32_t recentCommandClock = 0;
 volatile uint32_t recentCommandTime = 0;
+volatile float	  pauseZPos = 0.0;
 
 uint16_t getRemainingCapacity() {
 	uint16_t sz;
@@ -56,6 +57,14 @@ void pause(bool pause) {
 
 bool isPaused() {
 	return paused;
+}
+
+void pauseAtZPos(float zpos) {
+	pauseZPos = zpos;
+}
+
+float getPauseAtZPos() {
+	return pauseZPos;
 }
 
 bool isEmpty() {
@@ -112,6 +121,7 @@ Timeout homing_timeout;
 Timeout tool_wait_timeout;
 
 void reset() {
+	pauseAtZPos(0.0);
 	command_buffer.reset();
 	mode = READY;
 }
@@ -183,6 +193,14 @@ void runCommandSlice() {
 		}
 	}
 	if (paused) { return; }
+
+	//If PauseAtZPos is enabled, pause when we reach zpos
+	//0.005 because of float point rounding errors, we want
+	//to make sure we stop at the correct place
+	if (( pauseZPos != 0.0) && ( ! isPaused() ) &&
+	    (((float)steppers::getPosition()[2] / 200.0) >= (pauseZPos - 0.005) ))
+		pause(true);
+
 	if (mode == HOMING) {
 		if (!steppers::isRunning()) {
 			mode = READY;
