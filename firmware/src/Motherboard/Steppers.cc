@@ -203,14 +203,24 @@ bool getNextMove() {
 	current_block = planner::getNextBlock();
 	// Mark block as busy (being executed by the stepper interrupt)
 	current_block->busy = true;
-
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-		axes[i].setTarget(current_block->target[i], /*relative =*/ false);
-	}
-
 	
 	current_feedrate_index = 0;
-	
+
+	int32_t max_delta = current_block->step_event_count;
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+		axes[i].setTarget(current_block->target[i], false);
+		const int32_t delta = axes[i].delta;
+
+		// Only shut z axis on inactivity
+		if (i == 2 && !holdZ) axes[i].enableStepper(delta != 0);
+		else if (delta != 0) axes[i].enableStepper(true);
+		
+		if (delta > max_delta) {
+			max_delta = delta;
+		}
+	}
+		
+#if 0
 	// setup acceleration
 	feedrate_elements[0].intervals = current_block->accelerate_until;
 	feedrate_elements[0].target    = 1000000/current_block->nominal_rate;
@@ -238,17 +248,12 @@ bool getNextMove() {
 		axes[STEPRATE_AXIS].setTarget(1000000/current_block->final_rate, /*relative =*/ false);
 		current_feedrate_index = 2;
 	}
-	
+#else
+	// setup acceleration
+	feedrate_elements[0].intervals = max_delta;
+	feedrate_elements[0].target    = 1000000/current_block->nominal_rate;
+#endif
 
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-		axes[i].setTarget(current_block->target[i], /*relative =*/ false);
-		const int32_t delta = axes[i].delta;
-
-		// Only shut z axis on inactivity
-		if (i == 2 && !holdZ) axes[i].enableStepper(delta != 0);
-		else if (delta != 0) axes[i].enableStepper(true);
-	}
-	
 	feedrate_intervals_remaining = feedrate_elements[current_feedrate_index].intervals;
 	axes[STEPRATE_AXIS].counter  = -(feedrate_elements[current_feedrate_index].intervals / 2);
 	
@@ -267,10 +272,10 @@ bool getNextMove() {
 	// We use += here so that the odd rounded-off time from the last move is still waited out
 	timer_counter += axes[STEPRATE_AXIS].position << feedrate_scale_shift;
 
-	intervals = current_block->step_event_count;
+	intervals = max_delta;
 	intervals_remaining = intervals;
 	const int32_t negative_half_interval = -intervals / 2;
-	for (int i = 0; i < ALL_AXIS_COUNT; i++) {
+	for (int i = 0; i < STEPPER_COUNT; i++) {
 		axes[i].counter = negative_half_interval;
 	}
 	is_running = true;
@@ -312,14 +317,14 @@ bool doInterrupt() {
 		timer_counter -= INTERVAL_IN_MICROSECONDS;
 		if (timer_counter <= 0) {
 			if (intervals_remaining-- == 0) {
-				getNextMove();
-				// is_running = false;
+				// getNextMove();
+				is_running = false;
 			} else {
 
 				for (int i = 0; i < STEPPER_COUNT; i++) {
 					axes[i].doInterrupt(intervals);
 				}
-				
+				#if 1
 				if (feedrate_intervals_remaining-- == 0) {
 					axes[STEPRATE_AXIS].position = feedrate_elements[current_feedrate_index].target;
 					
@@ -344,6 +349,7 @@ bool doInterrupt() {
 				}
 
 				axes[STEPRATE_AXIS].doInterrupt(feedrate_elements[current_feedrate_index].intervals);
+				#endif
 				timer_counter += axes[STEPRATE_AXIS].position << feedrate_scale_shift;
 			}
 		}

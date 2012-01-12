@@ -1,4 +1,5 @@
 #include "Point.hh"
+#include <stdlib.h> // for labs()
 
 /* Setup some utilities -- TODO: Move this to a common file */
 
@@ -7,8 +8,19 @@
 #undef abs
 #endif
 
+#ifdef labs
+#undef labs
+#endif
+
 template <typename T>
 inline T abs(T x) { return (x)>0?(x):-(x); }
+
+template <>
+inline int abs(int x) { return __builtin_abs(x); }
+
+template <>
+inline long abs(long x) { return __builtin_labs(x); }
+
 
 /* end utilities */
 

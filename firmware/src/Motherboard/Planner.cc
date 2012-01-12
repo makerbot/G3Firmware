@@ -74,9 +74,9 @@
 /* Setup some utilities */
 
 // undefine stdlib's abs if encountered
-// #ifdef abs
-// #undef abs
-// #endif
+#ifdef abs
+#undef abs
+#endif
 #ifdef min
 #undef min
 #endif
@@ -518,27 +518,26 @@ namespace planner {
 		// // set the number of steps and direction for each axis
 		// block->steps = target - position;
 
-		block->steps[0] = target[0] - position[0];
-		block->steps[1] = target[1] - position[1];
-		block->steps[2] = target[2] - position[2];
-		block->steps[3] = target[3] - position[3];
-		block->steps[4] = target[4] - position[4];
+		// block->steps[0] = target[0] - position[0];
+		// block->steps[1] = target[1] - position[1];
+		// block->steps[2] = target[2] - position[2];
+		// block->steps[3] = target[3] - position[3];
+		// block->steps[4] = target[4] - position[4];
 
 		block->nominal_rate = 1000000/us_per_step; // (step/sec) Always > 0
 		
 		// store the absolute number of steps in each direction, without direction
-		Point steps = Point(
-			abs(block->steps[0]),
-			abs(block->steps[1]),
-			abs(block->steps[2]),
-			abs(block->steps[3]),
-			abs(block->steps[4])
-		);
+		Point steps;
+		steps[0] = labs(target[0] - position[0]);
+		steps[1] = labs(target[1] - position[1]);
+		steps[2] = labs(target[2] - position[2]);
+		steps[3] = labs(target[3] - position[3]);
+		steps[4] = labs(target[4] - position[4]);
 		
 		block->step_event_count = 0;
 		// uint8_t master_axis = 0;
 		for (int i = 0; i < AXIS_COUNT; i++) {
-			if (block->step_event_count < steps[i]) {
+			if (steps[i] > block->step_event_count) {
 				block->step_event_count = steps[i];
 				// master_axis = i;
 			}
@@ -585,8 +584,8 @@ namespace planner {
 		// // Limit speed per axis (already done in RepG)
 		// float speed_factor = 1.0; //factor <=1 do decrease speed
 		// for(int i=0; i < AXIS_COUNT; i++) {
-		// 	if(abs(current_speed[i]) > max_feedrate[i])
-		// 		speed_factor = min(speed_factor, max_feedrate[i] / abs(current_speed[i]));
+		// 	if(fabs(current_speed[i]) > max_feedrate[i])
+		// 		speed_factor = min(speed_factor, max_feedrate[i] / fabs(current_speed[i]));
 		// }
 		
 		// TODO fancy frequency checks
@@ -596,8 +595,8 @@ namespace planner {
 		// if( speed_factor < 1.0) {
 		// 	//    Serial.print("speed factor : "); Serial.println(speed_factor);
 		// 	for(int i=0; i < 4; i++) {
-		// 		if(abs(current_speed[i]) > max_feedrate[i])
-		// 			speed_factor = min(speed_factor, max_feedrate[i] / abs(current_speed[i]));
+		// 		if(fabs(current_speed[i]) > max_feedrate[i])
+		// 			speed_factor = min(speed_factor, max_feedrate[i] / fabs(current_speed[i]));
 		// 		/*     
 		// 		if(speed_factor < 0.1) {
 		// 			Serial.print("speed factor : "); Serial.println(speed_factor);
@@ -627,7 +626,7 @@ namespace planner {
 		float vmax_junction = max_xy_jerk/2.0;
 		{
 			float half_max_z_axis_jerk = axes[Z_AXIS].max_axis_jerk/2.0;
-			if(abs(current_speed[Z_AXIS]) > half_max_z_axis_jerk) 
+			if(fabs(current_speed[Z_AXIS]) > half_max_z_axis_jerk) 
 				vmax_junction = half_max_z_axis_jerk;
 		}
 
@@ -643,7 +642,7 @@ namespace planner {
 			
 			// account for Z, A, and B
 			for(int i=Z_AXIS; i < AXIS_COUNT; i++) {
-				float axis_jerk = abs(current_speed[i] - previous_speed[i]);
+				float axis_jerk = fabs(current_speed[i] - previous_speed[i]);
 				if(axis_jerk > axes[i].max_axis_jerk) {
 					vmax_junction *= (axes[i].max_axis_jerk/axis_jerk);
 				} 
@@ -682,13 +681,17 @@ namespace planner {
 		block->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
 #endif
 
-		block->accelerate_until = 10;
-		block->decelerate_after = block->step_event_count - 20;
-
-		block->initial_rate = 120;
+		block->accelerate_until = 30;
+		block->decelerate_after = block->step_event_count - block->accelerate_until;
+		
+		block->initial_rate = 240;
 		block->final_rate   = 240;
 		
-		block->target = target;
+		block->target[0] = target[0];
+		block->target[1] = target[1];
+		block->target[2] = target[2];
+		block->target[3] = target[3];
+		block->target[4] = target[4];
 
 		// Update position
 		position[0] = target[0];
@@ -714,6 +717,7 @@ namespace planner {
 	}
 	
 	void abort() {
+		steppers::abort();
 		position = steppers::getPosition();
 		
 		// reset speed
@@ -721,7 +725,7 @@ namespace planner {
 			previous_speed[i] = 0.0;
 		}
 		
-		block_buffer.clear();
+		// block_buffer.clear();
 	}
 	
 	void definePosition(const Point& new_position)
