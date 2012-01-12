@@ -31,16 +31,16 @@ Point::Point()
 	}
 }
 
-Point::Point(const Point &other)
-{
-	coordinates[0] = other.coordinates[0];
-	coordinates[1] = other.coordinates[1];
-	coordinates[2] = other.coordinates[2];
-#if AXIS_COUNT > 3
-	coordinates[3] = other.coordinates[3];
-	coordinates[4] = other.coordinates[4];
-#endif
-}
+// Point::Point(const Point &other)
+// {
+// 	coordinates[0] = other.coordinates[0];
+// 	coordinates[1] = other.coordinates[1];
+// 	coordinates[2] = other.coordinates[2];
+// #if AXIS_COUNT > 3
+// 	coordinates[3] = other.coordinates[3];
+// 	coordinates[4] = other.coordinates[4];
+// #endif
+// }
 
 
 Point::Point(const int32_t x, const int32_t y, const int32_t z, const int32_t a, const int32_t b) {
@@ -83,14 +83,14 @@ Point operator- (const Point &a, const Point &b) {
 	return c;
 }
 
-Point &Point::operator=(const Point &other) {
-	coordinates[0] = other.coordinates[0];
-	coordinates[1] = other.coordinates[1];
-	coordinates[2] = other.coordinates[2];
-	coordinates[3] = other.coordinates[3];
-	coordinates[4] = other.coordinates[4];
-	return *this;
-}
+// Point &Point::operator=(const Point &other) {
+// 	coordinates[0] = other.coordinates[0];
+// 	coordinates[1] = other.coordinates[1];
+// 	coordinates[2] = other.coordinates[2];
+// 	coordinates[3] = other.coordinates[3];
+// 	coordinates[4] = other.coordinates[4];
+// 	return *this;
+// }
 
 
 Point Point::abs() {

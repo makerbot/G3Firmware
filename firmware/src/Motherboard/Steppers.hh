@@ -51,7 +51,7 @@ namespace steppers {
     /// given position.
     /// \param[in] target Position to move to
     /// \param[in] dda_interval Motion speed, in us per step.
-    // void setTarget(const Point& target, int32_t dda_interval);
+    void setTarget(const Point& target, int32_t dda_interval);
 
     /// Instruct the stepper subsystem to move the machine to the
     /// given position.

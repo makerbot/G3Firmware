@@ -17,7 +17,7 @@ public:
         Point();
 
 		/// Copy Point constructor
-		Point(const Point &other);
+		// Point(const Point &other);
 
         /// Construct a point with the given cooridnates. Coordinates are in
         /// stepper steps.
@@ -53,7 +53,7 @@ public:
 
         /// Subtraction operator, for fast deltas
         friend Point operator- (const Point &a, const Point &b);
-		Point & operator= (const Point &other);
+		// Point & operator= (const Point &other);
 		
 		// friend const Point &operator-(const Point &a, const Point &b);
         

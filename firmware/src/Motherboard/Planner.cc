@@ -186,10 +186,10 @@ namespace planner {
 			return ((head-tail+size) & size_mask);
 		}
 		
-		inline void clear() {
-			head = 0;
-			tail = 0;
-		}
+		// inline void clear() {
+		// 	head = 0;
+		// 	tail = 0;
+		// }
 	};
 	
 	// this is very similar to the StepperAxis, but geared toward planning
@@ -511,6 +511,8 @@ namespace planner {
 		Block *block = block_buffer.getHead();
 		// Mark block as not busy (Not executed by the stepper interrupt)
 		block->busy = false;
+		
+		block->target = target;
 
 		// // calculate the difference between the current position and the target
 		// Point delta = target - position;
@@ -526,22 +528,22 @@ namespace planner {
 
 		block->nominal_rate = 1000000/us_per_step; // (step/sec) Always > 0
 		
-		// store the absolute number of steps in each direction, without direction
-		Point steps;
-		steps[0] = labs(target[0] - position[0]);
-		steps[1] = labs(target[1] - position[1]);
-		steps[2] = labs(target[2] - position[2]);
-		steps[3] = labs(target[3] - position[3]);
-		steps[4] = labs(target[4] - position[4]);
-		
-		block->step_event_count = 0;
-		// uint8_t master_axis = 0;
-		for (int i = 0; i < AXIS_COUNT; i++) {
-			if (steps[i] > block->step_event_count) {
-				block->step_event_count = steps[i];
-				// master_axis = i;
-			}
-		}
+		// // store the absolute number of steps in each direction, without direction
+		// Point steps;
+		// steps[0] = labs(target[0] - position[0]);
+		// steps[1] = labs(target[1] - position[1]);
+		// steps[2] = labs(target[2] - position[2]);
+		// steps[3] = labs(target[3] - position[3]);
+		// steps[4] = labs(target[4] - position[4]);
+		// 
+		// block->step_event_count = 0;
+		// // uint8_t master_axis = 0;
+		// for (int i = 0; i < AXIS_COUNT; i++) {
+		// 	if (steps[i] > block->step_event_count) {
+		// 		block->step_event_count = steps[i];
+		// 		// master_axis = i;
+		// 	}
+		// }
 
 #if 0
 		// // Compute direction bits for this block -- UNUSED FOR NOW
@@ -681,26 +683,20 @@ namespace planner {
 		block->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
 #endif
 
-		block->accelerate_until = 30;
-		block->decelerate_after = block->step_event_count - block->accelerate_until;
-		
-		block->initial_rate = 240;
-		block->final_rate   = 240;
-		
-		block->target[0] = target[0];
-		block->target[1] = target[1];
-		block->target[2] = target[2];
-		block->target[3] = target[3];
-		block->target[4] = target[4];
-
-		// Update position
-		position[0] = target[0];
-		position[1] = target[1];
-		position[2] = target[2];
-		position[3] = target[3];
-		position[4] = target[4];
-		
-		// Move buffer head -- should this move to after recalulate?
+		// block->accelerate_until = 30;
+		// block->decelerate_after = block->step_event_count - block->accelerate_until;
+		// 
+		// block->initial_rate = 240;
+		// block->final_rate   = 240;
+		// 
+		// // Update position
+		// position[0] = target[0];
+		// position[1] = target[1];
+		// position[2] = target[2];
+		// position[3] = target[3];
+		// position[4] = target[4];
+		// 
+		// Move buffer head -- should this move to after recalculate?
 		block_buffer.bumpHead();
 
 		//planner_recalculate();

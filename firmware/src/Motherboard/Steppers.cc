@@ -151,10 +151,6 @@ void setTarget(const Point& target, int32_t dda_interval) {
 		axes[STEPRATE_AXIS].target   = axes[STEPRATE_AXIS].target   >> feedrate_scale_shift;
 		axes[STEPRATE_AXIS].delta    = axes[STEPRATE_AXIS].delta    >> feedrate_scale_shift;
 	}
-		// 
-		// if (axes[STEPRATE_AXIS].delta > max_delta) {
-		//         max_delta = axes[STEPRATE_AXIS].delta;
-		// }
 
 	// We use += here so that the odd rounded-off time from the last move is still waited out
 	timer_counter += axes[STEPRATE_AXIS].position << feedrate_scale_shift;
@@ -193,8 +189,7 @@ is_running = true;
 
 // load up the next movment
 // WARNING: called from inside the ISR, so get out fast
-bool getNextMove() {
-	int32_t new_interval_position = 0;
+bool getNextMove() {	
 	is_running = false;
 
 	if (planner::isBufferEmpty())
@@ -203,12 +198,12 @@ bool getNextMove() {
 	current_block = planner::getNextBlock();
 	// Mark block as busy (being executed by the stepper interrupt)
 	current_block->busy = true;
+	Point &target = current_block->target;
+	int32_t dda_interval = 1000000/current_block->nominal_rate;
 	
-	current_feedrate_index = 0;
-
-	int32_t max_delta = current_block->step_event_count;
+	int32_t max_delta = 0;//current_block->step_event_count;
 	for (int i = 0; i < STEPPER_COUNT; i++) {
-		axes[i].setTarget(current_block->target[i], false);
+		axes[i].setTarget(target[i], false);
 		const int32_t delta = axes[i].delta;
 
 		// Only shut z axis on inactivity
@@ -221,6 +216,8 @@ bool getNextMove() {
 	}
 		
 #if 0
+	current_feedrate_index = 0;
+
 	// setup acceleration
 	feedrate_elements[0].intervals = current_block->accelerate_until;
 	feedrate_elements[0].target    = 1000000/current_block->nominal_rate;
@@ -248,18 +245,18 @@ bool getNextMove() {
 		axes[STEPRATE_AXIS].setTarget(1000000/current_block->final_rate, /*relative =*/ false);
 		current_feedrate_index = 2;
 	}
-#else
-	// setup acceleration
-	feedrate_elements[0].intervals = max_delta;
-	feedrate_elements[0].target    = 1000000/current_block->nominal_rate;
-#endif
 
 	feedrate_intervals_remaining = feedrate_elements[current_feedrate_index].intervals;
 	axes[STEPRATE_AXIS].counter  = -(feedrate_elements[current_feedrate_index].intervals / 2);
+#else
+	axes[STEPRATE_AXIS].definePosition(dda_interval);
+	axes[STEPRATE_AXIS].setTarget(dda_interval, /*relative =*/ false);
+#endif
+
 	
 	// WARNING: Edge case where axes[STEPRATE_AXIS].delta > INT32_MAX is unhandled
 	int8_t scale_shift = 0;
-	while ((axes[STEPRATE_AXIS].delta >> scale_shift) > feedrate_intervals_remaining) {
+	while ((axes[STEPRATE_AXIS].delta >> scale_shift) > max_delta) {
 		scale_shift++;
 	}
 	if (scale_shift > 0) {
@@ -275,7 +272,7 @@ bool getNextMove() {
 	intervals = max_delta;
 	intervals_remaining = intervals;
 	const int32_t negative_half_interval = -intervals / 2;
-	for (int i = 0; i < STEPPER_COUNT; i++) {
+	for (int i = 0; i < ALL_AXIS_COUNT; i++) {
 		axes[i].counter = negative_half_interval;
 	}
 	is_running = true;
@@ -324,7 +321,7 @@ bool doInterrupt() {
 				for (int i = 0; i < STEPPER_COUNT; i++) {
 					axes[i].doInterrupt(intervals);
 				}
-				#if 1
+				#if 0
 				if (feedrate_intervals_remaining-- == 0) {
 					axes[STEPRATE_AXIS].position = feedrate_elements[current_feedrate_index].target;
 					
@@ -349,6 +346,8 @@ bool doInterrupt() {
 				}
 
 				axes[STEPRATE_AXIS].doInterrupt(feedrate_elements[current_feedrate_index].intervals);
+				#else
+				axes[STEPRATE_AXIS].doInterrupt(intervals);
 				#endif
 				timer_counter += axes[STEPRATE_AXIS].position << feedrate_scale_shift;
 			}
