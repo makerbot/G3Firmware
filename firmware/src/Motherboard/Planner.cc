@@ -186,10 +186,10 @@ namespace planner {
 			return ((head-tail+size) & size_mask);
 		}
 		
-		// inline void clear() {
-		// 	head = 0;
-		// 	tail = 0;
-		// }
+		inline void clear() {
+			head = 0;
+			tail = 0;
+		}
 	};
 	
 	// this is very similar to the StepperAxis, but geared toward planning
@@ -233,7 +233,7 @@ namespace planner {
 		
 		axes[0].max_acceleration = 9000*axes[0].steps_per_mm;
 		axes[1].max_acceleration = 9000*axes[1].steps_per_mm;
-		axes[2].max_acceleration = 100*axes[2].steps_per_mm;
+		axes[2].max_acceleration = 50*axes[2].steps_per_mm;
 		axes[3].max_acceleration = 9000*axes[3].steps_per_mm;
 		axes[4].max_acceleration = 9000*axes[4].steps_per_mm;
 	}
@@ -497,8 +497,11 @@ namespace planner {
 	
 	Block *getNextBlock() {
 		Block *block = block_buffer.getTail();
-		block_buffer.bumpTail();
 		return block;
+	}
+	
+	void doneWithNextBlock() {
+		block_buffer.bumpTail();
 	}
 	
 	
@@ -514,38 +517,19 @@ namespace planner {
 		
 		block->target = target;
 
-		// // calculate the difference between the current position and the target
-		// Point delta = target - position;
-		// 
-		// // set the number of steps and direction for each axis
-		// block->steps = target - position;
-
-		// block->steps[0] = target[0] - position[0];
-		// block->steps[1] = target[1] - position[1];
-		// block->steps[2] = target[2] - position[2];
-		// block->steps[3] = target[3] - position[3];
-		// block->steps[4] = target[4] - position[4];
-
 		block->nominal_rate = 1000000/us_per_step; // (step/sec) Always > 0
 		
 		// // store the absolute number of steps in each direction, without direction
-		// Point steps;
-		// steps[0] = labs(target[0] - position[0]);
-		// steps[1] = labs(target[1] - position[1]);
-		// steps[2] = labs(target[2] - position[2]);
-		// steps[3] = labs(target[3] - position[3]);
-		// steps[4] = labs(target[4] - position[4]);
-		// 
-		// block->step_event_count = 0;
-		// // uint8_t master_axis = 0;
-		// for (int i = 0; i < AXIS_COUNT; i++) {
-		// 	if (steps[i] > block->step_event_count) {
-		// 		block->step_event_count = steps[i];
-		// 		// master_axis = i;
-		// 	}
-		// }
+		Point steps = (target - position).abs();
 
-#if 0
+		block->step_event_count = 0;
+		for (int i = 0; i < AXIS_COUNT; i++) {
+			if (steps[i] > block->step_event_count) {
+				block->step_event_count = steps[i];
+			}
+		}
+
+#if 1
 		// // Compute direction bits for this block -- UNUSED FOR NOW
 		// block->direction_bits = 0;
 		// for (int i = 0; i < AXIS_COUNT; i++) {
@@ -683,23 +667,13 @@ namespace planner {
 		block->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
 #endif
 
-		// block->accelerate_until = 30;
-		// block->decelerate_after = block->step_event_count - block->accelerate_until;
-		// 
-		// block->initial_rate = 240;
-		// block->final_rate   = 240;
-		// 
-		// // Update position
-		// position[0] = target[0];
-		// position[1] = target[1];
-		// position[2] = target[2];
-		// position[3] = target[3];
-		// position[4] = target[4];
-		// 
+		// Update position
+		position = target;
+		
 		// Move buffer head -- should this move to after recalculate?
 		block_buffer.bumpHead();
 
-		//planner_recalculate();
+		planner_recalculate();
 		
 		steppers::startRunning();
 		return true;
@@ -721,7 +695,7 @@ namespace planner {
 			previous_speed[i] = 0.0;
 		}
 		
-		// block_buffer.clear();
+		block_buffer.clear();
 	}
 	
 	void definePosition(const Point& new_position)

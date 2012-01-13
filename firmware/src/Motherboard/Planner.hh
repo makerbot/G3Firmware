@@ -47,7 +47,7 @@ namespace planner {
 		uint32_t step_event_count;           // The number of step events required to complete this block
 		int32_t accelerate_until;                    // The index of the step event on which to stop acceleration
 		int32_t decelerate_after;                    // The index of the step event on which to start decelerating
-		// int32_t acceleration_rate;                   // The acceleration rate used for acceleration calculation
+		int32_t acceleration_rate;                   // The acceleration rate used for acceleration calculation
 		// uint8_t direction_bits;             // The direction bit set for this block
 		// uint8_t active_extruder;            // Selects the active extruder
 	#ifdef ADVANCE
@@ -120,8 +120,11 @@ namespace planner {
 	bool isBufferFull();
 	bool isBufferEmpty();
 	
-	// Fetches the *tail* and bumps the tail
+	// Fetches the *tail*
 	Block *getNextBlock();
+	
+	// pushes the tail forward, making it available
+	void doneWithNextBlock();
 }
 
 #endif /* end of include guard: PLANNER_HH */

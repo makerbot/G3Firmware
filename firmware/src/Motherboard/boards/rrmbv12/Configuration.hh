@@ -164,7 +164,7 @@
 
 // The number of movements we can plan ahead at a time
 // THIS MUst BE A POWER OF 2! 4, 8, 16, 32, you get the idea...
-#define BLOCK_BUFFER_SIZE 8
+#define BLOCK_BUFFER_SIZE 16
 
 //#define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
 #define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */

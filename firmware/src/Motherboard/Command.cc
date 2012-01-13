@@ -30,7 +30,7 @@
 
 namespace command {
 
-#define COMMAND_BUFFER_SIZE 256 //512
+#define COMMAND_BUFFER_SIZE 256
 uint8_t buffer_data[COMMAND_BUFFER_SIZE];
 CircularBuffer command_buffer(COMMAND_BUFFER_SIZE, buffer_data);
 
@@ -171,7 +171,7 @@ void runCommandSlice() {
 		if (!steppers::isRunning()) {
 			mode = READY;
 		} else if (homing_timeout.hasElapsed()) {
-			steppers::abort();
+			planner::abort();
 			mode = READY;
 		}
 	}
@@ -179,12 +179,12 @@ void runCommandSlice() {
 		if (!steppers::isRunning()) {
 			mode = READY;
 		} else {
-			// if (command_buffer.getLength() > 0) {
-			// 	uint8_t command = command_buffer[0];
-			// 	if (command == HOST_CMD_QUEUE_POINT_ABS || command == HOST_CMD_QUEUE_POINT_EXT || command == HOST_CMD_QUEUE_POINT_NEW) {
-			// 		handleMovementCommand(command);
-			// 	}
-			// }
+			if (command_buffer.getLength() > 0) {
+				uint8_t command = command_buffer[0];
+				if (command == HOST_CMD_QUEUE_POINT_ABS || command == HOST_CMD_QUEUE_POINT_EXT || command == HOST_CMD_QUEUE_POINT_NEW) {
+					handleMovementCommand(command);
+				}
+			}
 		}
 	}
 	if (mode == DELAY) {

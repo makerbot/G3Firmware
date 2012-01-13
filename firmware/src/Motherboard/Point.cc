@@ -26,9 +26,11 @@ inline long abs(long x) { return __builtin_labs(x); }
 
 Point::Point()
 {
-	for (uint16_t i = 0; i < 5; i++) {
-		coordinates[i] = 0;
-	}
+	// coordinates[0] = 0;
+	// coordinates[1] = 0;
+	// coordinates[2] = 0;
+	// coordinates[3] = 0;
+	// coordinates[4] = 0;
 }
 
 // Point::Point(const Point &other)
@@ -77,8 +79,10 @@ Point operator- (const Point &a, const Point &b) {
 		a.coordinates[0] - b.coordinates[0],
 		a.coordinates[1] - b.coordinates[1],
 		a.coordinates[2] - b.coordinates[2],
+#if AXIS_COUNT > 3
 		a.coordinates[3] - b.coordinates[3],
 		a.coordinates[4] - b.coordinates[4]
+#endif
 	);
 	return c;
 }
@@ -94,13 +98,14 @@ Point operator- (const Point &a, const Point &b) {
 
 
 Point Point::abs() {
-	Point absPoint = Point();
-	absPoint.coordinates[0] = ::abs(coordinates[0]);
-	absPoint.coordinates[1] = ::abs(coordinates[1]);
-	absPoint.coordinates[2] = ::abs(coordinates[2]);
+	Point absPoint = Point(
+		::abs(coordinates[0]),
+		::abs(coordinates[1]),
+		::abs(coordinates[2]),
 #if AXIS_COUNT > 3
-	absPoint.coordinates[3] = ::abs(coordinates[3]);
-	absPoint.coordinates[4] = ::abs(coordinates[4]);
+		::abs(coordinates[3]),
+		::abs(coordinates[4])
 #endif
+	);
 	return absPoint;
 }
