@@ -323,7 +323,7 @@ void startRunning() {
 bool doInterrupt() {
 	if (is_running) {
 		timer_counter -= INTERVAL_IN_MICROSECONDS;
-		if (timer_counter <= 0) {
+		while (timer_counter <= 0) {
 			if (intervals_remaining-- == 0) {
 				getNextMove();
 				// is_running = false;

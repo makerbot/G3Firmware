@@ -116,16 +116,17 @@ namespace planner {
 	{
 	public:
 		typedef T BufDataType;
+		typedef uint8_t BufSizeType;
 		
 	private:
-		volatile uint16_t head, tail;
-		uint16_t size;
-		uint16_t size_mask;
+		volatile BufSizeType head, tail;
+		BufSizeType size;
+		BufSizeType size_mask;
 		BufDataType* const data; /// Pointer to buffer data
 	
 	public:
-		ReusingCircularBufferTempl(int16_t size_in, BufDataType* buffer_in) : head(0), tail(0), size(size_in), size_mask(size_in-1), data(buffer_in) {
-			for (int16_t i = 0; i < size; i++) {
+		ReusingCircularBufferTempl(BufSizeType size_in, BufDataType* buffer_in) : head(0), tail(0), size(size_in), size_mask(size_in-1), data(buffer_in) {
+			for (BufSizeType i = 0; i < size; i++) {
 				data[i] = BufDataType();
 			}
 		};
@@ -133,22 +134,22 @@ namespace planner {
 		inline BufDataType *getHead() {
 			return &data[head];
 		}
-		inline uint16_t getHeadIndex() {
+		inline BufSizeType getHeadIndex() {
 			return head;
 		}
 		
 		inline BufDataType *getTail() {
 			return &data[tail];
 		}
-		inline uint16_t getTailIndex() {
+		inline BufSizeType getTailIndex() {
 			return tail;
 		}
 		
-		inline int16_t getNextIndex(uint16_t from) {
+		inline BufSizeType getNextIndex(BufSizeType from) {
 			return ((from + 1) & size_mask);
 		}
 		
-		inline int16_t getPreviousIndex(uint16_t from) {
+		inline BufSizeType getPreviousIndex(BufSizeType from) {
 			return (((from+size) - 1) & size_mask);
 		}
 		
@@ -156,10 +157,10 @@ namespace planner {
 			return &data[getNextIndex(head)];
 		}
 		
-		inline BufDataType &operator[] (int16_t index) {
+		inline BufDataType &operator[] (BufSizeType index) {
 			 // adding size should make negative indexes < size work ok
-			int16_t offset = (index + head + size) & size_mask;
-			return data[offset];
+			// int16_t offset = index < 0 ? index : ((index + size) & size_mask);
+			return data[index];
 		}
 		
 		// bump the head with buffer++. cannot return anything useful, so it doesn't
@@ -182,7 +183,7 @@ namespace planner {
 			return getNextIndex(head) == tail;
 		}
 		
-		inline int16_t getUsedCount() {
+		inline BufSizeType getUsedCount() {
 			return ((head-tail+size) & size_mask);
 		}
 		
@@ -414,6 +415,7 @@ namespace planner {
 				block[0] = &block_buffer[block_index];
 				planner_reverse_pass_kernel(block[0], block[1], block[2]);
 			}
+			planner_reverse_pass_kernel(NULL, block[0], block[1]);
 		}
 	}
 
