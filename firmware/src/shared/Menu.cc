@@ -1400,13 +1400,13 @@ CancelBuildMenu::CancelBuildMenu() {
 	itemCount = 5;
 	reset();
 	pauseDisabled = false;
-	if ( steppers::isHoming() )	pauseDisabled = true;
+	if (( steppers::isHoming() ) || (sdcard::getPercentPlayed() >= 100.0))	pauseDisabled = true;
 }
 
 void CancelBuildMenu::resetState() {
 	pauseMode.autoPause = false;
 	pauseDisabled = false;	
-	if ( steppers::isHoming() )	pauseDisabled = true;
+	if (( steppers::isHoming() ) || (sdcard::getPercentPlayed() >= 100.0))	pauseDisabled = true;
 
 	if ( pauseDisabled )	{
 		itemIndex = 2;
@@ -1420,59 +1420,76 @@ void CancelBuildMenu::resetState() {
 }
 
 void CancelBuildMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
-	const static PROGMEM prog_uchar stop[]   = "Stop Build?";
-	const static PROGMEM prog_uchar pause[]  = "Pause        ";
-	const static PROGMEM prog_uchar abort[]  = "Abort Print  ";
-	const static PROGMEM prog_uchar cancel[] = "Cancel       ";
-	const static PROGMEM prog_uchar pauseZ[] = "Pause at ZPos";
+	const static PROGMEM prog_uchar choose[] = "Please Choose:";
+	const static PROGMEM prog_uchar abort[]  = "Abort Print   ";
+	const static PROGMEM prog_uchar pauseZ[] = "Pause at ZPos ";
+	const static PROGMEM prog_uchar pause[]  = "Pause         ";
+	const static PROGMEM prog_uchar back[]   = "Continue Build";
 
-	if ( steppers::isHoming() )	pauseDisabled = true;
+	if (( steppers::isHoming() ) || (sdcard::getPercentPlayed() >= 100.0))	pauseDisabled = true;
 
-	switch (index) {
-	case 0:
-		lcd.writeFromPgmspace(stop);
-		break;
-	case 1:
-		if ( ! pauseDisabled ) lcd.writeFromPgmspace(pause);
-		break;
-	case 2:
-		lcd.writeFromPgmspace(abort);
-		break;
-	case 3:
-		lcd.writeFromPgmspace(cancel);
-		break;
-	case 4:
-		if ( ! pauseDisabled ) lcd.writeFromPgmspace(pauseZ);
-		break;
+	//Implement variable length menu
+	uint8_t lind = 0;
+
+	if ( index == lind )	lcd.writeFromPgmspace(choose);
+	lind ++;
+
+	if ( pauseDisabled ) lind ++;
+
+	if ( index == lind)	lcd.writeFromPgmspace(abort);
+	lind ++;
+
+	if ( ! pauseDisabled ) {
+		if ( index == lind )	lcd.writeFromPgmspace(pauseZ);
+		lind ++;
 	}
+
+	if ( ! pauseDisabled ) {
+		if ( index == lind )	lcd.writeFromPgmspace(pause);
+		lind ++;
+	}
+
+	if ( index == lind )	lcd.writeFromPgmspace(back);
+	lind ++;
 }
 
 void CancelBuildMenu::handleSelect(uint8_t index) {
 	int32_t interval = 2000;
 
-	switch (index) {
-	case 1:
-		// Pause
-		if ( ! pauseDisabled ) {
-			command::pause(true);
-			pauseMode.autoPause = false;
-			interface::pushScreen(&pauseMode);
-		}
-		break;
-	case 2:
+	//Implement variable length menu
+	uint8_t lind = 0;
+
+	if ( pauseDisabled ) lind ++;
+
+	lind ++;
+
+	if ( index == lind) {
 		// Cancel build, returning to whatever menu came before monitor mode.
 		// TODO: Cancel build.
 		interface::popScreen();
 		host::stopBuild();
-		break;
-	case 3:
+	}
+	lind ++;
+
+	if ( ! pauseDisabled ) {
+		if ( index == lind )	interface::pushScreen(&pauseAtZPosScreen);
+		lind ++;
+	}
+
+	if ( ! pauseDisabled ) {
+		if ( index == lind ) {
+			command::pause(true);
+			pauseMode.autoPause = false;
+			interface::pushScreen(&pauseMode);
+		}
+		lind ++;
+	}
+
+	if ( index == lind ) {
 		// Don't cancel print, just close dialog.
                 interface::popScreen();
-		break;
-	case 4:
-		if ( ! pauseDisabled ) interface::pushScreen(&pauseAtZPosScreen);
-		break;
 	}
+	lind ++;
 }
 
 
