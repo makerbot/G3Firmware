@@ -33,7 +33,7 @@
 
 int16_t overrideExtrudeSeconds = 0;
 
-Point pausedPosition;
+Point pausedPosition, homePosition;
 
 
 void strcat(char *buf, const char* str)
@@ -1494,7 +1494,7 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 
 
 MainMenu::MainMenu() {
-	itemCount = 12;
+	itemCount = 14;
 	reset();
 }
 
@@ -1508,6 +1508,8 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar advanceABP[]	= "Advance ABP";
 	const static PROGMEM prog_uchar steppersS[]	= "Steppers";
 	const static PROGMEM prog_uchar moodlight[]	= "Mood Light";
+	const static PROGMEM prog_uchar calibrate[]	= "Calibrate";
+	const static PROGMEM prog_uchar homeOffsets[]	= "Home Offsets";
 	const static PROGMEM prog_uchar endStops[]	= "Test End Stops";
 	const static PROGMEM prog_uchar versions[]	= "Version";
 	const static PROGMEM prog_uchar snake[]		= "Snake Game";
@@ -1541,12 +1543,18 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(moodlight);
 		break;
 	case 9:
-		lcd.writeFromPgmspace(endStops);
+		lcd.writeFromPgmspace(calibrate);
 		break;
 	case 10:
-		lcd.writeFromPgmspace(versions);
+		lcd.writeFromPgmspace(homeOffsets);
 		break;
 	case 11:
+		lcd.writeFromPgmspace(endStops);
+		break;
+	case 12:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 13:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -1592,14 +1600,22 @@ void MainMenu::handleSelect(uint8_t index) {
                         interface::pushScreen(&moodLightMode);
 			break;
 		case 9:
+			// Show Calibrate Mode
+                        interface::pushScreen(&calibrateMode);
+			break;
+		case 10:
+			// Show Home Offsets Mode
+                        interface::pushScreen(&homeOffsetsMode);
+			break;
+		case 11:
 			// Show test end stops menu
 			interface::pushScreen(&testEndStopsMode);
 			break;
-		case 10:
+		case 12:
 			// Show build from SD screen
                         interface::pushScreen(&versionMode);
 			break;
-		case 11:
+		case 13:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;
@@ -2434,6 +2450,279 @@ void AdvanceABPMode::notifyButtonPressed(ButtonArray::ButtonName button) {
                		interface::popScreen();
 			break;
 	}
+}
+
+void CalibrateMode::reset() {
+	//Disable stepps on axis 0, 1, 2, 3, 4
+	steppers::enableAxis(0, false);
+	steppers::enableAxis(1, false);
+	steppers::enableAxis(2, false);
+	steppers::enableAxis(3, false);
+	steppers::enableAxis(4, false);
+
+	lastCalibrationState = CS_NONE;
+	calibrationState = CS_START1;
+}
+
+void CalibrateMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar calib1[] = "Calibrate: Move ";
+	const static PROGMEM prog_uchar calib2[] = "build platform";
+	const static PROGMEM prog_uchar calib3[] = "until nozzle...";
+	const static PROGMEM prog_uchar calib4[] = "          (cont)";
+	const static PROGMEM prog_uchar calib5[] = "lies in center,";
+	const static PROGMEM prog_uchar calib6[] = "turn threaded";
+	const static PROGMEM prog_uchar calib7[] = "rod until...";
+	const static PROGMEM prog_uchar calib8[] = "nozzle just";
+	const static PROGMEM prog_uchar calib9[] = "touches.";
+	const static PROGMEM prog_uchar homeZ[]  = "Homing Z...";
+	const static PROGMEM prog_uchar homeY[]  = "Homing Y...";
+	const static PROGMEM prog_uchar homeX[]  = "Homing X...";
+	const static PROGMEM prog_uchar done[]   = "! Calibrated !";
+	const static PROGMEM prog_uchar regen[]  = "Regenerate gcode";
+	const static PROGMEM prog_uchar reset[]  = "         (reset)";
+
+	if ((forceRedraw) || (calibrationState != lastCalibrationState)) {
+		lcd.clear();
+		lcd.setCursor(0,0);
+		switch(calibrationState) {
+			case CS_START1:
+				lcd.writeFromPgmspace(calib1);
+				lcd.setCursor(0,1);
+				lcd.writeFromPgmspace(calib2);
+				lcd.setCursor(0,2);
+				lcd.writeFromPgmspace(calib3);
+				lcd.setCursor(0,3);
+				lcd.writeFromPgmspace(calib4);
+				break;
+			case CS_START2:
+				lcd.writeFromPgmspace(calib5);
+				lcd.setCursor(0,1);
+				lcd.writeFromPgmspace(calib6);
+				lcd.setCursor(0,2);
+				lcd.writeFromPgmspace(calib7);
+				lcd.setCursor(0,3);
+				lcd.writeFromPgmspace(calib4);
+				break;
+			case CS_PROMPT_MOVE:
+				lcd.writeFromPgmspace(calib8);
+				lcd.setCursor(0,1);
+				lcd.writeFromPgmspace(calib9);
+				lcd.setCursor(0,3);
+				lcd.writeFromPgmspace(calib4);
+				break;
+			case CS_HOME_Z:
+			case CS_HOME_Z_WAIT:
+				lcd.writeFromPgmspace(homeZ);
+				break;
+			case CS_HOME_Y:
+			case CS_HOME_Y_WAIT:
+				lcd.writeFromPgmspace(homeY);
+				break;
+			case CS_HOME_X:
+			case CS_HOME_X_WAIT:
+				lcd.writeFromPgmspace(homeX);
+				break;
+			case CS_PROMPT_CALIBRATED:
+				lcd.writeFromPgmspace(done);
+				lcd.setCursor(0,1);
+				lcd.writeFromPgmspace(regen);
+				lcd.setCursor(0,3);
+				lcd.writeFromPgmspace(reset);
+				break;
+		}
+	}
+
+	lastCalibrationState = calibrationState;
+
+	//Change the state
+	//Some states are changed when a button is pressed via notifyButton
+	//Some states are changed when something completes, in which case we do it here
+	uint8_t axes;
+
+	switch(calibrationState) {
+		case CS_HOME_Z:
+			//Declare current position to be x=0, y=0, z=0, a=0, b=0
+			steppers::definePosition(Point(0,0,0,0,0));
+			steppers::startHoming(true, 0x04, (uint32_t)2000);
+			calibrationState = CS_HOME_Z_WAIT;
+			break;
+		case CS_HOME_Z_WAIT:
+			if ( ! steppers::isHoming() )	calibrationState = CS_HOME_Y;
+			break;
+		case CS_HOME_Y:
+			steppers::startHoming(false, 0x02, (uint32_t)2000);
+			calibrationState = CS_HOME_Y_WAIT;
+			break;
+		case CS_HOME_Y_WAIT:
+			if ( ! steppers::isHoming() )	calibrationState = CS_HOME_X;
+			break;
+		case CS_HOME_X:
+			steppers::startHoming(false, 0x01, (uint32_t)2000);
+			calibrationState = CS_HOME_X_WAIT;
+			break;
+		case CS_HOME_X_WAIT:
+			if ( ! steppers::isHoming() ) {
+				//Record current X, Y, Z, A, B co-ordinates to the motherboard
+				for (uint8_t i = 0; i < STEPPER_COUNT; i++) {
+					uint16_t offset = eeprom::AXIS_HOME_POSITIONS + 4*i;
+					uint32_t position = steppers::getPosition()[i];
+					cli();
+					eeprom_write_block(&position, (void*) offset, 4);
+					sei();
+				}
+
+				//Disable stepps on axis 0, 1, 2, 3, 4
+				steppers::enableAxis(0, false);
+				steppers::enableAxis(1, false);
+				steppers::enableAxis(2, false);
+				steppers::enableAxis(3, false);
+				steppers::enableAxis(4, false);
+
+				calibrationState = CS_PROMPT_CALIBRATED;
+			}
+			break;
+	}
+}
+
+void CalibrateMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+
+	if ( calibrationState == CS_PROMPT_CALIBRATED ) {
+		host::stopBuild();
+		return;
+	}
+
+	switch (button) {
+        	case ButtonArray::OK:
+        	case ButtonArray::YMINUS:
+        	case ButtonArray::ZMINUS:
+        	case ButtonArray::YPLUS:
+        	case ButtonArray::ZPLUS:
+        	case ButtonArray::XMINUS:
+        	case ButtonArray::XPLUS:
+        	case ButtonArray::ZERO:
+			if (( calibrationState == CS_START1 ) || ( calibrationState == CS_START2 ) ||
+			    (calibrationState == CS_PROMPT_MOVE ))	calibrationState = (enum calibrateState)((uint8_t)calibrationState + 1);
+			break;
+        	case ButtonArray::CANCEL:
+               		interface::popScreen();
+			break;
+	}
+}
+
+void HomeOffsetsMode::reset() {
+	homePosition = steppers::getPosition();
+
+	for (uint8_t i = 0; i < STEPPER_COUNT; i++) {
+		uint16_t offset = eeprom::AXIS_HOME_POSITIONS + 4*i;
+		cli();
+		eeprom_read_block(&(homePosition[i]), (void*) offset, 4);
+		sei();
+	}
+
+	lastHomeOffsetState = HOS_NONE;
+	homeOffsetState	    = HOS_OFFSET_X;
+}
+
+void HomeOffsetsMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar message1x[] = "X Offset(steps):";
+	const static PROGMEM prog_uchar message1y[] = "Y Offset(steps):";
+	const static PROGMEM prog_uchar message1z[] = "Z Offset(steps):";
+	const static PROGMEM prog_uchar message4[]  = "Up/Dn/Ent to Set";
+	const static PROGMEM prog_uchar blank[]     = " ";
+
+	if ( homeOffsetState != lastHomeOffsetState )	forceRedraw = true;
+
+	if (forceRedraw) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		switch(homeOffsetState) {
+			case HOS_OFFSET_X:
+				lcd.writeFromPgmspace(message1x);
+				break;
+                	case HOS_OFFSET_Y:
+				lcd.writeFromPgmspace(message1y);
+				break;
+                	case HOS_OFFSET_Z:
+				lcd.writeFromPgmspace(message1z);
+				break;
+		}
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(message4);
+	}
+
+	float position = 0.0;
+
+	switch(homeOffsetState) {
+		case HOS_OFFSET_X:
+			position = (float)homePosition[0];
+			break;
+		case HOS_OFFSET_Y:
+			position = (float)homePosition[1];
+			break;
+		case HOS_OFFSET_Z:
+			position = (float)homePosition[2];
+			break;
+	}
+
+	lcd.setCursor(0,1);
+	lcd.writeFloat((float)position, 0);
+
+	lastHomeOffsetState = homeOffsetState;
+}
+
+void HomeOffsetsMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	if (( homeOffsetState == HOS_OFFSET_Z ) && (button == ButtonArray::OK )) {
+		//Write the new home positions
+		for (uint8_t i = 0; i < STEPPER_COUNT; i++) {
+			uint16_t offset = eeprom::AXIS_HOME_POSITIONS + 4*i;
+			uint32_t position = homePosition[i];
+			cli();
+			eeprom_write_block(&position, (void*) offset, 4);
+			sei();
+		}
+
+		host::stopBuild();
+		return;
+	}
+
+	float currentPosition;
+	uint8_t currentIndex = homeOffsetState - HOS_OFFSET_X;
+
+	currentPosition = (float)homePosition[currentIndex];
+
+	switch (button) {
+		case ButtonArray::CANCEL:
+			interface::popScreen();
+			break;
+		case ButtonArray::ZERO:
+		case ButtonArray::OK:
+			if 	( homeOffsetState == HOS_OFFSET_X )	homeOffsetState = HOS_OFFSET_Y;
+			else if ( homeOffsetState == HOS_OFFSET_Y )	homeOffsetState = HOS_OFFSET_Z;
+			break;
+		case ButtonArray::ZPLUS:
+			// increment more
+			currentPosition += 5.0;
+			break;
+		case ButtonArray::ZMINUS:
+			// decrement more
+			currentPosition -= 5.0;
+			break;
+		case ButtonArray::YPLUS:
+			// increment less
+			currentPosition += 1;
+			break;
+		case ButtonArray::YMINUS:
+			// decrement less
+			currentPosition -= 1.0;
+			break;
+		case ButtonArray::XMINUS:
+		case ButtonArray::XPLUS:
+			break;
+	}
+
+	homePosition[currentIndex] = (int32_t)currentPosition;
 }
 
 #endif

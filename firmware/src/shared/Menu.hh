@@ -488,6 +488,55 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+class CalibrateMode: public Screen {
+private:
+	enum calibrateState {
+		CS_NONE,
+		CS_START1,	//Disable steppers
+		CS_START2,	//Disable steppers
+		CS_PROMPT_MOVE,	//Prompt user to move build platform
+		CS_HOME_Z,
+		CS_HOME_Z_WAIT,
+		CS_HOME_Y,
+		CS_HOME_Y_WAIT,
+		CS_HOME_X,
+		CS_HOME_X_WAIT,
+		CS_PROMPT_CALIBRATED
+	};
+
+	enum calibrateState calibrationState, lastCalibrationState;
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class HomeOffsetsMode: public Screen {
+private:
+	enum homeOffState {
+		HOS_NONE,
+		HOS_OFFSET_X,
+		HOS_OFFSET_Y,
+		HOS_OFFSET_Z,
+	};
+
+	enum homeOffState homeOffsetState, lastHomeOffsetState;
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -507,6 +556,8 @@ private:
 	HomeAxisMode homeAxisMode;
 	SteppersMenu steppersMenu;
 	AdvanceABPMode advanceABPMode;
+	CalibrateMode calibrateMode;
+	HomeOffsetsMode homeOffsetsMode;
 	TestEndStopsMode testEndStopsMode;
         VersionMode versionMode;
 	MoodLightMode	moodLightMode;
