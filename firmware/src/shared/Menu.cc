@@ -1494,22 +1494,23 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 
 
 MainMenu::MainMenu() {
-	itemCount = 11;
+	itemCount = 12;
 	reset();
 }
 
 void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
-	const static PROGMEM prog_uchar monitor[] =  "Monitor";
-	const static PROGMEM prog_uchar build[] =    "Build from SD";
-	const static PROGMEM prog_uchar jog[] =      "Jog";
-	const static PROGMEM prog_uchar preheat[] =  "Preheat";
-	const static PROGMEM prog_uchar extruder[] = "Extrude";
-	const static PROGMEM prog_uchar homeAxis[] = "Home Axis";
-	const static PROGMEM prog_uchar steppersS[]= "Steppers";
-	const static PROGMEM prog_uchar moodlight[]= "Mood Light";
-	const static PROGMEM prog_uchar endStops[] = "Test End Stops";
-	const static PROGMEM prog_uchar versions[] = "Version";
-	const static PROGMEM prog_uchar snake[] =    "Snake Game";
+	const static PROGMEM prog_uchar monitor[]	= "Monitor";
+	const static PROGMEM prog_uchar build[]		= "Build from SD";
+	const static PROGMEM prog_uchar jog[]		= "Jog";
+	const static PROGMEM prog_uchar preheat[]	= "Preheat";
+	const static PROGMEM prog_uchar extruder[]	= "Extrude";
+	const static PROGMEM prog_uchar homeAxis[]	= "Home Axis";
+	const static PROGMEM prog_uchar advanceABP[]	= "Advance ABP";
+	const static PROGMEM prog_uchar steppersS[]	= "Steppers";
+	const static PROGMEM prog_uchar moodlight[]	= "Mood Light";
+	const static PROGMEM prog_uchar endStops[]	= "Test End Stops";
+	const static PROGMEM prog_uchar versions[]	= "Version";
+	const static PROGMEM prog_uchar snake[]		= "Snake Game";
 
 	switch (index) {
 	case 0:
@@ -1531,18 +1532,21 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(homeAxis);
 		break;
 	case 6:
-		lcd.writeFromPgmspace(steppersS);
+		lcd.writeFromPgmspace(advanceABP);
 		break;
 	case 7:
-		lcd.writeFromPgmspace(moodlight);
+		lcd.writeFromPgmspace(steppersS);
 		break;
 	case 8:
-		lcd.writeFromPgmspace(endStops);
+		lcd.writeFromPgmspace(moodlight);
 		break;
 	case 9:
-		lcd.writeFromPgmspace(versions);
+		lcd.writeFromPgmspace(endStops);
 		break;
 	case 10:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 11:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -1576,22 +1580,26 @@ void MainMenu::handleSelect(uint8_t index) {
 			interface::pushScreen(&homeAxisMode);
 			break;
 		case 6:
+			// Show advance ABP
+			interface::pushScreen(&advanceABPMode);
+			break;
+		case 7:
 			// Show steppers menu
 			interface::pushScreen(&steppersMenu);
 			break;
-		case 7:
+		case 8:
 			// Show Mood Light Mode
                         interface::pushScreen(&moodLightMode);
 			break;
-		case 8:
+		case 9:
 			// Show test end stops menu
 			interface::pushScreen(&testEndStopsMode);
 			break;
-		case 9:
+		case 10:
 			// Show build from SD screen
                         interface::pushScreen(&versionMode);
 			break;
-		case 10:
+		case 11:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;
@@ -2376,6 +2384,56 @@ void PauseAtZPosScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
 	}
 
 	if ( pauseAtZPos < 0.001 )	pauseAtZPos = 0.0;
+}
+
+void AdvanceABPMode::reset() {
+	abpForwarding = false;
+}
+
+void AdvanceABPMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar abp1[] = "Advance ABP:";
+	const static PROGMEM prog_uchar abp2[] = "hold key...";
+	const static PROGMEM prog_uchar abp3[] = "           (fwd)";
+
+	if (forceRedraw) {
+		lcd.clear();
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(abp1);
+
+		lcd.setCursor(0,1);
+		lcd.writeFromPgmspace(abp2);
+
+		lcd.setCursor(0,2);
+		lcd.writeFromPgmspace(abp3);
+	}
+
+	if (( abpForwarding ) && ( ! interface::isButtonPressed(ButtonArray::OK) )) {
+		OutPacket responsePacket;
+
+		abpForwarding = false;
+		extruderControl(SLAVE_CMD_TOGGLE_ABP, EXTDR_CMD_SET8, responsePacket, (uint16_t)0);
+	}
+}
+
+void AdvanceABPMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	OutPacket responsePacket;
+
+	switch (button) {
+        	case ButtonArray::OK:
+			abpForwarding = true;
+			extruderControl(SLAVE_CMD_TOGGLE_ABP, EXTDR_CMD_SET8, responsePacket, (uint16_t)1);
+			break;
+        	case ButtonArray::YMINUS:
+        	case ButtonArray::ZMINUS:
+        	case ButtonArray::YPLUS:
+        	case ButtonArray::ZPLUS:
+        	case ButtonArray::XMINUS:
+        	case ButtonArray::XPLUS:
+        	case ButtonArray::ZERO:
+        	case ButtonArray::CANCEL:
+               		interface::popScreen();
+			break;
+	}
 }
 
 #endif

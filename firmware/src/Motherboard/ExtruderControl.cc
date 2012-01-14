@@ -45,7 +45,8 @@ bool extruderControl(uint8_t command, enum extruderCommandType cmdType,
 	// second is the
 	out.append8(0);
 	out.append8(command);
-	if ( cmdType == EXTDR_CMD_SET )	out.append16(val);	
+	if ( cmdType == EXTDR_CMD_SET )		out.append16(val);	
+	if ( cmdType == EXTDR_CMD_SET8 )	out.append8((uint8_t)val);	
 
 	// Timeouts are handled inside the toolslice code; there's no need
 	// to check for timeouts on this loop.

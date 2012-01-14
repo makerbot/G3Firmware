@@ -27,7 +27,8 @@
 
 enum extruderCommandType {
 	EXTDR_CMD_GET,
-	EXTDR_CMD_SET
+	EXTDR_CMD_SET,	//16 bit
+	EXTDR_CMD_SET8	//8 bit
 };
 
 
