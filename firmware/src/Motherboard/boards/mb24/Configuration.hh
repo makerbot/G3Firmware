@@ -189,4 +189,8 @@
 #define SOFTWARE_I2C_SDA_PIN	Pin(PortK,0)	//Pin d on the BlinkM
 #define SOFTWARE_I2C_SCL_PIN	Pin(PortK,1)	//Pin c on the BlinkM
 
+//ATX Power Good
+#define HAS_ATX_POWER_GOOD	1
+#define ATX_POWER_GOOD		Pin(PortK,2)	//Pin ATX 8 connected to Analog 10
+
 #endif // BOARDS_RRMBV12_CONFIGURATION_HH_

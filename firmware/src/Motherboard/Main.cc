@@ -30,6 +30,14 @@
 #include "EepromMap.hh"
 #include "Errors.hh"
 
+
+#ifdef HAS_MOOD_LIGHT
+/// Workaround for hardware issue, where powering on with USB connected
+/// cause blank LCD, or corrupted LCD, requiring reset.
+volatile bool atxLastPowerGood;
+#endif
+
+
 void reset(bool hard_reset) {
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
 		Motherboard& board = Motherboard::getBoard();
@@ -47,6 +55,12 @@ void reset(bool hard_reset) {
 		}
 #endif
 
+#ifdef HAS_ATX_POWER_GOOD
+		/// Workaround for hardware issue, where powering on with USB connected
+		/// cause blank LCD, or corrupted LCD, requiring reset.
+		ATX_POWER_GOOD.setDirection(false);
+		atxLastPowerGood = ATX_POWER_GOOD.getValue();
+#endif
 
 		sei();
 		// If we've just come from a hard reset, wait for 2.5 seconds before
@@ -80,6 +94,19 @@ int main() {
 		command::runCommandSlice();
 		// Motherboard slice
 		board.runMotherboardSlice();
+
+#ifdef HAS_ATX_POWER_GOOD
+		/// Workaround for hardware issue, where powering on with USB connected
+		/// cause blank LCD, or corrupted LCD, requiring reset.
+		/// If we're running here and the last time we looped, power was not good,
+		/// and now power is good, someone just hit the power button, so we force a
+		/// reset
+		bool powerGood = ATX_POWER_GOOD.getValue();
+		if (( ! atxLastPowerGood ) && ( powerGood )) {
+			reset(true);
+		}
+		atxLastPowerGood = powerGood;
+#endif
 	}
 	return 0;
 }
