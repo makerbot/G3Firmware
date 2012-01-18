@@ -264,6 +264,7 @@ private:
 	bool	buildComplete;		//For solving floating point rounding issues
 	PauseMode pauseMode;
 	bool	pausePushLockout;
+	bool buildCompleteBuzzPlayed;
 
 public:
 	micros_t getUpdateRate() {return 500L * 1000L;}
@@ -537,6 +538,20 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+class BuzzerSetRepeatsMode: public Screen {
+private:
+	uint8_t repeats;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -556,6 +571,7 @@ private:
 	HomeAxisMode homeAxisMode;
 	SteppersMenu steppersMenu;
 	AdvanceABPMode advanceABPMode;
+	BuzzerSetRepeatsMode buzzerSetRepeats;
 	CalibrateMode calibrateMode;
 	HomeOffsetsMode homeOffsetsMode;
 	TestEndStopsMode testEndStopsMode;

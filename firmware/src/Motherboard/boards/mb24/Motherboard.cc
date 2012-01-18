@@ -133,6 +133,12 @@ void Motherboard::reset() {
 	TCCR2A = 0x00;
 	TCCR2B = 0x07; // prescaler at 1/1024
 	TIMSK2 = 0x01; // OVF flag on
+
+        buzzerRepeats  = 0;
+        buzzerDuration = 0.0;
+        buzzerState    = BUZZ_STATE_NONE;
+	BUZZER_PIN.setDirection(false);
+
 	// Configure the debug pin.
 	DEBUG_PIN.setDirection(true);
 
@@ -216,6 +222,8 @@ void Motherboard::runMotherboardSlice() {
                         interface_update_timeout.start(interfaceBoard.getUpdateRate());
 		}
 	}
+
+	serviceBuzzer();
 }
 
 MoodLightController Motherboard::getMoodLightController() {
@@ -276,6 +284,79 @@ void Motherboard::MoodLightPlayScript(uint8_t scriptId, uint8_t writeToEeprom) {
 	if ( writeToEeprom ) eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_SCRIPT,scriptId);
 	moodLightController.playScript(scriptId);
 }
+
+//Duration is the length of each buzz in 1/10secs
+//Issue "repeats = 0" to kill a current buzzing
+
+void Motherboard::buzz(uint8_t buzzes, uint8_t duration, uint8_t repeats) {
+	if ( repeats == 0 ) {
+		buzzerState = BUZZ_STATE_NONE;
+		return;
+	}
+
+	buzzerBuzzes	  = buzzes;
+	buzzerBuzzesReset = buzzes;
+	buzzerDuration	  = (float)duration / 10.0;	
+	buzzerRepeats	  = repeats;
+
+	BUZZER_PIN.setDirection(true);
+	buzzerState = BUZZ_STATE_MOVE_TO_ON;
+}
+
+void Motherboard::stopBuzzer() {
+	buzzerState = BUZZ_STATE_NONE;
+
+	BUZZER_PIN.setValue(false);
+	BUZZER_PIN.setDirection(false);
+}
+
+void Motherboard::serviceBuzzer() {
+	if ( buzzerState == BUZZ_STATE_NONE )	return;
+
+	float currentSeconds = getCurrentSeconds();
+
+	switch (buzzerState)
+	{
+		case BUZZ_STATE_BUZZ_ON:
+			if ( currentSeconds >= buzzerSecondsTarget )
+				buzzerState = BUZZ_STATE_MOVE_TO_OFF;
+			break;
+		case BUZZ_STATE_MOVE_TO_OFF:
+			buzzerBuzzes --;
+			BUZZER_PIN.setValue(false);
+			buzzerSecondsTarget = currentSeconds + buzzerDuration;
+			buzzerState = BUZZ_STATE_BUZZ_OFF;
+			break;
+		case BUZZ_STATE_BUZZ_OFF:
+			if ( currentSeconds >= buzzerSecondsTarget ) {
+				if ( buzzerBuzzes == 0 ) {
+					buzzerRepeats --;
+					if ( buzzerRepeats == 0 )	stopBuzzer();
+					else				buzzerState = BUZZ_STATE_MOVE_TO_DELAY;
+				} else	buzzerState = BUZZ_STATE_MOVE_TO_ON;
+			}
+			break;
+		case BUZZ_STATE_MOVE_TO_ON:
+			BUZZER_PIN.setValue(true);
+			buzzerSecondsTarget = currentSeconds + buzzerDuration;
+			buzzerState = BUZZ_STATE_BUZZ_ON;
+			break;
+		case BUZZ_STATE_MOVE_TO_DELAY:
+			BUZZER_PIN.setValue(false);
+			buzzerSecondsTarget = currentSeconds + buzzerDuration * 3;
+			buzzerState = BUZZ_STATE_BUZZ_DELAY;
+			break;
+		case BUZZ_STATE_BUZZ_DELAY:
+			if ( currentSeconds >= buzzerSecondsTarget ) {
+				buzzerBuzzes = buzzerBuzzesReset;
+				buzzerSecondsTarget = currentSeconds + buzzerDuration;
+				BUZZER_PIN.setValue(true);
+				buzzerState = BUZZ_STATE_BUZZ_ON;
+			}
+			break;
+	}
+}
+
 
 
 /// Timer2 overflow cycles that the LED remains on while blinking

@@ -72,6 +72,9 @@ const static uint16_t MOOD_LIGHT_CUSTOM_BLUE	= 0x0088;
 //Bit 2-4 are the jog mode distance 0 = short, 1 = long, 2 = cont
 const static uint16_t JOG_MODE_SETTINGS		= 0x0089;
 
+//0 = No system buzzing, >=1 = number of repeats to buzz for
+const static uint16_t BUZZER_REPEATS		= 0x008A;
+
 /// Reset all data in the EEPROM to a default.
 void setDefaults();
 

@@ -72,6 +72,28 @@ private:
         SplashScreen splashScreen;      ///< Displayed at startup
         MonitorMode monitorMode;        ///< Displayed during build
 
+
+	bool buzzOn;
+	uint8_t buzzerRepeats;
+	uint8_t buzzerBuzzes;
+	uint8_t buzzerBuzzesReset;
+	float buzzerDuration;
+	float buzzerSecondsTarget;
+
+	enum BuzzerState {
+		BUZZ_STATE_NONE = 0,
+		BUZZ_STATE_MOVE_TO_ON,
+		BUZZ_STATE_BUZZ_ON,
+		BUZZ_STATE_MOVE_TO_OFF,
+		BUZZ_STATE_BUZZ_OFF,
+		BUZZ_STATE_MOVE_TO_DELAY,
+		BUZZ_STATE_BUZZ_DELAY
+	};
+
+	enum BuzzerState buzzerState;
+
+	void serviceBuzzer();
+
 public:
 	/// Reset the motherboard to its initial state.
 	/// This only resets the board, and does not send a reset
@@ -107,6 +129,9 @@ public:
 	void MoodLightSetRGBColor(uint8_t r, uint8_t g, uint8_t b, uint8_t fadeSpeed, uint8_t writeToEeprom);
 	void MoodLightSetHSBColor(uint8_t r, uint8_t g, uint8_t b, uint8_t fadeSpeed);
 	void MoodLightPlayScript(uint8_t scriptId, uint8_t writeToEeprom);
+
+	void buzz(uint8_t buzzes, uint8_t duration, uint8_t repeats);
+	void stopBuzzer();
 };
 
 #endif // BOARDS_MB24_MOTHERBOARD_HH_

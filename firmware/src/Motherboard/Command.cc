@@ -451,6 +451,26 @@ void runCommandSlice() {
 					Motherboard::getBoard().MoodLightPlayScript((uint8_t)scriptId, (uint8_t)writeToEeprom);
 #endif
 				}
+			} else if (command == HOST_CMD_BUZZER_REPEATS ) {
+				// check for completion
+				if (command_buffer.getLength() >= 2) {
+					command_buffer.pop(); // remove the command code
+					cli();
+        				eeprom_write_byte((uint8_t*)eeprom::BUZZER_REPEATS, pop8());
+					sei();
+				}
+			} else if (command == HOST_CMD_BUZZER_BUZZ ) {
+				// check for completion
+				if (command_buffer.getLength() >= 7) {
+					command_buffer.pop(); // remove the command code
+					uint8_t buzzes   = pop8();
+					uint8_t duration = pop8();
+					uint8_t repeats  = pop8();
+#ifdef HAS_BUZZER
+					if ( buzzes == 0 )	Motherboard::getBoard().stopBuzzer();
+					else 			Motherboard::getBoard().buzz(buzzes, duration, repeats);
+#endif
+				}
 			} else {
 			}
 		}

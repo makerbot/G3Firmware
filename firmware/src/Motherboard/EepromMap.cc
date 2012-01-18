@@ -40,6 +40,7 @@ void setDefaults() {
     eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_CUSTOM_GREEN,255);
     eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_CUSTOM_BLUE,255);
     eeprom_write_byte((uint8_t*)eeprom::JOG_MODE_SETTINGS,0);
+    eeprom_write_byte((uint8_t*)eeprom::BUZZER_REPEATS,3);
 }
 
 }

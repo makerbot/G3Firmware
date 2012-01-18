@@ -121,6 +121,7 @@ ISR(ESTOP_vect, ISR_NOBLOCK) {
 	command::reset();
 	UART::getHostUART().enable(false);
 	Motherboard::getBoard().indicateError(ERR_ESTOP);
+	Motherboard::getBoard().buzz(7, 10, eeprom::getEeprom8(eeprom::BUZZER_REPEATS, 3));
   
 }
 #endif

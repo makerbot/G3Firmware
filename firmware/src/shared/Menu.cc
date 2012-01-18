@@ -1045,6 +1045,7 @@ void MonitorMode::reset() {
 	lastElapsedSeconds = 0.0;
 	pausePushLockout = false;
 	pauseMode.autoPause = false;
+	buildCompleteBuzzPlayed = false;
 }
 
 
@@ -1150,6 +1151,12 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		enum host::HostState hostState = host::getHostState();
 		
 		if ( (hostState != host::HOST_STATE_BUILDING ) && ( hostState != host::HOST_STATE_BUILDING_FROM_SD )) break;
+
+		//Signal buzzer if we're complete
+		if (( ! buildCompleteBuzzPlayed ) && ( sdcard::getPercentPlayed() >= 100.0 )) {
+			buildCompleteBuzzPlayed = true;
+       			Motherboard::getBoard().buzz(2, 3, eeprom::getEeprom8(eeprom::BUZZER_REPEATS, 3));
+		}
 
 		float secs;
 
@@ -1494,7 +1501,7 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 
 
 MainMenu::MainMenu() {
-	itemCount = 14;
+	itemCount = 15;
 	reset();
 }
 
@@ -1508,6 +1515,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar advanceABP[]	= "Advance ABP";
 	const static PROGMEM prog_uchar steppersS[]	= "Steppers";
 	const static PROGMEM prog_uchar moodlight[]	= "Mood Light";
+	const static PROGMEM prog_uchar buzzer[]	= "Buzzer";
 	const static PROGMEM prog_uchar calibrate[]	= "Calibrate";
 	const static PROGMEM prog_uchar homeOffsets[]	= "Home Offsets";
 	const static PROGMEM prog_uchar endStops[]	= "Test End Stops";
@@ -1543,18 +1551,21 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(moodlight);
 		break;
 	case 9:
-		lcd.writeFromPgmspace(calibrate);
+		lcd.writeFromPgmspace(buzzer);
 		break;
 	case 10:
-		lcd.writeFromPgmspace(homeOffsets);
+		lcd.writeFromPgmspace(calibrate);
 		break;
 	case 11:
-		lcd.writeFromPgmspace(endStops);
+		lcd.writeFromPgmspace(homeOffsets);
 		break;
 	case 12:
-		lcd.writeFromPgmspace(versions);
+		lcd.writeFromPgmspace(endStops);
 		break;
 	case 13:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 14:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -1599,23 +1610,27 @@ void MainMenu::handleSelect(uint8_t index) {
 			// Show Mood Light Mode
                         interface::pushScreen(&moodLightMode);
 			break;
-		case 9:
+		case 9: 
+			// Show Buzzer Mode
+			interface::pushScreen(&buzzerSetRepeats);
+			break;
+		case 10:
 			// Show Calibrate Mode
                         interface::pushScreen(&calibrateMode);
 			break;
-		case 10:
+		case 11:
 			// Show Home Offsets Mode
                         interface::pushScreen(&homeOffsetsMode);
 			break;
-		case 11:
+		case 12:
 			// Show test end stops menu
 			interface::pushScreen(&testEndStopsMode);
 			break;
-		case 12:
+		case 13:
 			// Show build from SD screen
                         interface::pushScreen(&versionMode);
 			break;
-		case 13:
+		case 14:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;
@@ -2289,17 +2304,22 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			}
 			break;
 	
-		case 3: //We're now paused
+		case 3: //Buzz if we're a Pause@ZPos
+			if ( autoPause ) Motherboard::getBoard().buzz(4, 3, eeprom::getEeprom8(eeprom::BUZZER_REPEATS, 3));
+			pauseState ++;
+			break;
+		
+		case 4: //We're now paused
 			break;
 
-		case 4: //Leaving paused, wait for any steppers to finish
+		case 5: //Leaving paused, wait for any steppers to finish
 			if ( autoPause ) command::pauseAtZPos(0.0);
 			lcd.clear();
 			lcd.writeFromPgmspace(leavingPaused);
 			if ( ! steppers::isRunning()) pauseState ++;
 			break;
 
-		case 5:	//Return to original position
+		case 6:	//Return to original position
 			lcd.writeFromPgmspace(leavingPaused);
 
 			//The extruders may have moved, so it doesn't make sense
@@ -2312,7 +2332,7 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			pauseState ++;
 			break;
 
-		case 6: //Wait for return to original position
+		case 7: //Wait for return to original position
 			lcd.writeFromPgmspace(leavingPaused);
 			if ( ! steppers::isRunning()) {
 				pauseState = 0;
@@ -2332,7 +2352,7 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 void PauseMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 	if ( button == ButtonArray::CANCEL ) {
-		if ( pauseState == 3 )	pauseState ++;
+		if ( pauseState == 4 )	pauseState ++;
 	}
 	else jog(button);
 }
@@ -2723,6 +2743,67 @@ void HomeOffsetsMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 	}
 
 	homePosition[currentIndex] = (int32_t)currentPosition;
+}
+
+void BuzzerSetRepeatsMode::reset() {
+	repeats = eeprom::getEeprom8(eeprom::BUZZER_REPEATS, 3);
+}
+
+void BuzzerSetRepeatsMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar message1[] = "Repeat Buzzer:";
+	const static PROGMEM prog_uchar message2[] = "(0=Buzzer Off)";
+	const static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
+	const static PROGMEM prog_uchar times[]    = " times ";
+
+	if (forceRedraw) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(message1);
+
+		lcd.setCursor(0,1);
+		lcd.writeFromPgmspace(message2);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(message4);
+	}
+
+	// Redraw tool info
+	lcd.setCursor(0,2);
+	lcd.writeInt(repeats, 3);
+	lcd.writeFromPgmspace(times);
+}
+
+void BuzzerSetRepeatsMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	switch (button) {
+		case ButtonArray::CANCEL:
+			interface::popScreen();
+			break;
+		case ButtonArray::ZERO:
+		case ButtonArray::OK:
+			eeprom_write_byte((uint8_t *)eeprom::BUZZER_REPEATS, repeats);
+			interface::popScreen();
+			break;
+		case ButtonArray::ZPLUS:
+			// increment more
+			if (repeats <= 249) repeats += 5;
+			break;
+		case ButtonArray::ZMINUS:
+			// decrement more
+			if (repeats >= 5) repeats -= 5;
+			break;
+		case ButtonArray::YPLUS:
+			// increment less
+			if (repeats <= 253) repeats += 1;
+			break;
+		case ButtonArray::YMINUS:
+			// decrement less
+			if (repeats >= 1) repeats -= 1;
+			break;
+		case ButtonArray::XMINUS:
+		case ButtonArray::XPLUS:
+			break;
+	}
 }
 
 #endif
