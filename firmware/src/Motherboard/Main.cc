@@ -31,7 +31,7 @@
 #include "Errors.hh"
 
 
-#ifdef HAS_MOOD_LIGHT
+#ifdef HAS_ATX_POWER_GOOD
 /// Workaround for hardware issue, where powering on with USB connected
 /// cause blank LCD, or corrupted LCD, requiring reset.
 volatile bool atxLastPowerGood;
