@@ -45,7 +45,8 @@ void reset(bool hard_reset) {
 		steppers::abort();
 		command::reset();
 		eeprom::init();
-		board.reset();
+		board.reset(hard_reset);
+
 #ifdef HAS_ESTOP
 		const uint8_t estop_conf = eeprom::getEeprom8(eeprom::ESTOP_CONFIGURATION, 0);
 		if (estop_conf == eeprom::ESTOP_CONF_ACTIVE_HIGH) {

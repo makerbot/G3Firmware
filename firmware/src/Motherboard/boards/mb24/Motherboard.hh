@@ -98,7 +98,7 @@ public:
 	/// Reset the motherboard to its initial state.
 	/// This only resets the board, and does not send a reset
 	/// to any attached toolheads.
-	void reset();
+	void reset(bool hard_reset);
 
 	void runMotherboardSlice();
 
