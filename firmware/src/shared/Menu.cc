@@ -1501,7 +1501,7 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 
 
 MainMenu::MainMenu() {
-	itemCount = 15;
+	itemCount = 16;
 	reset();
 }
 
@@ -1516,6 +1516,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar steppersS[]	= "Steppers";
 	const static PROGMEM prog_uchar moodlight[]	= "Mood Light";
 	const static PROGMEM prog_uchar buzzer[]	= "Buzzer";
+	const static PROGMEM prog_uchar extruderFan[]	= "Extruder Fan";
 	const static PROGMEM prog_uchar calibrate[]	= "Calibrate";
 	const static PROGMEM prog_uchar homeOffsets[]	= "Home Offsets";
 	const static PROGMEM prog_uchar endStops[]	= "Test End Stops";
@@ -1554,18 +1555,21 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(buzzer);
 		break;
 	case 10:
-		lcd.writeFromPgmspace(calibrate);
+		lcd.writeFromPgmspace(extruderFan);
 		break;
 	case 11:
-		lcd.writeFromPgmspace(homeOffsets);
+		lcd.writeFromPgmspace(calibrate);
 		break;
 	case 12:
-		lcd.writeFromPgmspace(endStops);
+		lcd.writeFromPgmspace(homeOffsets);
 		break;
 	case 13:
-		lcd.writeFromPgmspace(versions);
+		lcd.writeFromPgmspace(endStops);
 		break;
 	case 14:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 15:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -1614,23 +1618,27 @@ void MainMenu::handleSelect(uint8_t index) {
 			// Show Buzzer Mode
 			interface::pushScreen(&buzzerSetRepeats);
 			break;
-		case 10:
+		case 10: 
+			// Show Extruder Fan Mode
+			interface::pushScreen(&extruderFanMenu);
+			break;
+		case 11:
 			// Show Calibrate Mode
                         interface::pushScreen(&calibrateMode);
 			break;
-		case 11:
+		case 12:
 			// Show Home Offsets Mode
                         interface::pushScreen(&homeOffsetsMode);
 			break;
-		case 12:
+		case 13:
 			// Show test end stops menu
 			interface::pushScreen(&testEndStopsMode);
 			break;
-		case 13:
+		case 14:
 			// Show build from SD screen
                         interface::pushScreen(&versionMode);
 			break;
-		case 14:
+		case 15:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;
@@ -2802,6 +2810,53 @@ void BuzzerSetRepeatsMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 			break;
 		case ButtonArray::XMINUS:
 		case ButtonArray::XPLUS:
+			break;
+	}
+}
+
+ExtruderFanMenu::ExtruderFanMenu() {
+	itemCount = 4;
+	reset();
+}
+
+void ExtruderFanMenu::resetState() {
+	itemIndex = 2;
+	firstItemIndex = 2;
+}
+
+void ExtruderFanMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+	const static PROGMEM prog_uchar title[] = "Extruder Fan:";
+	const static PROGMEM prog_uchar off[]   =  "Off";
+	const static PROGMEM prog_uchar on[]    =  "On";
+
+	switch (index) {
+	case 0:
+		lcd.writeFromPgmspace(title);
+		break;
+	case 1:
+		break;
+	case 2:
+		lcd.writeFromPgmspace(off);
+		break;
+	case 3:
+		lcd.writeFromPgmspace(on);
+		break;
+	}
+}
+
+void ExtruderFanMenu::handleSelect(uint8_t index) {
+	OutPacket responsePacket;
+
+	switch (index) {
+		case 2:
+			//Disable Cooling Fan
+			extruderControl(SLAVE_CMD_TOGGLE_FAN, EXTDR_CMD_SET, responsePacket, 0);
+			interface::popScreen();
+			break;
+		case 3:
+			//Enable Cooling Fan
+			extruderControl(SLAVE_CMD_TOGGLE_FAN, EXTDR_CMD_SET, responsePacket, 1);
+                	interface::popScreen();
 			break;
 	}
 }

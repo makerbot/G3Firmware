@@ -552,6 +552,17 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+class ExtruderFanMenu: public Menu {
+public:
+	ExtruderFanMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -572,6 +583,7 @@ private:
 	SteppersMenu steppersMenu;
 	AdvanceABPMode advanceABPMode;
 	BuzzerSetRepeatsMode buzzerSetRepeats;
+	ExtruderFanMenu extruderFanMenu;
 	CalibrateMode calibrateMode;
 	HomeOffsetsMode homeOffsetsMode;
 	TestEndStopsMode testEndStopsMode;
