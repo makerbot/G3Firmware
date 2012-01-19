@@ -2261,6 +2261,7 @@ void PauseMode::jog(ButtonArray::ButtonName direction) {
 
 void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	const static PROGMEM prog_uchar waitForCurrentCommand[] = "Entering pause..";
+	const static PROGMEM prog_uchar retractFilament[]	= "Retract Filament";
 	const static PROGMEM prog_uchar movingZ[] 		= "Moving Z up 2mm ";
 	const static PROGMEM prog_uchar leavingPaused[]		= "Leaving pause.. ";
 	const static PROGMEM prog_uchar paused1[] 		= "Paused:         ";
@@ -2282,19 +2283,38 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			if ( ! steppers::isRunning()) pauseState ++;
 			break;
 
-		case 1: //Last command finished, record current position and move
+		case 1:	//Last command finished, record current position and
+			//retract filament
+			lcd.writeFromPgmspace(retractFilament);
+
+			pausedPosition = steppers::getPosition();
+			newPosition = pausedPosition;
+			newPosition[3] += 50;		//Retract the filament so we don't get blobs
+			steppers::setTarget(newPosition, interval / 4);
+			
+			pauseState ++;
+			break;
+
+		case 2: //Wait for the retract to complete
+			lcd.writeFromPgmspace(retractFilament);
+			if ( ! steppers::isRunning()) {
+				pauseState ++;
+			}
+			break;
+
+		case 3: //Last command finished, record current position and move
 			//Z away from build
 			lcd.writeFromPgmspace(movingZ);
 
 			pausedPosition = steppers::getPosition();
 			newPosition = pausedPosition;
 			newPosition[2] += 2 * 200;	//200 because of the number of steps per mm
-			steppers::setTarget(newPosition, interval);
+			steppers::setTarget(newPosition, interval / 4);
 			
 			pauseState ++;
 			break;
 
-		case 2: //Wait for the Z move up to complete
+		case 4: //Wait for the Z move up to complete
 			lcd.writeFromPgmspace(movingZ);
 			if ( ! steppers::isRunning()) {
 				pauseState ++;
@@ -2312,22 +2332,22 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			}
 			break;
 	
-		case 3: //Buzz if we're a Pause@ZPos
+		case 5: //Buzz if we're a Pause@ZPos
 			if ( autoPause ) Motherboard::getBoard().buzz(4, 3, eeprom::getEeprom8(eeprom::BUZZER_REPEATS, 3));
 			pauseState ++;
 			break;
 		
-		case 4: //We're now paused
+		case 6: //We're now paused
 			break;
 
-		case 5: //Leaving paused, wait for any steppers to finish
+		case 7: //Leaving paused, wait for any steppers to finish
 			if ( autoPause ) command::pauseAtZPos(0.0);
 			lcd.clear();
 			lcd.writeFromPgmspace(leavingPaused);
 			if ( ! steppers::isRunning()) pauseState ++;
 			break;
 
-		case 6:	//Return to original position
+		case 8:	//Return to original position
 			lcd.writeFromPgmspace(leavingPaused);
 
 			//The extruders may have moved, so it doesn't make sense
@@ -2340,7 +2360,7 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			pauseState ++;
 			break;
 
-		case 7: //Wait for return to original position
+		case 9: //Wait for return to original position
 			lcd.writeFromPgmspace(leavingPaused);
 			if ( ! steppers::isRunning()) {
 				pauseState = 0;
@@ -2360,7 +2380,7 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 void PauseMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 	if ( button == ButtonArray::CANCEL ) {
-		if ( pauseState == 4 )	pauseState ++;
+		if ( pauseState == 6 )	pauseState ++;
 	}
 	else jog(button);
 }
