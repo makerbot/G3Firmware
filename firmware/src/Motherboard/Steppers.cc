@@ -29,11 +29,13 @@ int32_t intervals;
 volatile int32_t intervals_remaining;
 
 struct feedrate_element {
-	int32_t intervals;
+	int32_t intervals; // interval value of the feedrate axis
+	int32_t steps;     // number of steps of the master axis to change
 	int32_t target;
 };
 feedrate_element feedrate_elements[3];
 volatile int32_t feedrate_intervals;
+volatile int32_t feedrate_steps_remaining;
 volatile int32_t feedrate_intervals_remaining;
 volatile uint8_t current_feedrate_index;
 
@@ -89,6 +91,7 @@ void abort() {
 	timer_counter = 0;
 	feedrate_scale_shift = 0;
 	feedrate_intervals = 0;
+	feedrate_steps_remaining = 0;
 	feedrate_intervals_remaining = 0;
 }
 
@@ -191,6 +194,27 @@ is_running = true;
 }
 */
 
+void prepareFeedrateIntervals() {
+	feedrate_steps_remaining = feedrate_elements[current_feedrate_index].steps;
+	feedrate_intervals =
+	  feedrate_intervals_remaining = feedrate_elements[current_feedrate_index].intervals;
+	axes[STEPRATE_AXIS].counter  = -(feedrate_intervals>>1);
+	
+	// WARNING: Edge case where axes[STEPRATE_AXIS].delta > INT32_MAX is unhandled
+	int8_t scale_shift = 0;
+	while ((axes[STEPRATE_AXIS].delta >> scale_shift) > feedrate_intervals) {
+		scale_shift++;
+	}
+	if (scale_shift > 0) {
+		feedrate_scale_shift = scale_shift;
+		axes[STEPRATE_AXIS].position = axes[STEPRATE_AXIS].position >> feedrate_scale_shift;
+		axes[STEPRATE_AXIS].target   = axes[STEPRATE_AXIS].target   >> feedrate_scale_shift;
+		axes[STEPRATE_AXIS].delta    = axes[STEPRATE_AXIS].delta    >> feedrate_scale_shift;
+	} else {
+		feedrate_scale_shift = 0;
+	}
+}
+
 // load up the next movment
 // WARNING: called from inside the ISR, so get out fast
 bool getNextMove() {	
@@ -220,65 +244,46 @@ bool getNextMove() {
 	}
 		
 	current_feedrate_index = 0;
-#if 1
+
 	// setup acceleration
-	feedrate_elements[0].intervals = current_block->accelerate_until;
+	feedrate_elements[0].steps     = current_block->accelerate_until;
+	feedrate_elements[0].intervals = (current_block->time_to_accelerate)/INTERVAL_IN_MICROSECONDS;
 	feedrate_elements[0].target    = 1000000/current_block->nominal_rate;
 
 	// setup plateau
-	feedrate_elements[1].intervals = current_block->decelerate_after - current_block->accelerate_until;
+	feedrate_elements[1].steps     = current_block->decelerate_after - current_block->accelerate_until;
+	feedrate_elements[1].intervals = 1;
 	feedrate_elements[1].target    = 1000000/current_block->nominal_rate;
 
 	// setup deceleration
-	feedrate_elements[2].intervals = current_block->step_event_count - current_block->decelerate_after;
+	feedrate_elements[2].steps     = current_block->step_event_count - current_block->decelerate_after;
+	feedrate_elements[2].intervals = (current_block->time_to_decelerate)/INTERVAL_IN_MICROSECONDS;
 	feedrate_elements[2].target    = 1000000/current_block->final_rate;
 
-	if (feedrate_elements[0].intervals > 0) {
+	if (feedrate_elements[0].steps > 0) {
 		// setup the acceleration speed
 		axes[STEPRATE_AXIS].definePosition(1000000/current_block->initial_rate);
 		axes[STEPRATE_AXIS].setTarget(1000000/current_block->nominal_rate, /*relative =*/ false);
-	} else if (feedrate_elements[1].intervals > 0) {
+	} else if (feedrate_elements[1].steps > 0) {
 		// setup the plateau speed
 		axes[STEPRATE_AXIS].definePosition(1000000/current_block->nominal_rate);
 		axes[STEPRATE_AXIS].setTarget(1000000/current_block->nominal_rate, /*relative =*/ false);
 		current_feedrate_index = 1;
-	} else if (feedrate_elements[2].intervals > 0) {
+	} else if (feedrate_elements[2].steps > 0) {
 		// setup the deceleration speed
 		axes[STEPRATE_AXIS].definePosition(1000000/current_block->nominal_rate);
 		axes[STEPRATE_AXIS].setTarget(1000000/current_block->final_rate, /*relative =*/ false);
 		current_feedrate_index = 2;
 	}
 
-	feedrate_intervals =
-	  feedrate_intervals_remaining = feedrate_elements[current_feedrate_index].intervals;
-	axes[STEPRATE_AXIS].counter  = -(feedrate_intervals / 2);
-#else
-	axes[STEPRATE_AXIS].definePosition(1000000/current_block->nominal_rate);
-	axes[STEPRATE_AXIS].setTarget(1000000/current_block->nominal_rate, /*relative =*/ false);
-	axes[STEPRATE_AXIS].counter  = -(max_delta / 2);
-#endif
-
-	
-	// WARNING: Edge case where axes[STEPRATE_AXIS].delta > INT32_MAX is unhandled
-	int8_t scale_shift = 0;
-	while ((axes[STEPRATE_AXIS].delta >> scale_shift) > feedrate_intervals) {
-		scale_shift++;
-	}
-	if (scale_shift > 0) {
-		feedrate_scale_shift = scale_shift;
-		axes[STEPRATE_AXIS].position = axes[STEPRATE_AXIS].position >> feedrate_scale_shift;
-		axes[STEPRATE_AXIS].target   = axes[STEPRATE_AXIS].target   >> feedrate_scale_shift;
-		axes[STEPRATE_AXIS].delta    = axes[STEPRATE_AXIS].delta    >> feedrate_scale_shift;
-	} else {
-		feedrate_scale_shift = 0;
-	}
+	prepareFeedrateIntervals();
 
 	// We use += here so that the odd rounded-off time from the last move is still waited out
 	timer_counter += axes[STEPRATE_AXIS].position << feedrate_scale_shift;
 
 	intervals = max_delta;
 	intervals_remaining = intervals;
-	const int32_t negative_half_interval = -intervals / 2;
+	const int32_t negative_half_interval = -(intervals>>1);
 	for (int i = 0; i < STEPPER_COUNT; i++) {
 		axes[i].counter = negative_half_interval;
 	}
@@ -294,7 +299,7 @@ bool getNextMove() {
 void startHoming(const bool maximums, const uint8_t axes_enabled, const uint32_t us_per_step) {
 	intervals_remaining = INT32_MAX;
 	intervals = us_per_step / INTERVAL_IN_MICROSECONDS;
-	const int32_t negative_half_interval = -intervals / 2;
+	const int32_t negative_half_interval = -(intervals>>1);
 	for (int i = 0; i < AXIS_COUNT; i++) {
 		axes[i].counter = negative_half_interval;
 		if ((axes_enabled & (1<<i)) != 0) {
@@ -323,6 +328,10 @@ void startRunning() {
 bool doInterrupt() {
 	if (is_running) {
 		timer_counter -= INTERVAL_IN_MICROSECONDS;
+		if (feedrate_intervals_remaining > 0) {
+			axes[STEPRATE_AXIS].doInterrupt(feedrate_intervals);
+			feedrate_intervals_remaining--;
+		}
 		while (timer_counter <= 0) {
 			if (intervals_remaining-- == 0) {
 				getNextMove();
@@ -332,37 +341,13 @@ bool doInterrupt() {
 				for (int i = 0; i < STEPPER_COUNT; i++) {
 					axes[i].doInterrupt(intervals);
 				}
-				#if 1
-				if (feedrate_intervals_remaining-- == 0) {
-					axes[STEPRATE_AXIS].position = feedrate_elements[current_feedrate_index].target;
-					
+				if (feedrate_steps_remaining-- == 0) {
+					axes[STEPRATE_AXIS].position = feedrate_elements[current_feedrate_index].target;					
 					current_feedrate_index++;
-	
 					axes[STEPRATE_AXIS].setTarget(feedrate_elements[current_feedrate_index].target, /*relative =*/ false);
-	
-					feedrate_intervals = 
-					  feedrate_intervals_remaining = feedrate_elements[current_feedrate_index].intervals;
-					axes[STEPRATE_AXIS].counter  = -(feedrate_intervals / 2);
-	
-					// WARNING: Edge case where axes[STEPRATE_AXIS].delta > INT32_MAX is unhandled
-					int8_t scale_shift = 0;
-					while ((axes[STEPRATE_AXIS].delta >> scale_shift) > feedrate_intervals) {
-						scale_shift++;
-					}
-					if (scale_shift > 0) {
-						feedrate_scale_shift = scale_shift;
-						axes[STEPRATE_AXIS].position = axes[STEPRATE_AXIS].position >> feedrate_scale_shift;
-						axes[STEPRATE_AXIS].target   = axes[STEPRATE_AXIS].target   >> feedrate_scale_shift;
-						axes[STEPRATE_AXIS].delta    = axes[STEPRATE_AXIS].delta    >> feedrate_scale_shift;
-					} else {
-						feedrate_scale_shift = 0;
-					}
+					prepareFeedrateIntervals();
 				}
 
-				axes[STEPRATE_AXIS].doInterrupt(feedrate_intervals);
-				#else
-				axes[STEPRATE_AXIS].doInterrupt(intervals);
-				#endif
 				timer_counter += axes[STEPRATE_AXIS].position << feedrate_scale_shift;
 			}
 		}
@@ -381,4 +366,4 @@ bool doInterrupt() {
 	return false;
 }
 
-}
+} // namespace steppers

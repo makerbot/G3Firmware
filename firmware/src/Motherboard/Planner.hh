@@ -31,31 +31,22 @@
 #include "CircularBuffer.hh"
 #include "Point.hh"
 
-// Minimum planner junction speed. Sets the default minimum speed the planner plans for at the end
-// of the buffer and all stops. This should not be much greater than zero and should only be changed
-// if unwanted behavior is observed on a user's machine when running at very slow speeds.
-#define MINIMUM_PLANNER_SPEED 4.0 // (mm/sec)
-
 namespace planner {
 	// This struct is used when buffering the setup for each linear movement "nominal" values are as specified in 
 	// the source g-code and may never actually be reached if acceleration management is active.
 	class Block {
 	public:
 	// Fields used by the bresenham algorithm for tracing the line
-		// Point steps;  // Step count and direction (may be negative) along each axis
-		Point target;  // Step count and direction (may be negative) along each axis
+		Point target;                        // Final 5-axis target
 		uint32_t step_event_count;           // The number of step events required to complete this block
-		int32_t accelerate_until;                    // The index of the step event on which to stop acceleration
-		int32_t decelerate_after;                    // The index of the step event on which to start decelerating
-		int32_t acceleration_rate;                   // The acceleration rate used for acceleration calculation
-		// uint8_t direction_bits;             // The direction bit set for this block
-		// uint8_t active_extruder;            // Selects the active extruder
-	#ifdef ADVANCE
-		int32_t advance_rate;
-		volatile int32_t initial_advance;
-		volatile int32_t final_advance;
-		float advance;
-	#endif
+		int32_t accelerate_until;            // The index of the step event on which to stop acceleration
+		int32_t time_to_accelerate;          // number of microseconds (S*1,000,000) to accelerate
+		int32_t decelerate_after;            // The index of the step event on which to start decelerating
+		int32_t time_to_decelerate;          // number of microseconds (S*1,000,000) to decelerate
+		// int32_t acceleration_rate;           // The acceleration rate used for acceleration calculation
+		// uint8_t direction_bits;              // The direction bit set for this block
+		// uint8_t active_extruder;             // Selects the active extruder
+		
 
 	// Fields used by the motion planner to manage acceleration
 	//  float speed_x, speed_y, speed_z, speed_e;        // Nominal mm/minute for each axis
@@ -64,6 +55,7 @@ namespace planner {
 		float max_entry_speed;                             // Maximum allowable junction entry speed in mm/min
 		float millimeters;                                 // The total travel of this block in mm
 		float acceleration;                                // acceleration mm/sec^2
+		float stop_speed;                            // Speed to decelerate to if this is the last move
 		uint8_t recalculate_flag;                    // Planner flag to recalculate trapezoids on entry junction
 		uint8_t nominal_length_flag;                 // Planner flag for nominal speed always reached
 

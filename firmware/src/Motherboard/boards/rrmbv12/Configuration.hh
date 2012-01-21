@@ -167,10 +167,15 @@
 #define BLOCK_BUFFER_SIZE 16
 
 //#define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
-#define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
-#define DEFAULT_MAX_XY_JERK 20.0
-#define DEFAULT_MAX_Z_JERK 0.4
-#define DEFAULT_MAX_A_JERK 0.4
-#define DEFAULT_MAX_B_JERK 0.4
+#define DEFAULT_ACCELERATION 1000.0 /* mm/s/s */
+#define DEFAULT_MAX_XY_JERK 10.0
+#define DEFAULT_MAX_Z_JERK 10.0
+#define DEFAULT_MAX_A_JERK 10.0
+#define DEFAULT_MAX_B_JERK 10.0
 
+// // Minimum planner junction speed. Sets the default minimum speed the planner plans for at the end
+// // of the buffer and all stops. This should not be much greater than zero and should only be changed
+// // if unwanted behavior is observed on a user's machine when running at very slow speeds.
+// #define MINIMUM_PLANNER_SPEED 4.0 // (mm/sec)
+// 
 #endif // BOARDS_RRMBV12_CONFIGURATION_HH_

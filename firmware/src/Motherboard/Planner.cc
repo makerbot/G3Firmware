@@ -51,6 +51,20 @@
       di -> (2 a d - s1^2 + s2^2)/(4 a) --> intersection_distance()
 
     IntersectionDistance[s1_, s2_, a_, d_] := (2 a d - s1^2 + s2^2)/(4 a)
+
+		x + vt + (1/2)at^2=X
+		x = destination
+		X = position
+		v = current speed
+		a = acceleration rate
+		t = time
+		See: http://www.wolframalpha.com/input/?i=x+%2B+vt+%2B+%281%2F2%29at%5E2%3DX+for+t
+	
+	Solved for time, simplified (with a few multiplications as possible) gives:
+	(sqrt(v^2-2*a*(x-X)) - v)/a
+	So, making x-X = D gives:
+	(sqrt(v*v-2*a*D)-v)/a = time to accelerate from velocity v over D steps with acceleration a
+	
 */
 
 
@@ -232,11 +246,16 @@ namespace planner {
 		position = Point(0,0,0,0,0);
 		previous_nominal_speed = 0.0;
 		
-		axes[0].max_acceleration = 9000*axes[0].steps_per_mm;
-		axes[1].max_acceleration = 9000*axes[1].steps_per_mm;
-		axes[2].max_acceleration = 50*axes[2].steps_per_mm;
-		axes[3].max_acceleration = 9000*axes[3].steps_per_mm;
-		axes[4].max_acceleration = 9000*axes[4].steps_per_mm;
+		// axes[0].max_acceleration = 9000*axes[0].steps_per_mm;
+		// axes[1].max_acceleration = 9000*axes[1].steps_per_mm;
+		// axes[2].max_acceleration = 200*axes[2].steps_per_mm;
+		// axes[3].max_acceleration = 20000*axes[3].steps_per_mm;
+		// axes[4].max_acceleration = 20000*axes[4].steps_per_mm;
+		axes[0].max_acceleration = 1000*axes[0].steps_per_mm;
+		axes[1].max_acceleration = 1000*axes[1].steps_per_mm;
+		axes[2].max_acceleration = 200*axes[2].steps_per_mm;
+		axes[3].max_acceleration = 20000*axes[3].steps_per_mm;
+		axes[4].max_acceleration = 20000*axes[4].steps_per_mm;
 	}
 
 	
@@ -291,6 +310,20 @@ namespace planner {
 			return 0.0;  // acceleration was 0, set intersection distance to 0
 		}
 	}
+	
+	// Calculates the time (not distance) in microseconds (S*1,000,000) it takes to go from initial_rate for distance at acceleration rate
+	FORCE_INLINE uint32_t estimate_time_to_accelerate(float initial_rate, float acceleration, float distance) {
+		float abs_acceleration = abs(acceleration);
+		if (abs_acceleration!=0.0 && initial_rate == 0.0) {
+			return (sqrt(-2*abs_acceleration*distance)/acceleration) * 1000000;
+		} else if (abs_acceleration!=0.0) {
+			// (sqrt(v*v-2*a*D)-v)/a
+			return ((sqrt(initial_rate*initial_rate-2*abs_acceleration*distance)-initial_rate)/abs_acceleration) * 1000000;
+		}
+		else {
+			return (distance/initial_rate) * 1000000; // no acceleration is just distance/rate
+		}
+	}
 
 	// Calculates trapezoid parameters so that the entry- and exit-speed is compensated by the provided factors.
 	// calculate_trapezoid_for_block(block, block->entry_speed/block->nominal_speed, exit_factor_speed/block->nominal_speed);
@@ -327,21 +360,14 @@ namespace planner {
 			plateau_steps = 0;
 		}
 
-	#ifdef ADVANCE
-		long initial_advance = advance*entry_factor*entry_factor;
-		long final_advance = advance*exit_factor*exit_factor;
-	#endif // ADVANCE
-
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {  // Fill variables used by the stepper in a critical section
 			if(busy == false) { // Don't update variables if block is busy.
 				accelerate_until = accelerate_steps;
+				time_to_accelerate = estimate_time_to_accelerate(initial_rate, acceleration, accelerate_steps);
 				decelerate_after = accelerate_steps+plateau_steps;
+				time_to_decelerate = estimate_time_to_accelerate(nominal_rate, -acceleration, decelerate_steps);
 				// initial_rate = initial_rate;
 				// final_rate = final_rate;
-			#ifdef ADVANCE
-				initial_advance = initial_advance;
-				final_advance = final_advance;
-			#endif //ADVANCE
 			} // So, ummm, what if it IS busy?!
 		} // ISR state will be automatically restored here
 	}
@@ -480,9 +506,9 @@ namespace planner {
 			}
 			block_index = block_buffer.getNextIndex( block_index );
 		}
-	// Last/newest block in buffer. Exit speed is set with MINIMUM_PLANNER_SPEED. Always recalculated.
+	// Last/newest block in buffer. Exit speed is set with next->stop_speed. Always recalculated.
 		if(next != NULL) {
-			next->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
+			next->calculate_trapezoid(next->stop_speed);
 			next->recalculate_flag = false;
 		}
 	}
@@ -519,31 +545,23 @@ namespace planner {
 		
 		block->target = target;
 
-		block->nominal_rate = 1000000/us_per_step; // (step/sec) Always > 0
-		
 		// // store the absolute number of steps in each direction, without direction
 		Point steps = (target - position).abs();
 
+		float delta_mm[AXIS_COUNT];
+		block->millimeters = 0.0;
 		block->step_event_count = 0;
+		// // Compute direction bits for this block -- UNUSED FOR NOW
+		// block->direction_bits = 0;
 		for (int i = 0; i < AXIS_COUNT; i++) {
 			if (steps[i] > block->step_event_count) {
 				block->step_event_count = steps[i];
 			}
-		}
-
-#if 1
-		// // Compute direction bits for this block -- UNUSED FOR NOW
-		// block->direction_bits = 0;
-		// for (int i = 0; i < AXIS_COUNT; i++) {
-		// 	if (target[i] < position[i]) { block->direction_bits |= (1<<i); }
-		// }
-		
-		float delta_mm[AXIS_COUNT];
-		block->millimeters = 0.0;
-		for (int i = 0; i < AXIS_COUNT; i++) {
 			delta_mm[i] = ((float)steps[i])/axes[i].steps_per_mm;
-			block->millimeters += delta_mm[i] * delta_mm[i];
-		}
+			if (i < A_AXIS)
+				block->millimeters += delta_mm[i] * delta_mm[i];
+		// 	if (target[i] < position[i]) { block->direction_bits |= (1<<i); }
+		}		
 		block->millimeters = sqrt(block->millimeters);
 		
 		float inverse_millimeters = 1.0/block->millimeters; // Inverse millimeters to remove multiple divides
@@ -607,7 +625,7 @@ namespace planner {
 				block->acceleration_st = axes[i].max_acceleration;
 		}
 		block->acceleration = block->acceleration_st / steps_per_mm;
-		block->acceleration_rate = (int32_t)((float)block->acceleration_st * 8.388608); //WHOA! Where is this coming from?!?
+		// block->acceleration_rate = (int32_t)((float)block->acceleration_st * 8.388608); //WHOA! Where is this coming from?!?
 		
 		// Compute the speed trasitions, or "jerks"
 		// Start with a safe speed
@@ -619,8 +637,29 @@ namespace planner {
 		}
 
 		vmax_junction = min(vmax_junction, block->nominal_speed);
+		
+		// Determine the stopping speed for this move, in case it's the last one
+		// this is basically the same as the entry speed calcs (done next) except this move is
+		//  the "previous" one and the "current" speed would be zero.
+		float jerk = sqrt(pow((current_speed[X_AXIS]), 2)+pow((current_speed[Y_AXIS]), 2));
+		float stop_vmax_junction = vmax_junction; // we re-use vmax_junction below, so keep it
+		if((current_speed[X_AXIS] != 0.0) || (current_speed[Y_AXIS] != 0.0)) {
+			stop_vmax_junction = block->nominal_speed;
+		}
+		if (jerk > max_xy_jerk) {
+			stop_vmax_junction *= (max_xy_jerk/jerk);
+		}
+		for(int i=Z_AXIS; i < AXIS_COUNT; i++) {
+			float axis_jerk = fabs(current_speed[i]);
+			if(axis_jerk > axes[i].max_axis_jerk) {
+				stop_vmax_junction *= (axes[i].max_axis_jerk/axis_jerk);
+			}
+		}
+		block->stop_speed = stop_vmax_junction;
+		
+		// Now determine the safe max entry speed for this move
 		if ((!block_buffer.isEmpty()) && (previous_nominal_speed > 0.0)) {
-			float jerk = sqrt(pow((current_speed[X_AXIS]-previous_speed[X_AXIS]), 2)+pow((current_speed[Y_AXIS]-previous_speed[Y_AXIS]), 2));
+			jerk = sqrt(pow((current_speed[X_AXIS]-previous_speed[X_AXIS]), 2)+pow((current_speed[Y_AXIS]-previous_speed[Y_AXIS]), 2));
 			if((previous_speed[X_AXIS] != 0.0) || (previous_speed[Y_AXIS] != 0.0)) {
 				vmax_junction = block->nominal_speed;
 			}
@@ -628,18 +667,17 @@ namespace planner {
 				vmax_junction *= (max_xy_jerk/jerk);
 			}
 			
-			// account for Z, A, and B
 			for(int i=Z_AXIS; i < AXIS_COUNT; i++) {
 				float axis_jerk = fabs(current_speed[i] - previous_speed[i]);
 				if(axis_jerk > axes[i].max_axis_jerk) {
 					vmax_junction *= (axes[i].max_axis_jerk/axis_jerk);
-				} 
+				}
 			}
 		}
 		block->max_entry_speed = vmax_junction;
 		
-		// Initialize block entry speed. Compute based on deceleration to user-defined MINIMUM_PLANNER_SPEED.
-		float v_allowable = max_allowable_speed(-block->acceleration,MINIMUM_PLANNER_SPEED,block->millimeters);
+		// Initialize block entry speed. Compute based on deceleration to junction jerk of appropriate axes
+		float v_allowable = max_allowable_speed(-block->acceleration,block->stop_speed,block->millimeters);
 		block->entry_speed = min(vmax_junction, v_allowable);
 		
 		// Initialize planner efficiency flags
@@ -666,8 +704,7 @@ namespace planner {
 
 		previous_nominal_speed = block->nominal_speed;
 
-		block->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
-#endif
+		block->calculate_trapezoid(block->stop_speed);
 
 		// Update position
 		position = target;
