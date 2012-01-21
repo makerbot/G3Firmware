@@ -260,11 +260,12 @@ private:
 	uint8_t updatePhase;
 	uint8_t buildTimePhase;
 	float   lastElapsedSeconds;
-	float   extruderStartSeconds; 
 	bool	buildComplete;		//For solving floating point rounding issues
 	PauseMode pauseMode;
 	bool	pausePushLockout;
 	bool buildCompleteBuzzPlayed;
+	int32_t buildDuration;
+	bool	overrideForceRedraw;
 
 public:
 	micros_t getUpdateRate() {return 500L * 1000L;}

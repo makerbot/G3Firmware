@@ -33,6 +33,8 @@
 
 int16_t overrideExtrudeSeconds = 0;
 
+bool estimatingBuild = false;
+
 Point pausedPosition, homePosition;
 
 //Stored using STEPS_PER_MM_PRECISION
@@ -1094,11 +1096,11 @@ void MonitorMode::reset() {
 	updatePhase = 0;
 	buildTimePhase = 0;
 	buildComplete = false;
-	extruderStartSeconds = 0.0;
 	lastElapsedSeconds = 0.0;
 	pausePushLockout = false;
 	pauseMode.autoPause = false;
 	buildCompleteBuzzPlayed = false;
+	overrideForceRedraw = false;
 }
 
 
@@ -1108,11 +1110,15 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	const static PROGMEM prog_uchar elapsed_time[]       =   "Elapsed:   0h00m";
 	const static PROGMEM prog_uchar completed_percent[]  =   "Completed:   0% ";
 	const static PROGMEM prog_uchar time_left[]          =   "TimeLeft:  0h00m";
-	const static PROGMEM prog_uchar time_left_calc[]     =   " calc..";
-	const static PROGMEM prog_uchar time_left_1min[]     =   "  <1min";
+	const static PROGMEM prog_uchar duration[]           =   "Duration:  0h00m";
+	const static PROGMEM prog_uchar time_left_secs[]     =   "secs";
 	const static PROGMEM prog_uchar time_left_none[]     =   "   none";
 	const static PROGMEM prog_uchar zpos[] 		     =   "ZPos:           ";
 	const static PROGMEM prog_uchar zpos_mm[] 	     =   "mm";
+	const static PROGMEM prog_uchar estimate2[]          =   "Estimating:   0%";
+	const static PROGMEM prog_uchar estimate3[]          =   "          (skip)";
+	const static PROGMEM prog_uchar estimate4[]          =   "Duration:  0h00m";
+	const static PROGMEM prog_uchar filament[]           =   "Filament:0.00m  ";
 	char buf[17];
 
 	if ( command::isPaused() ) {
@@ -1124,7 +1130,10 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		}
 	} else pausePushLockout = false;
 
-	if (forceRedraw) {
+	if ( host::getHostState() != host::HOST_STATE_ESTIMATING_FROM_SD )
+	estimatingBuild = false;
+
+	if ((forceRedraw) || (overrideForceRedraw)) {
 		lcd.clear();
 		lcd.setCursor(0,0);
 		switch(host::getHostState()) {
@@ -1133,24 +1142,65 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			break;
 		case host::HOST_STATE_BUILDING:
 		case host::HOST_STATE_BUILDING_FROM_SD:
+		case host::HOST_STATE_ESTIMATING_FROM_SD:
 			lcd.writeString(host::getBuildName());
 			lcd.setCursor(0,1);
-			lcd.writeFromPgmspace(completed_percent);
+			if ( estimatingBuild ) {
+				lcd.writeFromPgmspace(estimate2);
+				lcd.setCursor(0,2);
+				lcd.writeFromPgmspace(estimate3);
+				lcd.setCursor(0,3);
+				lcd.writeFromPgmspace(estimate4);
+			} else {
+				lcd.writeFromPgmspace(completed_percent);
+			}
 			break;
 		case host::HOST_STATE_ERROR:
 			lcd.writeString("error!");
 			break;
 		}
 
-		lcd.setCursor(0,2);
-		lcd.writeFromPgmspace(extruder_temp);
+		if ( ! estimatingBuild ) {
+			lcd.setCursor(0,2);
+			lcd.writeFromPgmspace(extruder_temp);
 
-		lcd.setCursor(0,3);
-		lcd.writeFromPgmspace(platform_temp);
+			lcd.setCursor(0,3);
+			lcd.writeFromPgmspace(platform_temp);
 
-		lcd.setCursor(15,3);
-		if ( command::getPauseAtZPos() == 0 )	lcd.write(' ');
-		else					lcd.write('*');
+			lcd.setCursor(15,3);
+			if ( command::getPauseAtZPos() == 0 )	lcd.write(' ');
+			else					lcd.write('*');
+		}
+	}
+
+	overrideForceRedraw = false;
+
+	//Display estimating stats
+	if ( estimatingBuild ) {
+		//Write out the % estimated
+		lcd.setCursor(12,1);
+		buf[0] = '\0';
+		appendUint8(buf, sizeof(buf), (uint8_t)sdcard::getPercentPlayed());
+		strcat(buf, "%");
+		lcd.writeString(buf);
+
+		//Write out the time calculated
+		buf[0] = '\0';
+		lcd.setCursor(9,3);
+		appendTime(buf, sizeof(buf), (uint32_t)command::estimateSeconds());
+		lcd.writeString(buf);
+
+		//Check for estimate finished, and switch states to building
+		if (( ! sdcard::playbackHasNext() ) && ( command::isEmpty())) {
+			//Store the estimate seconds
+			buildDuration = command::estimateSeconds();
+			host::setHostStateBuildingFromSD();
+			command::setEstimation(false);
+			overrideForceRedraw = true;
+			estimatingBuild = false;
+		}
+	
+		return;
 	}
 
 	OutPacket responsePacket;
@@ -1211,24 +1261,38 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
        			Motherboard::getBoard().buzz(2, 3, eeprom::getEeprom8(eeprom::BUZZER_REPEATS, 3));
 		}
 
-		float secs;
-
 		//Holding the zero button stops rotation
-        	if ( ! interface::isButtonPressed(ButtonArray::OK) ) buildTimePhase ++;
+        	if ( ! interface::isButtonPressed(ButtonArray::OK) ) {
+			buildTimePhase ++;
 
-		if ( buildTimePhase >= 4 )	buildTimePhase = 0;
+			//Skip Time Left if we skipped the estimation
+			if (( buildDuration == 0 ) && ( buildTimePhase == 2 )) buildTimePhase ++;
+		}
+
+		if ( buildTimePhase >= 5 )	buildTimePhase = 0;
+
+		float secs;
+		int32_t tsecs;
+		Point position;
+		uint8_t precision;
+		float filamentUsed;
+		float completedPercent;
 
 		switch (buildTimePhase) {
-			case 0:
+			case 0:	//Completed Percent
 				lcd.setCursor(0,1);
 				lcd.writeFromPgmspace(completed_percent);
 				lcd.setCursor(11,1);
 				buf[0] = '\0';
-				appendUint8(buf, sizeof(buf), (uint8_t)sdcard::getPercentPlayed());
+
+				if ( buildDuration == 0 ) completedPercent = sdcard::getPercentPlayed();
+				else			  completedPercent = ((float)command::estimateSeconds() / (float)buildDuration) * 100.0;
+
+				appendUint8(buf, sizeof(buf), (uint8_t)completedPercent);
 				strcat(buf, "% ");
 				lcd.writeString(buf);
 				break;
-			case 1:
+			case 1: //Elapsed Time
 				lcd.setCursor(0,1);
 				lcd.writeFromPgmspace(elapsed_time);
 				lcd.setCursor(9,1);
@@ -1242,56 +1306,62 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				appendTime(buf, sizeof(buf), (uint32_t)secs);
 				lcd.writeString(buf);
 				break;
-			case 2:
+			case 2: // Time Left
 				lcd.setCursor(0,1);
-				lcd.writeFromPgmspace(time_left);
+				if ( command::getFilamentLength() >= 1 ) lcd.writeFromPgmspace(time_left);
+				else					 lcd.writeFromPgmspace(duration);
 				lcd.setCursor(9,1);
 
-				if (( sdcard::getPercentPlayed() >= 1.0 ) && ( extruderStartSeconds > 0.0)) {
-					buf[0] = '\0';
-					float currentSeconds = Motherboard::getBoard().getCurrentSeconds() - extruderStartSeconds;
-					secs = ((currentSeconds / sdcard::getPercentPlayed()) * 100.0 ) - currentSeconds;
-
-					if ((secs > 0.0 ) && (secs < 60.0) && ( ! buildComplete ) )
-						lcd.writeFromPgmspace(time_left_1min);	
-					else if (( secs <= 0.0) || ( host::isBuildComplete() ) || ( buildComplete ) ) {
-						buildComplete = true;
-						lcd.writeFromPgmspace(time_left_none);
-					} else {
-						appendTime(buf, sizeof(buf), (uint32_t)secs);
-						lcd.writeString(buf);
-					}
-				}
-				else	lcd.writeFromPgmspace(time_left_calc);
-
-				//Set extruderStartSeconds to when the extruder starts extruding, so we can 
-				//get an accurate TimeLeft:
-				if ( extruderStartSeconds == 0.0 ) {
-					if (extruderControl(SLAVE_CMD_GET_MOTOR_1_PWM, EXTDR_CMD_GET, responsePacket, 0)) {
-						uint8_t pwm = responsePacket.read8(1);
-						if ( pwm ) extruderStartSeconds = Motherboard::getBoard().getCurrentSeconds();
-					}
+				tsecs = buildDuration - command::estimateSeconds();
+				
+				buf[0] = '\0';
+				if 	  ((tsecs > 0 ) && (tsecs < 60) && ( ! buildComplete ) ) {
+					appendUint8(buf, sizeof(buf), (uint8_t)tsecs);
+					lcd.writeString(buf);
+					lcd.writeFromPgmspace(time_left_secs);	
+				} else if (( tsecs <= 0) || ( host::isBuildComplete() ) || ( buildComplete ) ) {
+					buildComplete = true;
+					lcd.writeFromPgmspace(time_left_none);
+				} else {
+					appendTime(buf, sizeof(buf), (uint32_t)tsecs);
+					lcd.writeString(buf);
 				}
 				break;
-			case 3:
+			case 3:	// Zpos
 				lcd.setCursor(0,1);
 				lcd.writeFromPgmspace(zpos);
 				lcd.setCursor(6,1);
 
-				Point position = steppers::getPosition();
+				position = steppers::getPosition();
 			
 				//Divide by the axis steps to mm's
 				lcd.writeFloat(stepsToMM(position[2], AXIS_Z), 3);
 
 				lcd.writeFromPgmspace(zpos_mm);
 				break;
+			case 4: // Filament
+				lcd.setCursor(0,1);
+				lcd.writeFromPgmspace(filament);
+				lcd.setCursor(9,1);
+				//Get filament used and convert to meters
+				filamentUsed = stepsToMM(command::getFilamentLength(), AXIS_A) / 10000.0;
+				if	( filamentUsed < 0.01 )	{
+					 filamentUsed *= 10000.0;	//Back to mm's
+					precision = 1;
+				}
+				else if ( filamentUsed < 10.0 )	 precision = 4;
+				else if ( filamentUsed < 100.0 ) precision = 3;
+				else				 precision = 2;
+				lcd.writeFloat(filamentUsed, precision);
+				if ( precision == 1 ) lcd.write('m');
+				lcd.write('m');
+				break;
 		}
-	
 		break;
 	}
 
 	updatePhase++;
-	if (updatePhase > 4) {
+	if (updatePhase > 5) {
 		updatePhase = 0;
 	}
 }
@@ -1302,12 +1372,22 @@ void MonitorMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 		switch(host::getHostState()) {
 		case host::HOST_STATE_BUILDING:
 		case host::HOST_STATE_BUILDING_FROM_SD:
+		case host::HOST_STATE_ESTIMATING_FROM_SD:
                         interface::pushScreen(&cancelBuildMenu);
 			break;
 		default:
                         interface::popScreen();
 			break;
 		}
+	case ButtonArray::OK:
+		if (( estimatingBuild ) && ( host::getHostState() == host::HOST_STATE_ESTIMATING_FROM_SD )) {
+			buildDuration = 0;
+			host::setHostStateBuildingFromSD();
+			command::setEstimation(false);
+			overrideForceRedraw = true;
+			estimatingBuild = false;
+		}
+		break;
 	}
 }
 
@@ -1460,13 +1540,15 @@ CancelBuildMenu::CancelBuildMenu() {
 	itemCount = 5;
 	reset();
 	pauseDisabled = false;
-	if (( steppers::isHoming() ) || (sdcard::getPercentPlayed() >= 100.0))	pauseDisabled = true;
+	if ( ( estimatingBuild ) || ( steppers::isHoming() ) ||
+	     (sdcard::getPercentPlayed() >= 100.0))	pauseDisabled = true;
 }
 
 void CancelBuildMenu::resetState() {
 	pauseMode.autoPause = false;
 	pauseDisabled = false;	
-	if (( steppers::isHoming() ) || (sdcard::getPercentPlayed() >= 100.0))	pauseDisabled = true;
+	if ( ( estimatingBuild ) || ( steppers::isHoming() ) ||
+	     (sdcard::getPercentPlayed() >= 100.0))	pauseDisabled = true;
 
 	if ( pauseDisabled )	{
 		itemIndex = 2;
@@ -1486,7 +1568,8 @@ void CancelBuildMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar pause[]  = "Pause         ";
 	const static PROGMEM prog_uchar back[]   = "Continue Build";
 
-	if (( steppers::isHoming() ) || (sdcard::getPercentPlayed() >= 100.0))	pauseDisabled = true;
+	if ( ( estimatingBuild ) || ( steppers::isHoming() ) ||
+	     (sdcard::getPercentPlayed() >= 100.0))	pauseDisabled = true;
 
 	//Implement variable length menu
 	uint8_t lind = 0;
@@ -1879,8 +1962,10 @@ void SDMenu::handleSelect(uint8_t index) {
 		return;
 	}
 
+	estimatingBuild = true;
+	command::setEstimation(true);
         sdcard::SdErrorCode e;
-	e = host::startBuildFromSD();
+	e = host::startBuildFromSD(true);
 	if (e != sdcard::SD_SUCCESS) {
 		// TODO: report error
 		return;

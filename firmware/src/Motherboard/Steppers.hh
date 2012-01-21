@@ -63,12 +63,12 @@ namespace steppers {
     /// Instruct the stepper subsystem to move the machine to the
     /// given position.
     /// \param[in] target Position to move to
-    /// \param[in] ms Duration of the move, in milliseconds
+    /// \param[in] us Duration of the move, in microseconds
     /// \param[in] relative Bitfield specifying whether each axis should
     ///                     interpret the new position as absolute or
     ///                     relative.
     void setTargetNew(const Point& target,
-                      int32_t ms,
+                      int32_t us,
                       uint8_t relative =0);
 
     /// Home one or more axes

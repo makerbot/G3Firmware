@@ -312,6 +312,17 @@ float getPercentPlayed() {
   else					return percentPlayed;
 }
 
+void playbackRestart() {
+  capturedBytes = 0L;
+  playedBytes = 0L;
+  playing = true;
+
+  int32_t offset = 0;	
+  fat_seek_file(file, &offset, FAT_SEEK_SET);
+
+  fetchNextByte();
+}
+
 void playbackRewind(uint8_t bytes) {
   int32_t offset = -((int32_t)bytes);
   fat_seek_file(file, &offset, FAT_SEEK_CUR);

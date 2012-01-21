@@ -99,6 +99,9 @@ namespace sdcard {
     /// \return The next byre in the file.
     uint8_t playbackNext();
 
+    /// Rewinds a play back to the beginning
+    void playbackRestart();
+
 
     /// Rewind the given number of bytes in the input stream.
     /// \param[in] bytes Number of bytes to rewind

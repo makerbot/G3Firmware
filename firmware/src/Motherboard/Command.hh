@@ -49,6 +49,15 @@ void pauseAtZPos(int32_t zpos);
 /// \return the z position set for pausing (in steps), otherwise 0
 int32_t getPauseAtZPos();
 
+/// Returns the length of filament extruded (in steps)
+int64_t getFilamentLength();
+
+//Returns the number of seconds estimated
+int32_t estimateSeconds();
+
+//Set the estimation mode
+void setEstimation(bool on);
+
 /// Check the remaining capacity of the command buffer
 /// \return Amount of space left in the buffer, in bytes
 uint16_t getRemainingCapacity();

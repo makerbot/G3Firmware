@@ -32,10 +32,11 @@ const int MAX_FILE_LEN = MAX_PACKET_PAYLOAD-1;
 
 /// The host can be in any of these four states.
 enum HostState {
-        HOST_STATE_READY            = 0,
-        HOST_STATE_BUILDING         = 1,
-        HOST_STATE_BUILDING_FROM_SD = 2,
-        HOST_STATE_ERROR            = 3
+        HOST_STATE_READY            	= 0,
+        HOST_STATE_BUILDING         	= 1,
+        HOST_STATE_BUILDING_FROM_SD 	= 2,
+        HOST_STATE_ERROR            	= 3,
+	HOST_STATE_ESTIMATING_FROM_SD	= 4
 };
 
 /// Run the host slice. This function handles incoming packets and host resets.
@@ -58,13 +59,16 @@ HostState getHostState();
 /// Start a build from SD card. The build name should be set by overwriting
 /// the value of buildName, provided by #getBuildName().
 /// \return True if build started successfully.
-sdcard::SdErrorCode startBuildFromSD();
+sdcard::SdErrorCode startBuildFromSD(bool estimateFirst);
 
 /// Stop the current build
 void stopBuild();
 
 /// Returns true if the build is completed
 bool isBuildComplete();
+
+//Sets the host state to building (if it's estimating)
+void setHostStateBuildingFromSD();
 }
 
 #endif // HOST_HH_

@@ -43,6 +43,12 @@ volatile uint32_t recentCommandClock = 0;
 volatile uint32_t recentCommandTime = 0;
 volatile int32_t  pauseZPos = 0;
 
+bool estimating = false;
+int64_t estimateTimeUs = 0; 
+int64_t filamentLength = 0;	//This maybe pos or neg, but ABS it and all is good (in steps)
+
+Point lastPosition;
+
 uint16_t getRemainingCapacity() {
 	uint16_t sz;
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
@@ -122,7 +128,10 @@ Timeout tool_wait_timeout;
 
 void reset() {
 	pauseAtZPos(0.0);
+	lastPosition = Point(0,0,0,0,0);
 	command_buffer.reset();
+	estimateTimeUs = 0; 
+	filamentLength = 0;
 	mode = READY;
 }
 
@@ -178,13 +187,91 @@ bool isPlatformReady() {
 	return false;
 }
 
+int64_t getFilamentLength() {
+	if ( filamentLength < 0 )	return -filamentLength;
+	return filamentLength;
+}
+
+int32_t estimateSeconds() {
+	return estimateTimeUs / 1000000;
+}
+
+//Set the estimation mode
+void setEstimation(bool on) {
+	//If we were estimating and we're switching to a build
+	//reset for the build
+	if (( estimating ) && ( ! on )) {
+		recentCommandClock = 0;
+		recentCommandTime  = 0;
+		command_buffer.reset();
+		sdcard::playbackRestart();
+	}
+	
+	estimateTimeUs = 0;
+	filamentLength = 0;
+	estimating = on;
+}
+
+void estimateDelay(uint32_t microseconds) {
+	estimateTimeUs += (int64_t)microseconds;
+}
+
+void estimateDefinePosition(Point p) {
+	for ( uint8_t i = 0; i < AXIS_COUNT; i ++ )	lastPosition[i] = p[i];
+}
+
+int32_t estimateAbs(int32_t v) {
+	if ( v < 0 )	return v * -1;
+	return v;
+}
+
+void estimateMoveTo(Point p, int32_t dda) {
+	//Calculate deltas
+	Point delta;
+	for ( uint8_t i = 0; i < AXIS_COUNT; i ++ )	delta[i] = estimateAbs(lastPosition[i] - p[i]);
+
+	//Find max of the deltas
+	int32_t max = delta[0];
+	for ( uint8_t i = 0; i < AXIS_COUNT; i ++ ) {
+		if ( delta[i] > max )	max = delta[i];
+	}
+
+
+	estimateTimeUs += (int64_t)max * (int64_t)dda;
+
+	if ( ! estimating ) {
+		filamentLength += (int64_t)(p[3] - lastPosition[3]);
+		filamentLength += (int64_t)(p[4] - lastPosition[4]);
+	}
+
+	//Setup lastPosition as the current target
+	for ( uint8_t i = 0; i < AXIS_COUNT; i ++ )	lastPosition[i] = p[i];
+}
+
+void estimateMoveToNew(Point p, int32_t us, uint8_t relative) {
+	estimateTimeUs += (int64_t)us;
+
+	//Set last, based on if we moved relative or not on that axis
+	for ( uint8_t i = 0; i < AXIS_COUNT; i ++ ) {
+
+		if ( relative & (1 << i)) {
+			if (( ! estimating ) && (( i == 3 ) || ( i == 4 )))
+				filamentLength += (int64_t)p[i];
+			lastPosition[i] += p[i];
+		} else {
+			if (( ! estimating ) && (( i == 3 ) || ( i == 4 )))
+				filamentLength += (int64_t)(p[i] - lastPosition[i]);
+			lastPosition[i]  = p[i];
+		}
+	}
+}
 
 // A fast slice for processing commands and refilling the stepper queue, etc.
 void runCommandSlice() {
 	recentCommandClock ++;
 
 #ifdef HAS_MOOD_LIGHT
-	updateMoodStatus();
+	if ( ! estimating )	updateMoodStatus();
 #endif
 
 	if (sdcard::isPlaying()) {
@@ -192,14 +279,21 @@ void runCommandSlice() {
 			command_buffer.push(sdcard::playbackNext());
 		}
 	}
-	if (paused) { return; }
+	if ((paused) && ( ! estimating ))  { return; }
 
-	//If PauseAtZPos is enabled, pause when we reach zpos
-	//0.005 because of float point rounding errors, we want
-	//to make sure we stop at the correct place
-	if (( pauseZPos != 0) && ( ! isPaused() ) &&
-	    ( steppers::getPosition()[2]) >= pauseZPos )
+	//If we've reached Pause @ ZPos, then pause
+	if ((( pauseZPos != 0) && ( ! isPaused() ) &&
+	    ( steppers::getPosition()[2]) >= pauseZPos ) && ( ! estimating )) 
 		pause(true);
+
+	//If we're estimating, we don't need to wait for anything
+	if (( estimating ) &&
+	    (( mode == HOMING )       ||
+	     ( mode == MOVING )	      ||
+	     ( mode == DELAY )	      ||
+	     ( mode == WAIT_ON_TOOL ) ||
+	     ( mode == WAIT_ON_PLATFORM )))
+		mode = READY;
 
 	if (mode == HOMING) {
 		if (!steppers::isRunning()) {
@@ -232,6 +326,7 @@ void runCommandSlice() {
 			mode = READY;
 		}
 	}
+	Point p;
 	if (mode == READY) {
 		// process next command on the queue.
 		if (command_buffer.getLength() > 0) {
@@ -246,7 +341,8 @@ void runCommandSlice() {
 					int32_t y = pop32();
 					int32_t z = pop32();
 					int32_t dda = pop32();
-					steppers::setTarget(Point(x,y,z),dda);
+					estimateMoveTo(Point(x,y,z),dda);
+					if ( ! estimating )	steppers::setTarget(Point(x,y,z),dda);
 				}
 			} else if (command == HOST_CMD_QUEUE_POINT_EXT) {
 				recentCommandTime = recentCommandClock;
@@ -260,7 +356,8 @@ void runCommandSlice() {
 					int32_t a = pop32();
 					int32_t b = pop32();
 					int32_t dda = pop32();
-					steppers::setTarget(Point(x,y,z,a,b),dda);
+					estimateMoveTo(Point(x,y,z,a,b),dda);
+					if ( ! estimating )	steppers::setTarget(Point(x,y,z,a,b),dda);
 				}
 			} else if (command == HOST_CMD_QUEUE_POINT_NEW) {
 				recentCommandTime = recentCommandClock;
@@ -275,12 +372,14 @@ void runCommandSlice() {
 					int32_t b = pop32();
 					int32_t us = pop32();
 					uint8_t relative = pop8();
-					steppers::setTargetNew(Point(x,y,z,a,b),us,relative);
+					estimateMoveToNew(Point(x,y,z,a,b),us,relative);
+					if ( ! estimating )	steppers::setTargetNew(Point(x,y,z,a,b),us,relative);
 				}
 			} else if (command == HOST_CMD_CHANGE_TOOL) {
 				if (command_buffer.getLength() >= 2) {
 					command_buffer.pop(); // remove the command code
-                                        tool::setCurrentToolheadIndex(command_buffer.pop());
+					uint8_t tIndex = command_buffer.pop();
+                                        if ( ! estimating ) tool::setCurrentToolheadIndex(tIndex);
 				}
 			} else if (command == HOST_CMD_ENABLE_AXES) {
 				recentCommandTime = recentCommandClock;
@@ -290,7 +389,7 @@ void runCommandSlice() {
 					bool enable = (axes & 0x80) != 0;
 					for (int i = 0; i < STEPPER_COUNT; i++) {
 						if ((axes & _BV(i)) != 0) {
-							steppers::enableAxis(i, enable);
+							if ( ! estimating ) steppers::enableAxis(i, enable);
 						}
 					}
 				}
@@ -301,7 +400,8 @@ void runCommandSlice() {
 					int32_t x = pop32();
 					int32_t y = pop32();
 					int32_t z = pop32();
-					steppers::definePosition(Point(x,y,z));
+					estimateDefinePosition(Point(x,y,z));
+					if ( ! estimating )	steppers::definePosition(Point(x,y,z));
 				}
 			} else if (command == HOST_CMD_SET_POSITION_EXT) {
 				// check for completion
@@ -312,7 +412,8 @@ void runCommandSlice() {
 					int32_t z = pop32();
 					int32_t a = pop32();
 					int32_t b = pop32();
-					steppers::definePosition(Point(x,y,z,a,b));
+					estimateDefinePosition(Point(x,y,z,a,b));
+					if ( ! estimating )	steppers::definePosition(Point(x,y,z,a,b));
 				}
 			} else if (command == HOST_CMD_DELAY) {
 				if (command_buffer.getLength() >= 5) {
@@ -320,7 +421,8 @@ void runCommandSlice() {
 					command_buffer.pop(); // remove the command code
 					// parameter is in milliseconds; timeouts need microseconds
 					uint32_t microseconds = pop32() * 1000;
-					delay_timeout.start(microseconds);
+					estimateDelay(microseconds);
+					if ( ! estimating )	delay_timeout.start(microseconds);
 				}
 			} else if (command == HOST_CMD_FIND_AXES_MINIMUM ||
 					command == HOST_CMD_FIND_AXES_MAXIMUM) {
@@ -332,9 +434,10 @@ void runCommandSlice() {
 					bool direction = command == HOST_CMD_FIND_AXES_MAXIMUM;
 					mode = HOMING;
 					homing_timeout.start(timeout_s * 1000L * 1000L);
-					steppers::startHoming(command==HOST_CMD_FIND_AXES_MAXIMUM,
-							flags,
-							feedrate);
+					if ( ! estimating )
+						steppers::startHoming(command==HOST_CMD_FIND_AXES_MAXIMUM,
+								      flags,
+								      feedrate);
 				}
 			} else if (command == HOST_CMD_WAIT_FOR_TOOL) {
 				if (command_buffer.getLength() >= 6) {
@@ -343,7 +446,7 @@ void runCommandSlice() {
 					uint8_t currentToolIndex = command_buffer.pop();
 					uint16_t toolPingDelay = (uint16_t)pop16();
 					uint16_t toolTimeout = (uint16_t)pop16();
-					tool_wait_timeout.start(toolTimeout*1000000L);
+					if ( ! estimating ) tool_wait_timeout.start(toolTimeout*1000000L);
 				}
 			} else if (command == HOST_CMD_WAIT_FOR_PLATFORM) {
         // FIXME: Almost equivalent to WAIT_FOR_TOOL
@@ -353,7 +456,7 @@ void runCommandSlice() {
 					uint8_t currentToolIndex = command_buffer.pop();
 					uint16_t toolPingDelay = (uint16_t)pop16();
 					uint16_t toolTimeout = (uint16_t)pop16();
-					tool_wait_timeout.start(toolTimeout*1000000L);
+					if ( ! estimating ) tool_wait_timeout.start(toolTimeout*1000000L);
 				}
 			} else if (command == HOST_CMD_STORE_HOME_POSITION) {
 
@@ -362,15 +465,17 @@ void runCommandSlice() {
 					command_buffer.pop();
 					uint8_t axes = pop8();
 
-					// Go through each axis, and if that axis is specified, read it's value,
-					// then record it to the eeprom.
-					for (uint8_t i = 0; i < STEPPER_COUNT; i++) {
-						if ( axes & (1 << i) ) {
-							uint16_t offset = eeprom::AXIS_HOME_POSITIONS + 4*i;
-							uint32_t position = steppers::getPosition()[i];
-							cli();
-							eeprom_write_block(&position, (void*) offset, 4);
-							sei();
+					if ( ! estimating ) {
+						// Go through each axis, and if that axis is specified, read it's value,
+						// then record it to the eeprom.
+						for (uint8_t i = 0; i < STEPPER_COUNT; i++) {
+							if ( axes & (1 << i) ) {
+								uint16_t offset = eeprom::AXIS_HOME_POSITIONS + 4*i;
+								uint32_t position = steppers::getPosition()[i];
+								cli();
+								eeprom_write_block(&position, (void*) offset, 4);
+								sei();
+							}
 						}
 					}
 				}
@@ -379,8 +484,10 @@ void runCommandSlice() {
 				if (command_buffer.getLength() >= 2) {
 					command_buffer.pop();
 					uint8_t axes = pop8();
-
-					Point newPoint = steppers::getPosition();
+		
+					Point newPoint;
+					if ( estimating )	newPoint = lastPosition;
+					else			newPoint = steppers::getPosition();
 
 					for (uint8_t i = 0; i < STEPPER_COUNT; i++) {
 						if ( axes & (1 << i) ) {
@@ -391,7 +498,8 @@ void runCommandSlice() {
 						}
 					}
 
-					steppers::definePosition(newPoint);
+					estimateDefinePosition(newPoint);
+					if ( ! estimating )	steppers::definePosition(newPoint);
 				}
 
 			} else if (command == HOST_CMD_TOOL_COMMAND) {
@@ -399,20 +507,28 @@ void runCommandSlice() {
 					uint8_t payload_length = command_buffer[3];
 					if (command_buffer.getLength() >= 4+payload_length) {
 						// command is ready
-						if (tool::getLock()) {
-							OutPacket& out = tool::getOutPacket();
-							out.reset();
-							command_buffer.pop(); // remove the command code
-							out.append8(command_buffer.pop()); // copy tool index
-							out.append8(command_buffer.pop()); // copy command code
-							int len = pop8(); // get payload length
-							for (int i = 0; i < len; i++) {
-								out.append8(command_buffer.pop());
+						if ( estimating ) {
+							command_buffer.pop();
+							command_buffer.pop();
+							command_buffer.pop();
+							int len = pop8();
+							for (int i = 0; i < len; i++) command_buffer.pop();
+						} else {
+							if (tool::getLock()) {
+								OutPacket& out = tool::getOutPacket();
+								out.reset();
+								command_buffer.pop(); // remove the command code
+								out.append8(command_buffer.pop()); // copy tool index
+								out.append8(command_buffer.pop()); // copy command code
+								int len = pop8(); // get payload length
+								for (int i = 0; i < len; i++) {
+									out.append8(command_buffer.pop());
+								}
+								// we don't care about the response, so we can release
+								// the lock after we initiate the transfer
+								tool::startTransaction();
+								tool::releaseLock();
 							}
-							// we don't care about the response, so we can release
-							// the lock after we initiate the transfer
-							tool::startTransaction();
-							tool::releaseLock();
 						}
 					}
 				}
@@ -426,7 +542,8 @@ void runCommandSlice() {
 					int32_t fadeSpeed = pop32();
 					int32_t writeToEeprom = pop32();
 #ifdef HAS_MOOD_LIGHT
-					Motherboard::getBoard().MoodLightSetRGBColor((uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)fadeSpeed, (uint8_t)writeToEeprom);
+					if ( ! estimating )
+						Motherboard::getBoard().MoodLightSetRGBColor((uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)fadeSpeed, (uint8_t)writeToEeprom);
 #endif
 				}
 			} else if (command == HOST_CMD_MOOD_LIGHT_SET_HSB ) {
@@ -438,7 +555,7 @@ void runCommandSlice() {
 					int32_t b = pop32();
 					int32_t fadeSpeed = pop32();
 #ifdef HAS_MOOD_LIGHT
-					Motherboard::getBoard().MoodLightSetHSBColor((uint8_t)h, (uint8_t)s, (uint8_t)b, (uint8_t)fadeSpeed);
+					if ( ! estimating )	Motherboard::getBoard().MoodLightSetHSBColor((uint8_t)h, (uint8_t)s, (uint8_t)b, (uint8_t)fadeSpeed);
 #endif
 				}
 			} else if (command == HOST_CMD_MOOD_LIGHT_PLAY_SCRIPT ) {
@@ -448,16 +565,18 @@ void runCommandSlice() {
 					int32_t scriptId = pop32();
 					int32_t writeToEeprom = pop32();
 #ifdef HAS_MOOD_LIGHT
-					Motherboard::getBoard().MoodLightPlayScript((uint8_t)scriptId, (uint8_t)writeToEeprom);
+					if ( ! estimating )	Motherboard::getBoard().MoodLightPlayScript((uint8_t)scriptId, (uint8_t)writeToEeprom);
 #endif
 				}
 			} else if (command == HOST_CMD_BUZZER_REPEATS ) {
 				// check for completion
 				if (command_buffer.getLength() >= 2) {
 					command_buffer.pop(); // remove the command code
-					cli();
-        				eeprom_write_byte((uint8_t*)eeprom::BUZZER_REPEATS, pop8());
-					sei();
+					if ( ! estimating ) {
+						cli();
+        					eeprom_write_byte((uint8_t*)eeprom::BUZZER_REPEATS, pop8());
+						sei();
+					}
 				}
 			} else if (command == HOST_CMD_BUZZER_BUZZ ) {
 				// check for completion
@@ -467,8 +586,10 @@ void runCommandSlice() {
 					uint8_t duration = pop8();
 					uint8_t repeats  = pop8();
 #ifdef HAS_BUZZER
-					if ( buzzes == 0 )	Motherboard::getBoard().stopBuzzer();
-					else 			Motherboard::getBoard().buzz(buzzes, duration, repeats);
+					if ( ! estimating ) {
+						if ( buzzes == 0 )	Motherboard::getBoard().stopBuzzer();
+						else 			Motherboard::getBoard().buzz(buzzes, duration, repeats);
+					}
 #endif
 				}
 			} else {

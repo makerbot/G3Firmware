@@ -55,6 +55,7 @@ void InterfaceBoard::doUpdate() {
 	switch(host::getHostState()) {
 	case host::HOST_STATE_BUILDING:
 	case host::HOST_STATE_BUILDING_FROM_SD:
+	case host::HOST_STATE_ESTIMATING_FROM_SD:
 		if (!building) {
                         pushScreen(buildScreen);
 			building = true;

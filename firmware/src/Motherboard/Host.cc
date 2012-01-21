@@ -260,7 +260,7 @@ inline void handlePlayback(const InPacket& from_host, OutPacket& to_host) {
 	}
 	buildName[MAX_FILE_LEN-1] = '\0';
 
-	uint8_t response = startBuildFromSD();
+	uint8_t response = startBuildFromSD(false);
 	to_host.append8(response);
 }
 
@@ -467,7 +467,8 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			case HOST_CMD_RESET:
 				// TODO: This is fishy.
 				if (currentState == HOST_STATE_BUILDING
-						|| currentState == HOST_STATE_BUILDING_FROM_SD) {
+						|| currentState == HOST_STATE_BUILDING_FROM_SD
+						|| currentState == HOST_STATE_ESTIMATING_FROM_SD) {
 					stopBuild();
 				}
 
@@ -559,7 +560,7 @@ HostState getHostState() {
 	return currentState;
 }
 
-sdcard::SdErrorCode startBuildFromSD() {
+sdcard::SdErrorCode startBuildFromSD(bool estimateFirst) {
 	sdcard::SdErrorCode e;
 
 	// Attempt to start build
@@ -569,7 +570,8 @@ sdcard::SdErrorCode startBuildFromSD() {
 		return e;
 	}
 
-	currentState = HOST_STATE_BUILDING_FROM_SD;
+	if ( estimateFirst )	currentState = HOST_STATE_ESTIMATING_FROM_SD;
+	else			currentState = HOST_STATE_BUILDING_FROM_SD;
 
 	return e;
 }
@@ -582,6 +584,10 @@ void stopBuild() {
 bool isBuildComplete() {
 	if (( command::isEmpty() ) && ( ! sdcard::playbackHasNext() ))	return true;
 	return false;
+}
+
+void setHostStateBuildingFromSD() {
+	if ( currentState == HOST_STATE_ESTIMATING_FROM_SD )	currentState = HOST_STATE_BUILDING_FROM_SD;
 }
 
 }
