@@ -35,6 +35,48 @@ int16_t overrideExtrudeSeconds = 0;
 
 Point pausedPosition, homePosition;
 
+//Stored using STEPS_PER_MM_PRECISION
+int64_t axisStepsPerMM[5];
+
+
+enum Axis {
+	AXIS_X = 0,
+	AXIS_Y,
+	AXIS_Z,
+	AXIS_A,
+	AXIS_B
+};
+
+
+//Convert mm's to steps for the given axis
+//Accurate to 1/1000 mm
+
+int32_t mmToSteps(float mm, enum Axis axis) {
+	//Multiply mm by 1000 to avoid floating point errors
+	int64_t intmm = (int64_t)(mm * 1000.0);
+
+	//Calculate the number of steps
+	int64_t ret = intmm * axisStepsPerMM[axis];
+
+	//Divide the number of steps by the fixed precision and
+	//mm 1000;
+	for (uint8_t i=0 ; i < STEPS_PER_MM_PRECISION; i ++ )
+		ret /= 10;
+	ret /= 1000;
+	
+	return (int32_t)ret;
+}
+
+//Convert steps to mm's
+//As accurate as floating point is
+
+float stepsToMM(int32_t steps, enum Axis axis) {
+	//Convert axisStepsPerMM to a float	
+	float aspmf = (float)axisStepsPerMM[axis];
+	for (uint8_t i=0 ; i < STEPS_PER_MM_PRECISION; i ++ )
+		aspmf /= 10.0;
+	return (float)steps / aspmf;
+}
 
 void strcat(char *buf, const char* str)
 {
@@ -279,7 +321,7 @@ void JogMode::reset() {
 	uint8_t jogModeSettings = eeprom::getEeprom8(eeprom::JOG_MODE_SETTINGS, 0);
 
 	jogDistance = (enum distance_t)((jogModeSettings >> 1 ) & 0x07);
-	if ( jogDistance > DISTANCE_CONT ) jogDistance = DISTANCE_SHORT;
+	if ( jogDistance > DISTANCE_CONT ) jogDistance = DISTANCE_0_1MM;
 
 	distanceChanged = false;
 	lastDirectionButtonPressed = (ButtonArray::ButtonName)0;
@@ -297,9 +339,9 @@ void JogMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	const static PROGMEM prog_uchar jog3_user[] = "X V X     (mode)";
 	const static PROGMEM prog_uchar jog4_user[] = "  Y           Z-";
 
-	const static PROGMEM prog_uchar distanceShort[] = "SHORT";
-	const static PROGMEM prog_uchar distanceLong[] = "LONG";
-	const static PROGMEM prog_uchar distanceCont[] = "CONT";
+	const static PROGMEM prog_uchar distance0_1mm[] = ".1mm";
+	const static PROGMEM prog_uchar distance1mm[] = "1mm";
+	const static PROGMEM prog_uchar distanceCont[] = "Cont..";
 
 	if ( userViewModeChanged ) userViewMode = eeprom::getEeprom8(eeprom::JOG_MODE_SETTINGS, 0) & 0x01;
 
@@ -309,11 +351,13 @@ void JogMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		lcd.writeFromPgmspace(jog1);
 
 		switch (jogDistance) {
-		case DISTANCE_SHORT:
-			lcd.writeFromPgmspace(distanceShort);
+		case DISTANCE_0_1MM:
+			lcd.write(0xF3);	//Write tilde
+			lcd.writeFromPgmspace(distance0_1mm);
 			break;
-		case DISTANCE_LONG:
-			lcd.writeFromPgmspace(distanceLong);
+		case DISTANCE_1MM:
+			lcd.write(0xF3);	//Write tilde
+			lcd.writeFromPgmspace(distance1mm);
 			break;
 		case DISTANCE_CONT:
 			lcd.writeFromPgmspace(distanceCont);
@@ -340,7 +384,10 @@ void JogMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		if ( lastDirectionButtonPressed ) {
 			if (interface::isButtonPressed(lastDirectionButtonPressed))
 				JogMode::notifyButtonPressed(lastDirectionButtonPressed);
-			else	lastDirectionButtonPressed = (ButtonArray::ButtonName)0;
+			else {
+				lastDirectionButtonPressed = (ButtonArray::ButtonName)0;
+				steppers::abort();
+			}
 		}
 	}
 }
@@ -349,45 +396,46 @@ void JogMode::jog(ButtonArray::ButtonName direction) {
 	Point position = steppers::getPosition();
 
 	int32_t interval = 2000;
-	int32_t steps;
+	float	speed;	//In mm's
 
 	if ( jogDistance == DISTANCE_CONT )	interval = 1000;
 
 	switch(jogDistance) {
-	case DISTANCE_SHORT:
-		steps = 20;
+	case DISTANCE_0_1MM:
+		speed = 0.1;   //0.1mm
 		break;
-	case DISTANCE_LONG:
-		steps = 200;
+	case DISTANCE_1MM:
+		speed = 1.0;   //1mm
 		break;
 	case DISTANCE_CONT:
-		steps = 50;
+		speed = 1.5;   //1.5mm
 		break;
 	}
 
+
 	//Reverse direction of X and Y if we're in User View Mode and
 	//not model mode
-	uint32_t vMode = 1;
-	if ( userViewMode ) vMode = -1;;
+	int32_t vMode = 1;
+	if ( userViewMode ) vMode = -1;
 
 	switch(direction) {
         case ButtonArray::XMINUS:
-		position[0] -= vMode * steps;
+		position[0] -= vMode * mmToSteps(speed,AXIS_X);
 		break;
         case ButtonArray::XPLUS:
-		position[0] += vMode * steps;
+		position[0] += vMode * mmToSteps(speed,AXIS_X);
 		break;
         case ButtonArray::YMINUS:
-		position[1] -= vMode * steps;
+		position[1] -= vMode * mmToSteps(speed,AXIS_Y);
 		break;
         case ButtonArray::YPLUS:
-		position[1] += vMode * steps;
+		position[1] += vMode * mmToSteps(speed,AXIS_Y);
 		break;
         case ButtonArray::ZMINUS:
-		position[2] -= steps;
+		position[2] -= mmToSteps(speed,AXIS_Z);
 		break;
         case ButtonArray::ZPLUS:
-		position[2] += steps;
+		position[2] += mmToSteps(speed,AXIS_Z);
 		break;
 	}
 
@@ -406,14 +454,14 @@ void JogMode::notifyButtonPressed(ButtonArray::ButtonName button) {
         case ButtonArray::OK:
 		switch(jogDistance)
 		{
-			case DISTANCE_SHORT:
-				jogDistance = DISTANCE_LONG;
+			case DISTANCE_0_1MM:
+				jogDistance = DISTANCE_1MM;
 				break;
-			case DISTANCE_LONG:
+			case DISTANCE_1MM:
 				jogDistance = DISTANCE_CONT;
 				break;
 			case DISTANCE_CONT:
-				jogDistance = DISTANCE_SHORT;
+				jogDistance = DISTANCE_0_1MM;
 				break;
 		}
 		distanceChanged = true;
@@ -536,6 +584,9 @@ void ExtruderMode::extrude(seconds_t seconds, bool overrideTempCheck) {
 	//200 * 8 = 200 steps per revolution * 1/8 stepping
 	int32_t interval = (int32_t)(60L * 1000000L) / (int32_t)((float)(200 * 8) * rpm);
 	int16_t stepsPerSecond = (int16_t)((200.0 * 8.0 * rpm) / 60.0);
+
+	//50.235479 is ToM stepper extruder speed, we use this as a baseline
+	stepsPerSecond = (int16_t)((float)stepsPerSecond * stepsToMM((int32_t)50.235479, AXIS_A));
 
 	if ( seconds == 0 )	steppers::abort();
 	else {
@@ -694,6 +745,7 @@ void ExtruderSetRpmScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
 			interface::popScreen();
 			break;
 		case ButtonArray::ZERO:
+			break;
 		case ButtonArray::OK:
 			eeprom_write_byte((uint8_t *)eeprom::EXTRUDE_RPM, rpm);
 			interface::popScreen();
@@ -877,6 +929,7 @@ void MoodLightSetRGBScreen::notifyButtonPressed(ButtonArray::ButtonName button) 
 		interface::popScreen();
 		break;
         case ButtonArray::ZERO:
+		break;
         case ButtonArray::OK:
 		if ( inputMode < 2 ) {
 			inputMode ++;
@@ -1096,7 +1149,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		lcd.writeFromPgmspace(platform_temp);
 
 		lcd.setCursor(15,3);
-		if ( command::getPauseAtZPos() == 0.0 )	lcd.write(' ');
+		if ( command::getPauseAtZPos() == 0 )	lcd.write(' ');
 		else					lcd.write('*');
 	}
 
@@ -1144,7 +1197,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		}
 
 		lcd.setCursor(15,3);
-		if ( command::getPauseAtZPos() == 0.0 )	lcd.write(' ');
+		if ( command::getPauseAtZPos() == 0 )	lcd.write(' ');
 		else					lcd.write('*');
 		break;
 	case 4:
@@ -1227,8 +1280,8 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 				Point position = steppers::getPosition();
 			
-				//Divide by 200m because there are 200 steps per mm
-				lcd.writeFloat((float)position[2] / 200.0, 3);
+				//Divide by the axis steps to mm's
+				lcd.writeFloat(stepsToMM(position[2], AXIS_Z), 3);
 
 				lcd.writeFromPgmspace(zpos_mm);
 				break;
@@ -1499,10 +1552,31 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 	lind ++;
 }
 
+int64_t MainMenu::checkAndGetEepromDefault(const uint16_t location, const int64_t default_value) {
+        int64_t value = eeprom::getEepromInt64(location, default_value);
+
+        if (( value <= STEPS_PER_MM_LOWER_LIMIT ) || ( value >= STEPS_PER_MM_UPPER_LIMIT )) {
+                eeprom::putEepromInt64(location, default_value);
+
+                //Just to be on the safe side
+                value = eeprom::getEepromInt64(location, default_value);
+        }
+
+        return value;
+}
 
 MainMenu::MainMenu() {
-	itemCount = 16;
+	itemCount = 17;
 	reset();
+
+	//Read in the axisStepsPerMM, we'll need these for various firmware functions later on
+        cli();
+        axisStepsPerMM[AXIS_X] = checkAndGetEepromDefault(eeprom::STEPS_PER_MM_X, STEPS_PER_MM_X_DEFAULT);
+        axisStepsPerMM[AXIS_Y] = checkAndGetEepromDefault(eeprom::STEPS_PER_MM_Y, STEPS_PER_MM_Y_DEFAULT);
+        axisStepsPerMM[AXIS_Z] = checkAndGetEepromDefault(eeprom::STEPS_PER_MM_Z, STEPS_PER_MM_Z_DEFAULT);
+        axisStepsPerMM[AXIS_A] = checkAndGetEepromDefault(eeprom::STEPS_PER_MM_A, STEPS_PER_MM_A_DEFAULT);
+        axisStepsPerMM[AXIS_B] = checkAndGetEepromDefault(eeprom::STEPS_PER_MM_B, STEPS_PER_MM_B_DEFAULT);
+        sei();
 }
 
 void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
@@ -1520,6 +1594,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar calibrate[]	= "Calibrate";
 	const static PROGMEM prog_uchar homeOffsets[]	= "Home Offsets";
 	const static PROGMEM prog_uchar endStops[]	= "Test End Stops";
+	const static PROGMEM prog_uchar stepsPerMm[]	= "Axis Steps:mm";
 	const static PROGMEM prog_uchar versions[]	= "Version";
 	const static PROGMEM prog_uchar snake[]		= "Snake Game";
 
@@ -1567,9 +1642,12 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(endStops);
 		break;
 	case 14:
-		lcd.writeFromPgmspace(versions);
+		lcd.writeFromPgmspace(stepsPerMm);
 		break;
 	case 15:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 16:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -1635,10 +1713,14 @@ void MainMenu::handleSelect(uint8_t index) {
 			interface::pushScreen(&testEndStopsMode);
 			break;
 		case 14:
+			// Show steps per mm menu
+			interface::pushScreen(&stepsPerMMMode);
+			break;
+		case 15:
 			// Show build from SD screen
                         interface::pushScreen(&versionMode);
 			break;
-		case 15:
+		case 16:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;
@@ -1836,6 +1918,7 @@ void Tool0TempSetScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
 		interface::popScreen();
 		break;
         case ButtonArray::ZERO:
+		break;
         case ButtonArray::OK:
 		eeprom_write_byte((uint8_t*)eeprom::TOOL0_TEMP,value);
 		interface::popScreen();
@@ -1902,6 +1985,7 @@ void PlatformTempSetScreen::notifyButtonPressed(ButtonArray::ButtonName button) 
 		interface::popScreen();
 		break;
         case ButtonArray::ZERO:
+		break;
         case ButtonArray::OK:
 		eeprom_write_byte((uint8_t*)eeprom::PLATFORM_TEMP,value);
 		interface::popScreen();
@@ -2052,26 +2136,31 @@ void HomeAxisMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 void HomeAxisMode::home(ButtonArray::ButtonName direction) {
 	uint8_t axis = 0;
 	bool 	maximums;
+	float	interval = 2000.0;
 
 	switch(direction) {
 	        case ButtonArray::XMINUS:
       		case ButtonArray::XPLUS:
 			axis 	 = 0x01;
 			maximums = false;
+			interval *= stepsToMM((int32_t)47.06, AXIS_X); //Use ToM as baseline
 			break;
         	case ButtonArray::YMINUS:
         	case ButtonArray::YPLUS:
 			axis 	 = 0x02;
 			maximums = false;
+			interval *= stepsToMM((int32_t)47.06, AXIS_Y); //Use ToM as baseline
 			break;
         	case ButtonArray::ZMINUS:
         	case ButtonArray::ZPLUS:
 			axis 	 = 0x04;
 			maximums = true;
+			interval /= 4.0;	//Speed up Z
+			interval *= stepsToMM((int32_t)200.0, AXIS_Z); //Use ToM as baseline
 			break;
 	}
 
-	steppers::startHoming(maximums, axis, (uint32_t)2000);
+	steppers::startHoming(maximums, axis, (uint32_t)interval);
 }
 
 void HomeAxisMode::notifyButtonPressed(ButtonArray::ButtonName button) {
@@ -2212,29 +2301,29 @@ void PauseMode::reset() {
 }
 
 void PauseMode::jog(ButtonArray::ButtonName direction) {
-	uint8_t steps = 50;
 	bool extrude = false;
 	int32_t interval = 1000;
+	float	speed = 1.5;	//In mm's
 	Point position = steppers::getPosition();
 
 	switch(direction) {
        		case ButtonArray::XMINUS:
-			position[0] -= steps;
+			position[0] -= mmToSteps(speed, AXIS_X);
 			break;
         	case ButtonArray::XPLUS:
-			position[0] += steps;
+			position[0] += mmToSteps(speed, AXIS_X);
 			break;
         	case ButtonArray::YMINUS:
-			position[1] -= steps;
+			position[1] -= mmToSteps(speed, AXIS_Y);
 			break;
        	 	case ButtonArray::YPLUS:
-			position[1] += steps;
+			position[1] += mmToSteps(speed, AXIS_Y);
 			break;
         	case ButtonArray::ZMINUS:
-			position[2] -= steps;
+			position[2] -= mmToSteps(speed, AXIS_Z);
 			break;
        		case ButtonArray::ZPLUS:
-			position[2] += steps;
+			position[2] += mmToSteps(speed, AXIS_Z);
 			break;
 		case ButtonArray::OK:
 		case ButtonArray::ZERO:
@@ -2244,6 +2333,10 @@ void PauseMode::jog(ButtonArray::ButtonName direction) {
 			//200 * 8 = 200 steps per revolution * 1/8 stepping
 			interval = (int32_t)(60L * 1000000L) / (int32_t)((float)(200 * 8) * rpm);
 			int16_t stepsPerSecond = (int16_t)((200.0 * 8.0 * rpm) / 60.0);
+
+			//50.235479 is ToM stepper extruder speed, we
+			//use this as a baseline
+			stepsPerSecond = (int16_t)((float)stepsPerSecond * stepsToMM((int32_t)50.235479, AXIS_A));
 
 			//Handle reverse
 			if ( direction == ButtonArray::OK )	stepsPerSecond *= -1;
@@ -2263,13 +2356,14 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	const static PROGMEM prog_uchar waitForCurrentCommand[] = "Entering pause..";
 	const static PROGMEM prog_uchar retractFilament[]	= "Retract Filament";
 	const static PROGMEM prog_uchar movingZ[] 		= "Moving Z up 2mm ";
+	const static PROGMEM prog_uchar movingY[]		= "Moving Y 2mm    ";
 	const static PROGMEM prog_uchar leavingPaused[]		= "Leaving pause.. ";
-	const static PROGMEM prog_uchar paused1[] 		= "Paused:         ";
+	const static PROGMEM prog_uchar paused1[] 		= "Paused(";
 	const static PROGMEM prog_uchar paused2[] 		= "   Y+         Z+";
 	const static PROGMEM prog_uchar paused3[] 		= "X- Rev X+  (Fwd)";
 	const static PROGMEM prog_uchar paused4[] 		= "   Y-         Z-";
 
-	int32_t interval = 2000;
+	int32_t interval = 1000;
 	Point newPosition = pausedPosition;
 
 	if (forceRedraw)	lcd.clear();
@@ -2289,8 +2383,8 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 			pausedPosition = steppers::getPosition();
 			newPosition = pausedPosition;
-			newPosition[3] += 50;		//Retract the filament so we don't get blobs
-			steppers::setTarget(newPosition, interval / 4);
+			newPosition[3] += mmToSteps(1.0, AXIS_A);	//Retract the filament so we don't get blobs
+			steppers::setTarget(newPosition, interval / 2);
 			
 			pauseState ++;
 			break;
@@ -2302,19 +2396,33 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			}
 			break;
 
-		case 3: //Last command finished, record current position and move
-			//Z away from build
-			lcd.writeFromPgmspace(movingZ);
-
+		case 3: //Last command finished, record position and move Y to dislodge filament
+			lcd.writeFromPgmspace(movingY);
 			pausedPosition = steppers::getPosition();
 			newPosition = pausedPosition;
-			newPosition[2] += 2 * 200;	//200 because of the number of steps per mm
-			steppers::setTarget(newPosition, interval / 4);
+			newPosition[1] += mmToSteps(4.0, AXIS_Y);
+			steppers::setTarget(newPosition, interval / 2);
+
+			pauseState ++;
+			break;
+		
+		case 4: //Wait for the Y move to complete
+			if ( ! steppers::isRunning()) {
+				pauseState ++;
+			}
+			break;
+
+		case 5: //Last command finished, move Z away from build
+			lcd.writeFromPgmspace(movingZ);
+
+			newPosition = steppers::getPosition();
+			newPosition[2] += mmToSteps(2.0, AXIS_Z);
+			steppers::setTarget(newPosition, interval / 2);
 			
 			pauseState ++;
 			break;
 
-		case 4: //Wait for the Z move up to complete
+		case 6: //Wait for the Z move up to complete
 			lcd.writeFromPgmspace(movingZ);
 			if ( ! steppers::isRunning()) {
 				pauseState ++;
@@ -2322,7 +2430,11 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				//We write this here to avoid tieing up the processor
 				//in the next state
 				lcd.clear();
+
 				lcd.writeFromPgmspace(paused1);
+				lcd.writeFloat(stepsToMM(pausedPosition[2], AXIS_Z), 3);
+				lcd.writeString("):");
+
 				lcd.setCursor(0,1);
 				lcd.writeFromPgmspace(paused2);
 				lcd.setCursor(0,2);
@@ -2332,22 +2444,22 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			}
 			break;
 	
-		case 5: //Buzz if we're a Pause@ZPos
+		case 7: //Buzz if we're a Pause@ZPos
 			if ( autoPause ) Motherboard::getBoard().buzz(4, 3, eeprom::getEeprom8(eeprom::BUZZER_REPEATS, 3));
 			pauseState ++;
 			break;
 		
-		case 6: //We're now paused
+		case 8: //We're now paused
 			break;
 
-		case 7: //Leaving paused, wait for any steppers to finish
-			if ( autoPause ) command::pauseAtZPos(0.0);
+		case 9: //Leaving paused, wait for any steppers to finish
+			if ( autoPause ) command::pauseAtZPos(0);
 			lcd.clear();
 			lcd.writeFromPgmspace(leavingPaused);
 			if ( ! steppers::isRunning()) pauseState ++;
 			break;
 
-		case 8:	//Return to original position
+		case 10://Return to original position
 			lcd.writeFromPgmspace(leavingPaused);
 
 			//The extruders may have moved, so it doesn't make sense
@@ -2360,7 +2472,7 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			pauseState ++;
 			break;
 
-		case 9: //Wait for return to original position
+		case 11://Wait for return to original position
 			lcd.writeFromPgmspace(leavingPaused);
 			if ( ! steppers::isRunning()) {
 				pauseState = 0;
@@ -2374,23 +2486,26 @@ void PauseMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	if ( lastDirectionButtonPressed ) {
 		if (interface::isButtonPressed(lastDirectionButtonPressed))
 			jog(lastDirectionButtonPressed);
-		else	lastDirectionButtonPressed = (ButtonArray::ButtonName)0;
+		else {
+			lastDirectionButtonPressed = (ButtonArray::ButtonName)0;
+			steppers::abort();
+		}
 	}
 }
 
 void PauseMode::notifyButtonPressed(ButtonArray::ButtonName button) {
-	if ( button == ButtonArray::CANCEL ) {
-		if ( pauseState == 6 )	pauseState ++;
+	if ( pauseState == 8 ) {
+		if ( button == ButtonArray::CANCEL )	pauseState ++;
+		else					jog(button);
 	}
-	else jog(button);
 }
 
 void PauseAtZPosScreen::reset() {
-	float currentPause = command::getPauseAtZPos();
-	if ( currentPause == 0.0 ) {
+	int32_t currentPause = command::getPauseAtZPos();
+	if ( currentPause == 0 ) {
 		Point position = steppers::getPosition();
-		pauseAtZPos = (float)position[2] / 200.0;
-	} else  pauseAtZPos = currentPause;
+		pauseAtZPos = stepsToMM(position[2], AXIS_Z);
+	} else  pauseAtZPos = stepsToMM(currentPause, AXIS_Z);
 }
 
 void PauseAtZPosScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
@@ -2416,10 +2531,11 @@ void PauseAtZPosScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 void PauseAtZPosScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
 	switch (button) {
-		case ButtonArray::OK:
 		case ButtonArray::ZERO:
+			break;
+		case ButtonArray::OK:
 			//Set the pause
-			command::pauseAtZPos(pauseAtZPos);
+			command::pauseAtZPos(mmToSteps(pauseAtZPos, AXIS_Z));
 		case ButtonArray::CANCEL:
 			interface::popScreen();
 			interface::popScreen();
@@ -2587,25 +2703,30 @@ void CalibrateMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	//Some states are changed when something completes, in which case we do it here
 	uint8_t axes;
 
+	float interval = 2000.0;
+
 	switch(calibrationState) {
 		case CS_HOME_Z:
 			//Declare current position to be x=0, y=0, z=0, a=0, b=0
 			steppers::definePosition(Point(0,0,0,0,0));
-			steppers::startHoming(true, 0x04, (uint32_t)2000);
+			interval *= stepsToMM((int32_t)200.0, AXIS_Z); //Use ToM as baseline
+			steppers::startHoming(true, 0x04, (uint32_t)interval);
 			calibrationState = CS_HOME_Z_WAIT;
 			break;
 		case CS_HOME_Z_WAIT:
 			if ( ! steppers::isHoming() )	calibrationState = CS_HOME_Y;
 			break;
 		case CS_HOME_Y:
-			steppers::startHoming(false, 0x02, (uint32_t)2000);
+			interval *= stepsToMM((int32_t)47.06, AXIS_Y); //Use ToM as baseline
+			steppers::startHoming(false, 0x02, (uint32_t)interval);
 			calibrationState = CS_HOME_Y_WAIT;
 			break;
 		case CS_HOME_Y_WAIT:
 			if ( ! steppers::isHoming() )	calibrationState = CS_HOME_X;
 			break;
 		case CS_HOME_X:
-			steppers::startHoming(false, 0x01, (uint32_t)2000);
+			interval *= stepsToMM((int32_t)47.06, AXIS_X); //Use ToM as baseline
+			steppers::startHoming(false, 0x01, (uint32_t)interval);
 			calibrationState = CS_HOME_X_WAIT;
 			break;
 		case CS_HOME_X_WAIT:
@@ -2677,6 +2798,7 @@ void HomeOffsetsMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	const static PROGMEM prog_uchar message1z[] = "Z Offset(steps):";
 	const static PROGMEM prog_uchar message4[]  = "Up/Dn/Ent to Set";
 	const static PROGMEM prog_uchar blank[]     = " ";
+	const static PROGMEM prog_uchar mm[]        = "mm";
 
 	if ( homeOffsetState != lastHomeOffsetState )	forceRedraw = true;
 
@@ -2704,18 +2826,19 @@ void HomeOffsetsMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 	switch(homeOffsetState) {
 		case HOS_OFFSET_X:
-			position = (float)homePosition[0];
+			position = stepsToMM(homePosition[0], AXIS_X);
 			break;
 		case HOS_OFFSET_Y:
-			position = (float)homePosition[1];
+			position = stepsToMM(homePosition[1], AXIS_Y);
 			break;
 		case HOS_OFFSET_Z:
-			position = (float)homePosition[2];
+			position = stepsToMM(homePosition[2], AXIS_Z);
 			break;
 	}
 
 	lcd.setCursor(0,1);
-	lcd.writeFloat((float)position, 0);
+	lcd.writeFloat((float)position, 3);
+	lcd.writeFromPgmspace(mm);
 
 	lastHomeOffsetState = homeOffsetState;
 }
@@ -2735,42 +2858,38 @@ void HomeOffsetsMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 		return;
 	}
 
-	float currentPosition;
 	uint8_t currentIndex = homeOffsetState - HOS_OFFSET_X;
-
-	currentPosition = (float)homePosition[currentIndex];
 
 	switch (button) {
 		case ButtonArray::CANCEL:
 			interface::popScreen();
 			break;
 		case ButtonArray::ZERO:
+			break;
 		case ButtonArray::OK:
 			if 	( homeOffsetState == HOS_OFFSET_X )	homeOffsetState = HOS_OFFSET_Y;
 			else if ( homeOffsetState == HOS_OFFSET_Y )	homeOffsetState = HOS_OFFSET_Z;
 			break;
 		case ButtonArray::ZPLUS:
 			// increment more
-			currentPosition += 5.0;
+			homePosition[currentIndex] += 20;
 			break;
 		case ButtonArray::ZMINUS:
 			// decrement more
-			currentPosition -= 5.0;
+			homePosition[currentIndex] -= 20;
 			break;
 		case ButtonArray::YPLUS:
 			// increment less
-			currentPosition += 1;
+			homePosition[currentIndex] += 1;
 			break;
 		case ButtonArray::YMINUS:
 			// decrement less
-			currentPosition -= 1.0;
+			homePosition[currentIndex] -= 1;
 			break;
 		case ButtonArray::XMINUS:
 		case ButtonArray::XPLUS:
 			break;
 	}
-
-	homePosition[currentIndex] = (int32_t)currentPosition;
 }
 
 void BuzzerSetRepeatsMode::reset() {
@@ -2808,6 +2927,7 @@ void BuzzerSetRepeatsMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 			interface::popScreen();
 			break;
 		case ButtonArray::ZERO:
+			break;
 		case ButtonArray::OK:
 			eeprom_write_byte((uint8_t *)eeprom::BUZZER_REPEATS, repeats);
 			interface::popScreen();
@@ -2879,6 +2999,156 @@ void ExtruderFanMenu::handleSelect(uint8_t index) {
                 	interface::popScreen();
 			break;
 	}
+}
+
+void StepsPerMMMode::reset() {
+	lastStepsPerMMState = SPM_NONE;
+	stepsPerMMState	    = SPM_SET_X;
+	cursorLocation	    = 0;
+	originalStepsPerMM  = axisStepsPerMM[AXIS_X];
+}
+
+#define STEPS_PER_MM_INCREMENT	0.000001
+
+void StepsPerMMMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar message1x[] = "X Steps per mm:";
+	const static PROGMEM prog_uchar message1y[] = "Y Steps per mm:";
+	const static PROGMEM prog_uchar message1z[] = "Z Steps per mm:";
+	const static PROGMEM prog_uchar message1a[] = "A Steps per mm:";
+	const static PROGMEM prog_uchar message4[]  = "Up/Dn/Ent to Set";
+	const static PROGMEM prog_uchar blank[]     = " ";
+
+	if ( stepsPerMMState != lastStepsPerMMState )	forceRedraw = true;
+
+	if (forceRedraw) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		switch(stepsPerMMState) {
+			case SPM_SET_X:
+				lcd.writeFromPgmspace(message1x);
+				break;
+                	case SPM_SET_Y:
+				lcd.writeFromPgmspace(message1y);
+				break;
+                	case SPM_SET_Z:
+				lcd.writeFromPgmspace(message1z);
+				break;
+                	case SPM_SET_A:
+				lcd.writeFromPgmspace(message1a);
+				break;
+		}
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(message4);
+	}
+
+	int64_t spm = 0;
+
+	switch(stepsPerMMState) {
+		case SPM_SET_X:
+			spm = axisStepsPerMM[AXIS_X];
+			break;
+		case SPM_SET_Y:
+			spm = axisStepsPerMM[AXIS_Y];
+			break;
+		case SPM_SET_Z:
+			spm = axisStepsPerMM[AXIS_Z];
+			break;
+		case SPM_SET_A:
+			spm = axisStepsPerMM[AXIS_A];
+			break;
+	}
+
+	//Write the number
+	lcd.setCursor(0,1);
+	lcd.writeFixedPoint(spm, STEPS_PER_MM_PADDING, STEPS_PER_MM_PRECISION);
+
+	//Draw the cursor
+	lcd.setCursor(cursorLocation,2);
+	lcd.write('^');
+
+	//Write a blank before and after the cursor if we're not at the ends
+	if ( cursorLocation >= 1 ) {
+		lcd.setCursor(cursorLocation-1, 2);
+		lcd.writeFromPgmspace(blank);
+	}
+	if ( cursorLocation < 15 ) {
+		lcd.setCursor(cursorLocation+1, 2);
+		lcd.writeFromPgmspace(blank);
+	}
+
+	lastStepsPerMMState = stepsPerMMState;
+}
+
+void StepsPerMMMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	int64_t spm;
+	uint16_t offset;
+	uint8_t currentIndex = stepsPerMMState - SPM_SET_X;
+
+	spm = axisStepsPerMM[currentIndex];
+
+	//Calculate the increment based on the cursor location, allowing
+	//for the decimal point
+	int64_t increment = 1;
+	for (uint8_t i = (STEPS_PER_MM_PADDING + STEPS_PER_MM_PRECISION); i >= 0; i -- ) {
+		if ( i == cursorLocation ) break;
+		if ( i != STEPS_PER_MM_PADDING ) increment *= 10;
+	}
+	
+	//Don't increment if we're sitting on the decimcal point
+	if ( cursorLocation == STEPS_PER_MM_PADDING )	increment = 0;
+
+	switch (button) {
+		case ButtonArray::CANCEL:
+			axisStepsPerMM[currentIndex] = originalStepsPerMM;
+			interface::popScreen();
+			return;
+		case ButtonArray::ZERO:
+			break;
+		case ButtonArray::OK:
+			//Write the new steps per mm positions
+			offset = eeprom::STEPS_PER_MM_X + sizeof(int64_t) * currentIndex;
+			cli();
+			eeprom::putEepromInt64(offset,axisStepsPerMM[currentIndex]);
+		
+			//Read it back in, because we could have floating point rounding happening
+			axisStepsPerMM[currentIndex] = eeprom::getEepromInt64(offset, 1);
+			sei();
+
+			if ( stepsPerMMState == SPM_SET_A ) {
+				interface::popScreen();
+			}
+			else {
+				//Increment to the next index
+				stepsPerMMState = (enum StepsPerMMState)((uint8_t)stepsPerMMState + 1);
+				cursorLocation	    = 0;
+				originalStepsPerMM = axisStepsPerMM[currentIndex + 1];
+			}
+			return;
+		case ButtonArray::YPLUS:
+		case ButtonArray::ZPLUS:
+			// increment
+			spm += increment;
+			break;
+		case ButtonArray::YMINUS:
+		case ButtonArray::ZMINUS:
+			// decrement
+			spm -= increment;
+			break;
+		case ButtonArray::XMINUS:
+			if ( cursorLocation > 0 )	cursorLocation --;
+			break;
+		case ButtonArray::XPLUS:
+			if ( cursorLocation < 15 ) 	cursorLocation ++;
+			break;
+	}
+
+	//Hard limits
+	if ( spm >= STEPS_PER_MM_UPPER_LIMIT ) spm = STEPS_PER_MM_UPPER_LIMIT;
+        if ( spm <= STEPS_PER_MM_LOWER_LIMIT ) spm = STEPS_PER_MM_LOWER_LIMIT;
+
+	axisStepsPerMM[currentIndex] = spm;
 }
 
 #endif

@@ -342,6 +342,34 @@ void LiquidCrystal::writeFloat(float value, uint8_t decimalPlaces) {
 	}
 }
 
+//Writes a fixed point number stored in padding.precision format
+//where numbers are padded with leading zeros to "padding", and
+//Displays "overflow" if the number doesn't fit within padding
+//Example:  writeFixedPoint(2000 00000, 5, 5) displays 02000.00000
+
+void LiquidCrystal::writeFixedPoint(int64_t value, uint8_t padding, uint8_t precision) {
+        const static PROGMEM prog_uchar overflow[]  = "overflow";
+
+	int64_t divisor = 1;
+	for (uint8_t i = 0; i < (padding + precision); i ++ )
+		divisor *= 10;
+	
+	if (( value / divisor ) > 0) {
+        	writeFromPgmspace(overflow);
+		return;
+	}
+
+	uint8_t i = 0;
+	do {
+		divisor /= 10;
+		if ( i == padding )	write('.');
+		write(((uint8_t)(value / divisor)) + '0');
+		value %= divisor;
+		i ++;	
+	}
+	while ( divisor > 1 );
+}
+
 void LiquidCrystal::writeString(char message[]) {
 	char* letter = message;
 	while (*letter != 0) {

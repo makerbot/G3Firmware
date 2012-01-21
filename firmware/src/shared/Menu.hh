@@ -103,8 +103,8 @@ protected:
 class JogMode: public Screen {
 private:
 	enum distance_t {
-	  DISTANCE_SHORT = 0,
-	  DISTANCE_LONG,
+	  DISTANCE_0_1MM = 0,
+	  DISTANCE_1MM,
 	  DISTANCE_CONT,
 	};
 
@@ -563,6 +563,32 @@ protected:
 	void handleSelect(uint8_t index);
 };
 
+class StepsPerMMMode: public Screen {
+private:
+	enum StepsPerMMState {
+		SPM_NONE,
+		SPM_SET_X,
+		SPM_SET_Y,
+		SPM_SET_Z,
+		SPM_SET_A
+	};
+
+	enum StepsPerMMState stepsPerMMState, lastStepsPerMMState;
+
+	uint8_t	cursorLocation;
+
+	int64_t originalStepsPerMM;
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -586,10 +612,13 @@ private:
 	ExtruderFanMenu extruderFanMenu;
 	CalibrateMode calibrateMode;
 	HomeOffsetsMode homeOffsetsMode;
+	StepsPerMMMode stepsPerMMMode;
 	TestEndStopsMode testEndStopsMode;
         VersionMode versionMode;
 	MoodLightMode	moodLightMode;
         SnakeMode snake;
+
+	int64_t checkAndGetEepromDefault(const uint16_t location, const int64_t default_value);
 };
 
 #endif

@@ -41,6 +41,11 @@ void setDefaults() {
     eeprom_write_byte((uint8_t*)eeprom::MOOD_LIGHT_CUSTOM_BLUE,255);
     eeprom_write_byte((uint8_t*)eeprom::JOG_MODE_SETTINGS,0);
     eeprom_write_byte((uint8_t*)eeprom::BUZZER_REPEATS,3);
+    putEepromInt64(eeprom::STEPS_PER_MM_X,STEPS_PER_MM_X_DEFAULT);
+    putEepromInt64(eeprom::STEPS_PER_MM_Y,STEPS_PER_MM_Y_DEFAULT);
+    putEepromInt64(eeprom::STEPS_PER_MM_Z,STEPS_PER_MM_Z_DEFAULT);
+    putEepromInt64(eeprom::STEPS_PER_MM_A,STEPS_PER_MM_A_DEFAULT);
+    putEepromInt64(eeprom::STEPS_PER_MM_B,STEPS_PER_MM_B_DEFAULT);
 }
 
 }

@@ -75,6 +75,13 @@ const static uint16_t JOG_MODE_SETTINGS		= 0x0089;
 //0 = No system buzzing, >=1 = number of repeats to buzz for
 const static uint16_t BUZZER_REPEATS		= 0x008A;
 
+//Steps per mm, each one is 8 bytes long and are stored as int64_t
+const static uint16_t STEPS_PER_MM_X		= 0x008B;
+const static uint16_t STEPS_PER_MM_Y		= 0x0093;
+const static uint16_t STEPS_PER_MM_Z		= 0x009B;
+const static uint16_t STEPS_PER_MM_A		= 0x00A3;
+const static uint16_t STEPS_PER_MM_B		= 0x00AB;
+
 /// Reset all data in the EEPROM to a default.
 void setDefaults();
 
