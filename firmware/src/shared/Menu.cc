@@ -37,6 +37,8 @@ bool estimatingBuild = false;
 
 Point pausedPosition, homePosition;
 
+float holdFilamentUsed;
+
 //Stored using STEPS_PER_MM_PRECISION
 int64_t axisStepsPerMM[5];
 
@@ -1101,6 +1103,7 @@ void MonitorMode::reset() {
 	pauseMode.autoPause = false;
 	buildCompleteBuzzPlayed = false;
 	overrideForceRedraw = false;
+	holdFilamentUsed = 0.0;
 }
 
 
@@ -1320,6 +1323,11 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 					lcd.writeString(buf);
 					lcd.writeFromPgmspace(time_left_secs);	
 				} else if (( tsecs <= 0) || ( host::isBuildComplete() ) || ( buildComplete ) ) {
+					if ( ! buildComplete ) {
+						//Store it so we can continue to use it
+						holdFilamentUsed = stepsToMM(command::getFilamentLength(), AXIS_A);
+						command::addFilamentUsed();
+					}	
 					buildComplete = true;
 					lcd.writeFromPgmspace(time_left_none);
 				} else {
@@ -1343,10 +1351,11 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				lcd.setCursor(0,1);
 				lcd.writeFromPgmspace(filament);
 				lcd.setCursor(9,1);
-				//Get filament used and convert to meters
-				filamentUsed = stepsToMM(command::getFilamentLength(), AXIS_A) / 10000.0;
-				if	( filamentUsed < 0.01 )	{
-					 filamentUsed *= 10000.0;	//Back to mm's
+				if ( holdFilamentUsed != 0.0 )	filamentUsed = holdFilamentUsed;
+				else				filamentUsed = stepsToMM(command::getFilamentLength(), AXIS_A);
+				filamentUsed /= 1000.0;	//convert to meters
+				if	( filamentUsed < 0.1 )	{
+					 filamentUsed *= 1000.0;	//Back to mm's
 					precision = 1;
 				}
 				else if ( filamentUsed < 10.0 )	 precision = 4;
@@ -1607,6 +1616,7 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 	lind ++;
 
 	if ( index == lind) {
+		command::addFilamentUsed();
 		// Cancel build, returning to whatever menu came before monitor mode.
 		// TODO: Cancel build.
 		interface::popScreen();
@@ -1649,7 +1659,7 @@ int64_t MainMenu::checkAndGetEepromDefault(const uint16_t location, const int64_
 }
 
 MainMenu::MainMenu() {
-	itemCount = 17;
+	itemCount = 18;
 	reset();
 
 	//Read in the axisStepsPerMM, we'll need these for various firmware functions later on
@@ -1676,6 +1686,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar extruderFan[]	= "Extruder Fan";
 	const static PROGMEM prog_uchar calibrate[]	= "Calibrate";
 	const static PROGMEM prog_uchar homeOffsets[]	= "Home Offsets";
+	const static PROGMEM prog_uchar filamentUsed[]	= "Filament Used";
 	const static PROGMEM prog_uchar endStops[]	= "Test End Stops";
 	const static PROGMEM prog_uchar stepsPerMm[]	= "Axis Steps:mm";
 	const static PROGMEM prog_uchar versions[]	= "Version";
@@ -1722,15 +1733,18 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(homeOffsets);
 		break;
 	case 13:
-		lcd.writeFromPgmspace(endStops);
+		lcd.writeFromPgmspace(filamentUsed);
 		break;
 	case 14:
-		lcd.writeFromPgmspace(stepsPerMm);
+		lcd.writeFromPgmspace(endStops);
 		break;
 	case 15:
-		lcd.writeFromPgmspace(versions);
+		lcd.writeFromPgmspace(stepsPerMm);
 		break;
 	case 16:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 17:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -1792,18 +1806,22 @@ void MainMenu::handleSelect(uint8_t index) {
                         interface::pushScreen(&homeOffsetsMode);
 			break;
 		case 13:
+			// Show Filament Used Mode
+                        interface::pushScreen(&filamentUsedMode);
+			break;
+		case 14:
 			// Show test end stops menu
 			interface::pushScreen(&testEndStopsMode);
 			break;
-		case 14:
+		case 15:
 			// Show steps per mm menu
 			interface::pushScreen(&stepsPerMMMode);
 			break;
-		case 15:
+		case 16:
 			// Show build from SD screen
                         interface::pushScreen(&versionMode);
 			break;
-		case 16:
+		case 17:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;
@@ -3234,6 +3252,97 @@ void StepsPerMMMode::notifyButtonPressed(ButtonArray::ButtonName button) {
         if ( spm <= STEPS_PER_MM_LOWER_LIMIT ) spm = STEPS_PER_MM_LOWER_LIMIT;
 
 	axisStepsPerMM[currentIndex] = spm;
+}
+
+FilamentUsedResetMenu::FilamentUsedResetMenu() {
+	itemCount = 4;
+	reset();
+}
+
+void FilamentUsedResetMenu::resetState() {
+	itemIndex = 2;
+	firstItemIndex = 2;
+}
+
+void FilamentUsedResetMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+	const static PROGMEM prog_uchar msg[]  = "Reset To Zero?";
+	const static PROGMEM prog_uchar no[] = "No";
+	const static PROGMEM prog_uchar yes[]= "Yes";
+
+	switch (index) {
+	case 0:
+		lcd.writeFromPgmspace(msg);
+		break;
+	case 1:
+		break;
+	case 2:
+		lcd.writeFromPgmspace(no);
+		break;
+	case 3:
+		lcd.writeFromPgmspace(yes);
+		break;
+	}
+}
+
+void FilamentUsedResetMenu::handleSelect(uint8_t index) {
+	switch (index) {
+	case 3:
+		//Reset to zero
+                eeprom::putEepromInt64(eeprom::FILAMENT_USED, 0);
+	case 2:
+		interface::popScreen();
+                interface::popScreen();
+		break;
+	}
+}
+
+void FilamentUsedMode::reset() {
+}
+
+void FilamentUsedMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar message1[] = "Filament Used:";
+	const static PROGMEM prog_uchar message3[] = "         (reset)";
+
+	if (forceRedraw) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(message1);
+
+	        int64_t filamentUsed = eeprom::getEepromInt64(eeprom::FILAMENT_USED, 0);
+		float filamentUsedMM = stepsToMM(filamentUsed, AXIS_A);
+
+		lcd.setCursor(0,1);
+		lcd.writeFloat(filamentUsedMM / 1000.0, 4);
+		lcd.write('m');
+
+		lcd.setCursor(0,2);
+		lcd.writeFromPgmspace(message3);
+
+		lcd.setCursor(0,3);
+		lcd.writeFloat(((filamentUsedMM / 25.4) / 12.0), 4);
+		lcd.writeString("ft");
+	}
+}
+
+void FilamentUsedMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	switch (button) {
+		case ButtonArray::CANCEL:
+			interface::popScreen();
+			break;
+		case ButtonArray::ZERO:
+			break;
+		case ButtonArray::OK:
+			interface::pushScreen(&filamentUsedResetMenu);
+			break;
+		case ButtonArray::ZPLUS:
+		case ButtonArray::ZMINUS:
+		case ButtonArray::YPLUS:
+		case ButtonArray::YMINUS:
+		case ButtonArray::XMINUS:
+		case ButtonArray::XPLUS:
+			break;
+	}
 }
 
 #endif

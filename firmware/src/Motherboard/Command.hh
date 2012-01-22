@@ -28,6 +28,9 @@ namespace command {
 /// commands.
 void reset();
 
+/// Adds the filament used in this build to eeprom
+void addFilamentUsed();
+
 /// Run the command thread slice.
 void runCommandSlice();
 

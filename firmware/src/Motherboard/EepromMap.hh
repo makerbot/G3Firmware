@@ -82,6 +82,9 @@ const static uint16_t STEPS_PER_MM_Z		= 0x009B;
 const static uint16_t STEPS_PER_MM_A		= 0x00A3;
 const static uint16_t STEPS_PER_MM_B		= 0x00AB;
 
+//int64_t (bytes) The filament used in steps
+const static uint16_t FILAMENT_USED		= 0x00B3;
+
 /// Reset all data in the EEPROM to a default.
 void setDefaults();
 

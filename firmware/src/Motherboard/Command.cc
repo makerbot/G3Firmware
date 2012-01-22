@@ -25,6 +25,7 @@
 #include <util/atomic.h>
 #include <avr/eeprom.h>
 #include "EepromMap.hh"
+#include "Eeprom.hh"
 #include "SDCard.hh"
 #include "ExtruderControl.hh"
 
@@ -45,7 +46,7 @@ volatile int32_t  pauseZPos = 0;
 
 bool estimating = false;
 int64_t estimateTimeUs = 0; 
-int64_t filamentLength = 0;	//This maybe pos or neg, but ABS it and all is good (in steps)
+volatile int64_t filamentLength = 0;	//This maybe pos or neg, but ABS it and all is good (in steps)
 
 Point lastPosition;
 
@@ -133,6 +134,25 @@ void reset() {
 	estimateTimeUs = 0; 
 	filamentLength = 0;
 	mode = READY;
+}
+
+
+//Adds the filament used during this build
+
+void addFilamentUsed() {
+	//Need to do this to get the absolute amount
+	int64_t fl = getFilamentLength();
+
+	if ( fl > 0 ) {
+		cli();
+		int64_t filamentUsed = eeprom::getEepromInt64(eeprom::FILAMENT_USED, 0);
+		filamentUsed += fl;
+		eeprom::putEepromInt64(eeprom::FILAMENT_USED, filamentUsed);
+		sei();
+
+		//We've used it up, so reset it
+		filamentLength = 0;
+	}
 }
 
 
@@ -519,11 +539,24 @@ void runCommandSlice() {
 								out.reset();
 								command_buffer.pop(); // remove the command code
 								out.append8(command_buffer.pop()); // copy tool index
-								out.append8(command_buffer.pop()); // copy command code
+								uint8_t commandCode = command_buffer.pop();
+								out.append8(commandCode); // copy command code
+
 								int len = pop8(); // get payload length
+
+								uint8_t buf[4];
 								for (int i = 0; i < len; i++) {
-									out.append8(command_buffer.pop());
+									uint8_t b = command_buffer.pop();
+									if ( i < 4 )	buf[i] = b;
+									out.append8(b);
 								}
+								
+								if (( commandCode == SLAVE_CMD_SET_TEMP ) && ( ! estimating ) &&
+								    ( ! sdcard::isPlaying()) ) {
+									uint16_t *temp = (uint16_t *)&buf[0];
+									if ( *temp == 0 ) addFilamentUsed();
+								}
+
 								// we don't care about the response, so we can release
 								// the lock after we initiate the transfer
 								tool::startTransaction();

@@ -590,6 +590,31 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+class FilamentUsedResetMenu: public Menu {
+public:
+	FilamentUsedResetMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class FilamentUsedMode: public Screen {
+private:
+	FilamentUsedResetMenu filamentUsedResetMenu;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -614,6 +639,7 @@ private:
 	CalibrateMode calibrateMode;
 	HomeOffsetsMode homeOffsetsMode;
 	StepsPerMMMode stepsPerMMMode;
+	FilamentUsedMode filamentUsedMode;
 	TestEndStopsMode testEndStopsMode;
         VersionMode versionMode;
 	MoodLightMode	moodLightMode;

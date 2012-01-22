@@ -46,6 +46,7 @@ void setDefaults() {
     putEepromInt64(eeprom::STEPS_PER_MM_Z,STEPS_PER_MM_Z_DEFAULT);
     putEepromInt64(eeprom::STEPS_PER_MM_A,STEPS_PER_MM_A_DEFAULT);
     putEepromInt64(eeprom::STEPS_PER_MM_B,STEPS_PER_MM_B_DEFAULT);
+    putEepromInt64(eeprom::FILAMENT_USED,0);
 }
 
 }
