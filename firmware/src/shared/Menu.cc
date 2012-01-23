@@ -1192,6 +1192,15 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 	//Display estimating stats
 	if ( estimatingBuild ) {
+		//If preheat_during_estimate is set, then preheat
+		OutPacket responsePacket;
+		if ( eeprom::getEeprom8(eeprom::PREHEAT_DURING_ESTIMATE, 0) ) {
+			uint8_t value = eeprom::getEeprom8(eeprom::TOOL0_TEMP, 220);
+			extruderControl(SLAVE_CMD_SET_TEMP, EXTDR_CMD_SET, responsePacket, (uint16_t)value);
+			value = eeprom::getEeprom8(eeprom::PLATFORM_TEMP, 110);
+			extruderControl(SLAVE_CMD_SET_PLATFORM_TEMP, EXTDR_CMD_SET, responsePacket, value);
+		}
+
 		//Write out the % estimated
 		lcd.setCursor(12,1);
 		buf[0] = '\0';
@@ -3408,7 +3417,7 @@ void FilamentUsedMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 }
 
 BuildSettingsMenu::BuildSettingsMenu() {
-	itemCount = 1;
+	itemCount = 3;
 	reset();
 }
 
@@ -3418,17 +3427,19 @@ void BuildSettingsMenu::resetState() {
 }
 
 void BuildSettingsMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
-	const static PROGMEM prog_uchar item1[] = "ABP Copies (SD)";
+	const static PROGMEM prog_uchar item1[] = "EstimatePreheat";
+	const static PROGMEM prog_uchar item2[] = "Override Temp";
+	const static PROGMEM prog_uchar item3[] = "ABP Copies (SD)";
 
 	switch (index) {
 	case 0:
 		lcd.writeFromPgmspace(item1);
 		break;
 	case 1:
+		lcd.writeFromPgmspace(item2);
 		break;
 	case 2:
-		break;
-	case 3:
+		lcd.writeFromPgmspace(item3);
 		break;
 	}
 }
@@ -3438,6 +3449,14 @@ void BuildSettingsMenu::handleSelect(uint8_t index) {
 
 	switch (index) {
 		case 0:
+			//Preheat during estimation
+			interface::pushScreen(&preheatDuringEstimateMenu);
+			break;
+		case 1:
+			//Override the gcode temperature
+			interface::pushScreen(&overrideGCodeTempMenu);
+			break;
+		case 2:
 			//Change number of ABP copies
 			interface::pushScreen(&abpCopiesSetScreen);
 			break;
@@ -3511,6 +3530,98 @@ void ABPCopiesSetScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
         case ButtonArray::XMINUS:
         case ButtonArray::XPLUS:
 		break;
+	}
+}
+
+PreheatDuringEstimateMenu::PreheatDuringEstimateMenu() {
+	itemCount = 4;
+	reset();
+}
+
+void PreheatDuringEstimateMenu::resetState() {
+	if ( eeprom::getEeprom8(eeprom::PREHEAT_DURING_ESTIMATE, 0) ) 	itemIndex = 3;
+	else						 		itemIndex = 2;
+	firstItemIndex = 2;
+}
+
+void PreheatDuringEstimateMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+	const static PROGMEM prog_uchar msg1[]    = "Preheat during";
+	const static PROGMEM prog_uchar msg2[]    = "estimate phase:";
+	const static PROGMEM prog_uchar disable[] = "Disable";
+	const static PROGMEM prog_uchar enable[]  = "Enable";
+
+	switch (index) {
+	case 0:
+		lcd.writeFromPgmspace(msg1);
+		break;
+	case 1:
+		lcd.writeFromPgmspace(msg2);
+		break;
+	case 2:
+		lcd.writeFromPgmspace(disable);
+		break;
+	case 3:
+		lcd.writeFromPgmspace(enable);
+		break;
+	}
+}
+
+void PreheatDuringEstimateMenu::handleSelect(uint8_t index) {
+	switch (index) {
+		case 2:
+			eeprom_write_byte((uint8_t*)eeprom::PREHEAT_DURING_ESTIMATE,0);
+			interface::popScreen();
+			break;
+		case 3:
+			eeprom_write_byte((uint8_t*)eeprom::PREHEAT_DURING_ESTIMATE,1);
+                	interface::popScreen();
+			break;
+	}
+}
+
+OverrideGCodeTempMenu::OverrideGCodeTempMenu() {
+	itemCount = 4;
+	reset();
+}
+
+void OverrideGCodeTempMenu::resetState() {
+	if ( eeprom::getEeprom8(eeprom::OVERRIDE_GCODE_TEMP, 0) ) 	itemIndex = 3;
+	else						 		itemIndex = 2;
+	firstItemIndex = 2;
+}
+
+void OverrideGCodeTempMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+	const static PROGMEM prog_uchar msg1[]   = "Override GCode";
+	const static PROGMEM prog_uchar msg2[]   = "Termperature:";
+	const static PROGMEM prog_uchar disable[] =  "Disable";
+	const static PROGMEM prog_uchar enable[]  =  "Enable";
+
+	switch (index) {
+	case 0:
+		lcd.writeFromPgmspace(msg1);
+		break;
+	case 1:
+		lcd.writeFromPgmspace(msg2);
+		break;
+	case 2:
+		lcd.writeFromPgmspace(disable);
+		break;
+	case 3:
+		lcd.writeFromPgmspace(enable);
+		break;
+	}
+}
+
+void OverrideGCodeTempMenu::handleSelect(uint8_t index) {
+	switch (index) {
+		case 2:  
+			eeprom_write_byte((uint8_t*)eeprom::OVERRIDE_GCODE_TEMP,0);
+			interface::popScreen();
+			break;
+		case 3:
+			eeprom_write_byte((uint8_t*)eeprom::OVERRIDE_GCODE_TEMP,1);
+                	interface::popScreen();
+			break;
 	}
 }
 

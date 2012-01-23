@@ -48,6 +48,8 @@ bool estimating = false;
 int64_t estimateTimeUs = 0; 
 volatile int64_t filamentLength = 0;		//This maybe pos or neg, but ABS it and all is good (in steps)
 volatile int64_t lastFilamentLength = 0;
+volatile bool firstHeatTool0;
+volatile bool firstHeatHbp;
 
 Point lastPosition;
 
@@ -135,6 +137,8 @@ void reset() {
 	estimateTimeUs = 0; 
 	filamentLength = 0;
 	lastFilamentLength = 0;
+	firstHeatTool0 = true;
+	firstHeatHbp = true;
 	mode = READY;
 }
 
@@ -248,6 +252,8 @@ void buildAnotherCopy() {
 	command_buffer.reset();
 	sdcard::playbackRestart();
 	estimateTimeUs = 0;
+	firstHeatTool0 = true;
+	firstHeatHbp = true;
 
 	addFilamentUsed();
 	lastFilamentLength = 0;
@@ -566,17 +572,38 @@ void runCommandSlice() {
 								int len = pop8(); // get payload length
 
 								uint8_t buf[4];
-								for (int i = 0; i < len; i++) {
-									uint8_t b = command_buffer.pop();
-									if ( i < 4 )	buf[i] = b;
-									out.append8(b);
-								}
-								
+								for (int i = 0; (i < len) && ( i < 4); i ++)
+									buf[i] = command_buffer.pop();
+
 								if (( commandCode == SLAVE_CMD_SET_TEMP ) && ( ! estimating ) &&
 								    ( ! sdcard::isPlaying()) ) {
 									uint16_t *temp = (uint16_t *)&buf[0];
 									if ( *temp == 0 ) addFilamentUsed();
 								}
+
+								uint8_t overrideTemp = 0;
+								if ( commandCode == SLAVE_CMD_SET_TEMP ) {
+									uint16_t *temp = (uint16_t *)&buf[0];
+               								if (( *temp != 0 ) && ( firstHeatTool0 ) && ( eeprom::getEeprom8(eeprom::OVERRIDE_GCODE_TEMP, 0) )) {
+										firstHeatTool0 = false;
+										overrideTemp = eeprom::getEeprom8(eeprom::TOOL0_TEMP, 220);
+										*temp = overrideTemp;
+									}
+								}
+								if ( commandCode == SLAVE_CMD_SET_PLATFORM_TEMP ) {
+									uint16_t *temp = (uint16_t *)&buf[0];
+               								if (( *temp != 0 ) && ( firstHeatHbp ) && ( eeprom::getEeprom8(eeprom::OVERRIDE_GCODE_TEMP, 0) )) {
+										firstHeatHbp = false;
+										overrideTemp = eeprom::getEeprom8(eeprom::PLATFORM_TEMP, 110);
+										*temp = overrideTemp;
+									}
+								}
+
+								for (int i = 0; (i < len) && ( i < 4); i ++)
+									out.append8(buf[i]);
+
+								for (int i = 4; i < len; i ++ )
+									out.append8(command_buffer.pop());
 
 								// we don't care about the response, so we can release
 								// the lock after we initiate the transfer

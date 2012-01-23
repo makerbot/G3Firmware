@@ -88,6 +88,13 @@ const static uint16_t FILAMENT_USED		= 0x00B3;
 //Number of ABP copies (1-254) when building from SDCard (1 byte)
 const static uint16_t ABP_COPIES		= 0x00C3;
 
+//Preheat during estimate 0 = Disable, 1 = Enabled
+const static uint16_t PREHEAT_DURING_ESTIMATE	= 0x00C4;
+
+//Override the temperature set in the gcode file at the start of the build
+//0 = Disable, 1 = Enabled
+const static uint16_t OVERRIDE_GCODE_TEMP	= 0x00C5;
+
 /// Reset all data in the EEPROM to a default.
 void setDefaults();
 

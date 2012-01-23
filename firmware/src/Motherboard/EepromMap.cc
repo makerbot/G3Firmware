@@ -48,6 +48,8 @@ void setDefaults() {
     putEepromInt64(eeprom::STEPS_PER_MM_B,STEPS_PER_MM_B_DEFAULT);
     putEepromInt64(eeprom::FILAMENT_USED,0);
     eeprom_write_byte((uint8_t*)eeprom::ABP_COPIES,1);
+    eeprom_write_byte((uint8_t*)eeprom::PREHEAT_DURING_ESTIMATE,0);
+    eeprom_write_byte((uint8_t*)eeprom::OVERRIDE_GCODE_TEMP,0);
 }
 
 }

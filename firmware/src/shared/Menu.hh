@@ -631,10 +631,33 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+class PreheatDuringEstimateMenu: public Menu {
+public:
+	PreheatDuringEstimateMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class OverrideGCodeTempMenu: public Menu {
+public:
+	OverrideGCodeTempMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
 
 class BuildSettingsMenu: public Menu {
 private:
-	ABPCopiesSetScreen abpCopiesSetScreen;
+	PreheatDuringEstimateMenu	preheatDuringEstimateMenu;
+	OverrideGCodeTempMenu		overrideGCodeTempMenu;
+	ABPCopiesSetScreen		abpCopiesSetScreen;
 public:
 	BuildSettingsMenu();
 
