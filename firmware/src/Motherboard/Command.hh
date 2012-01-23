@@ -55,11 +55,18 @@ int32_t getPauseAtZPos();
 /// Returns the length of filament extruded (in steps)
 int64_t getFilamentLength();
 
+/// Returns the length of filament extruded (in steps) prior to the
+/// last time the filament was added to the filament count
+int64_t getLastFilamentLength();
+
 //Returns the number of seconds estimated
 int32_t estimateSeconds();
 
 //Set the estimation mode
 void setEstimation(bool on);
+
+//Build another copy
+void buildAnotherCopy();
 
 /// Check the remaining capacity of the command buffer
 /// \return Amount of space left in the buffer, in bytes

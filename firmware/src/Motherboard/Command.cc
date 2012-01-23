@@ -46,7 +46,8 @@ volatile int32_t  pauseZPos = 0;
 
 bool estimating = false;
 int64_t estimateTimeUs = 0; 
-volatile int64_t filamentLength = 0;	//This maybe pos or neg, but ABS it and all is good (in steps)
+volatile int64_t filamentLength = 0;		//This maybe pos or neg, but ABS it and all is good (in steps)
+volatile int64_t lastFilamentLength = 0;
 
 Point lastPosition;
 
@@ -133,6 +134,7 @@ void reset() {
 	command_buffer.reset();
 	estimateTimeUs = 0; 
 	filamentLength = 0;
+	lastFilamentLength = 0;
 	mode = READY;
 }
 
@@ -151,6 +153,7 @@ void addFilamentUsed() {
 		sei();
 
 		//We've used it up, so reset it
+		lastFilamentLength = filamentLength;
 		filamentLength = 0;
 	}
 }
@@ -212,6 +215,11 @@ int64_t getFilamentLength() {
 	return filamentLength;
 }
 
+int64_t getLastFilamentLength() {
+	if ( lastFilamentLength < 0 )	return -lastFilamentLength;
+	return lastFilamentLength;
+}
+
 int32_t estimateSeconds() {
 	return estimateTimeUs / 1000000;
 }
@@ -230,6 +238,19 @@ void setEstimation(bool on) {
 	estimateTimeUs = 0;
 	filamentLength = 0;
 	estimating = on;
+}
+
+void buildAnotherCopy() {
+	if ( estimating ) setEstimation(false);
+
+	recentCommandClock = 0;
+	recentCommandTime  = 0;
+	command_buffer.reset();
+	sdcard::playbackRestart();
+	estimateTimeUs = 0;
+
+	addFilamentUsed();
+	lastFilamentLength = 0;
 }
 
 void estimateDelay(uint32_t microseconds) {

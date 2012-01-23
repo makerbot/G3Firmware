@@ -250,6 +250,7 @@ private:
 	PauseMode		pauseMode;
 	bool			pauseDisabled;
 	PauseAtZPosScreen	pauseAtZPosScreen;
+	bool			printAnotherEnabled;
 };
 
 
@@ -260,12 +261,13 @@ private:
 	uint8_t updatePhase;
 	uint8_t buildTimePhase;
 	float   lastElapsedSeconds;
-	bool	buildComplete;		//For solving floating point rounding issues
 	PauseMode pauseMode;
 	bool	pausePushLockout;
 	bool buildCompleteBuzzPlayed;
 	int32_t buildDuration;
 	bool	overrideForceRedraw;
+	uint8_t	copiesPrinted;
+	bool	timeLeftDisplayed;
 
 public:
 	micros_t getUpdateRate() {return 500L * 1000L;}
@@ -615,6 +617,34 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+class ABPCopiesSetScreen: public Screen {
+private:
+	uint8_t value;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+
+class BuildSettingsMenu: public Menu {
+private:
+	ABPCopiesSetScreen abpCopiesSetScreen;
+public:
+	BuildSettingsMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -635,6 +665,7 @@ private:
 	SteppersMenu steppersMenu;
 	AdvanceABPMode advanceABPMode;
 	BuzzerSetRepeatsMode buzzerSetRepeats;
+	BuildSettingsMenu buildSettingsMenu;
 	ExtruderFanMenu extruderFanMenu;
 	CalibrateMode calibrateMode;
 	HomeOffsetsMode homeOffsetsMode;

@@ -37,8 +37,6 @@ bool estimatingBuild = false;
 
 Point pausedPosition, homePosition;
 
-float holdFilamentUsed;
-
 //Stored using STEPS_PER_MM_PRECISION
 int64_t axisStepsPerMM[5];
 
@@ -1097,13 +1095,13 @@ void SnakeMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 void MonitorMode::reset() {
 	updatePhase = 0;
 	buildTimePhase = 0;
-	buildComplete = false;
 	lastElapsedSeconds = 0.0;
 	pausePushLockout = false;
 	pauseMode.autoPause = false;
 	buildCompleteBuzzPlayed = false;
 	overrideForceRedraw = false;
-	holdFilamentUsed = 0.0;
+	copiesPrinted = 0;
+	timeLeftDisplayed = false;
 }
 
 
@@ -1120,8 +1118,9 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	const static PROGMEM prog_uchar zpos_mm[] 	     =   "mm";
 	const static PROGMEM prog_uchar estimate2[]          =   "Estimating:   0%";
 	const static PROGMEM prog_uchar estimate3[]          =   "          (skip)";
-	const static PROGMEM prog_uchar estimate4[]          =   "Duration:  0h00m";
 	const static PROGMEM prog_uchar filament[]           =   "Filament:0.00m  ";
+	const static PROGMEM prog_uchar copies[]	     =   "Copy:           ";
+	const static PROGMEM prog_uchar of[]		     =   " of ";
 	char buf[17];
 
 	if ( command::isPaused() ) {
@@ -1135,6 +1134,19 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 	if ( host::getHostState() != host::HOST_STATE_ESTIMATING_FROM_SD )
 	estimatingBuild = false;
+
+	//Check for a build complete, and if we have more than one copy
+	//to print, setup another one
+	if (( ! estimatingBuild ) && ( host::isBuildComplete() )) {
+		uint8_t copiesToPrint = eeprom::getEeprom8(eeprom::ABP_COPIES, 1);
+		if ( copiesToPrint > 1 ) {
+			if ( copiesPrinted < (copiesToPrint - 1)) {
+				copiesPrinted ++;
+				overrideForceRedraw = true;
+				command::buildAnotherCopy();
+			}
+		}
+	}
 
 	if ((forceRedraw) || (overrideForceRedraw)) {
 		lcd.clear();
@@ -1153,7 +1165,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				lcd.setCursor(0,2);
 				lcd.writeFromPgmspace(estimate3);
 				lcd.setCursor(0,3);
-				lcd.writeFromPgmspace(estimate4);
+				lcd.writeFromPgmspace(duration);
 			} else {
 				lcd.writeFromPgmspace(completed_percent);
 			}
@@ -1194,7 +1206,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		lcd.writeString(buf);
 
 		//Check for estimate finished, and switch states to building
-		if (( ! sdcard::playbackHasNext() ) && ( command::isEmpty())) {
+		if ( host::isBuildComplete() ) {
 			//Store the estimate seconds
 			buildDuration = command::estimateSeconds();
 			host::setHostStateBuildingFromSD();
@@ -1272,14 +1284,22 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 			if (( buildDuration == 0 ) && ( buildTimePhase == 2 )) buildTimePhase ++;
 		}
 
-		if ( buildTimePhase >= 5 )	buildTimePhase = 0;
+		//If we're setup to print more than one copy, then show that build phase,
+		//otherwise skip it
+		uint8_t totalCopies;
+		if ( buildTimePhase == 5 ) {
+			totalCopies = eeprom::getEeprom8(eeprom::ABP_COPIES, 1);
+			if ( totalCopies <= 1 )	buildTimePhase ++;
+		}
+
+		if ( buildTimePhase >= 6 )	buildTimePhase = 0;
 
 		float secs;
 		int32_t tsecs;
 		Point position;
 		uint8_t precision;
-		float filamentUsed;
 		float completedPercent;
+		float filamentUsed, lastFilamentUsed;
 
 		switch (buildTimePhase) {
 			case 0:	//Completed Percent
@@ -1311,24 +1331,22 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				break;
 			case 2: // Time Left
 				lcd.setCursor(0,1);
-				if ( command::getFilamentLength() >= 1 ) lcd.writeFromPgmspace(time_left);
+				if (( timeLeftDisplayed ) || ( command::getFilamentLength() >= 1 )) {
+					lcd.writeFromPgmspace(time_left);
+					timeLeftDisplayed = true;
+				}
 				else					 lcd.writeFromPgmspace(duration);
 				lcd.setCursor(9,1);
 
 				tsecs = buildDuration - command::estimateSeconds();
 				
 				buf[0] = '\0';
-				if 	  ((tsecs > 0 ) && (tsecs < 60) && ( ! buildComplete ) ) {
+				if 	  ((tsecs > 0 ) && (tsecs < 60) && ( host::isBuildComplete() ) ) {
 					appendUint8(buf, sizeof(buf), (uint8_t)tsecs);
 					lcd.writeString(buf);
 					lcd.writeFromPgmspace(time_left_secs);	
-				} else if (( tsecs <= 0) || ( host::isBuildComplete() ) || ( buildComplete ) ) {
-					if ( ! buildComplete ) {
-						//Store it so we can continue to use it
-						holdFilamentUsed = stepsToMM(command::getFilamentLength(), AXIS_A);
-						command::addFilamentUsed();
-					}	
-					buildComplete = true;
+				} else if (( tsecs <= 0) || ( host::isBuildComplete()) ) {
+					command::addFilamentUsed();
 					lcd.writeFromPgmspace(time_left_none);
 				} else {
 					appendTime(buf, sizeof(buf), (uint32_t)tsecs);
@@ -1351,7 +1369,8 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				lcd.setCursor(0,1);
 				lcd.writeFromPgmspace(filament);
 				lcd.setCursor(9,1);
-				if ( holdFilamentUsed != 0.0 )	filamentUsed = holdFilamentUsed;
+				lastFilamentUsed = stepsToMM(command::getLastFilamentLength(), AXIS_A);
+				if ( lastFilamentUsed != 0.0 )	filamentUsed = lastFilamentUsed;
 				else				filamentUsed = stepsToMM(command::getFilamentLength(), AXIS_A);
 				filamentUsed /= 1000.0;	//convert to meters
 				if	( filamentUsed < 0.1 )	{
@@ -1365,12 +1384,20 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				if ( precision == 1 ) lcd.write('m');
 				lcd.write('m');
 				break;
+			case 5: // Copies printed
+				lcd.setCursor(0,1);
+				lcd.writeFromPgmspace(copies);
+				lcd.setCursor(7,1);
+				lcd.writeFloat((float)(copiesPrinted + 1), 0);
+				lcd.writeFromPgmspace(of);
+				lcd.writeFloat((float)totalCopies, 0);
+				break;
 		}
 		break;
 	}
 
 	updatePhase++;
-	if (updatePhase > 5) {
+	if (updatePhase > 6) {
 		updatePhase = 0;
 	}
 }
@@ -1551,6 +1578,11 @@ CancelBuildMenu::CancelBuildMenu() {
 	pauseDisabled = false;
 	if ( ( estimatingBuild ) || ( steppers::isHoming() ) ||
 	     (sdcard::getPercentPlayed() >= 100.0))	pauseDisabled = true;
+
+	if (( ! estimatingBuild ) && ( host::isBuildComplete() ))
+		printAnotherEnabled = true;
+	else	printAnotherEnabled = false;
+
 }
 
 void CancelBuildMenu::resetState() {
@@ -1558,6 +1590,10 @@ void CancelBuildMenu::resetState() {
 	pauseDisabled = false;	
 	if ( ( estimatingBuild ) || ( steppers::isHoming() ) ||
 	     (sdcard::getPercentPlayed() >= 100.0))	pauseDisabled = true;
+
+	if (( ! estimatingBuild ) && ( host::isBuildComplete() ))
+		printAnotherEnabled = true;
+	else	printAnotherEnabled = false;
 
 	if ( pauseDisabled )	{
 		itemIndex = 2;
@@ -1567,15 +1603,20 @@ void CancelBuildMenu::resetState() {
 		itemCount = 5;
 	}
 
+	if ( printAnotherEnabled ) {
+		itemIndex = 1;
+	}
+
 	firstItemIndex = itemIndex;
 }
 
 void CancelBuildMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
-	const static PROGMEM prog_uchar choose[] = "Please Choose:";
-	const static PROGMEM prog_uchar abort[]  = "Abort Print   ";
-	const static PROGMEM prog_uchar pauseZ[] = "Pause at ZPos ";
-	const static PROGMEM prog_uchar pause[]  = "Pause         ";
-	const static PROGMEM prog_uchar back[]   = "Continue Build";
+	const static PROGMEM prog_uchar choose[]	= "Please Choose:";
+	const static PROGMEM prog_uchar abort[]		= "Abort Print   ";
+	const static PROGMEM prog_uchar printAnother[]	= "Print Another";
+	const static PROGMEM prog_uchar pauseZ[]	= "Pause at ZPos ";
+	const static PROGMEM prog_uchar pause[]		= "Pause         ";
+	const static PROGMEM prog_uchar back[]		= "Continue Build";
 
 	if ( ( estimatingBuild ) || ( steppers::isHoming() ) ||
 	     (sdcard::getPercentPlayed() >= 100.0))	pauseDisabled = true;
@@ -1586,10 +1627,15 @@ void CancelBuildMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	if ( index == lind )	lcd.writeFromPgmspace(choose);
 	lind ++;
 
-	if ( pauseDisabled ) lind ++;
+	if (( pauseDisabled ) && ( ! printAnotherEnabled )) lind ++;
 
 	if ( index == lind)	lcd.writeFromPgmspace(abort);
 	lind ++;
+
+	if ( printAnotherEnabled ) {
+		if ( index == lind ) lcd.writeFromPgmspace(printAnother);
+		lind ++;
+	}
 
 	if ( ! pauseDisabled ) {
 		if ( index == lind )	lcd.writeFromPgmspace(pauseZ);
@@ -1611,7 +1657,7 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 	//Implement variable length menu
 	uint8_t lind = 0;
 
-	if ( pauseDisabled ) lind ++;
+	if (( pauseDisabled ) && ( ! printAnotherEnabled )) lind ++;
 
 	lind ++;
 
@@ -1623,6 +1669,14 @@ void CancelBuildMenu::handleSelect(uint8_t index) {
 		host::stopBuild();
 	}
 	lind ++;
+
+	if ( printAnotherEnabled ) {
+		if ( index == lind ) {
+			command::buildAnotherCopy();
+			interface::popScreen();
+		}
+		lind ++;
+	}
 
 	if ( ! pauseDisabled ) {
 		if ( index == lind )	interface::pushScreen(&pauseAtZPosScreen);
@@ -1659,7 +1713,7 @@ int64_t MainMenu::checkAndGetEepromDefault(const uint16_t location, const int64_
 }
 
 MainMenu::MainMenu() {
-	itemCount = 18;
+	itemCount = 19;
 	reset();
 
 	//Read in the axisStepsPerMM, we'll need these for various firmware functions later on
@@ -1683,6 +1737,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar steppersS[]	= "Steppers";
 	const static PROGMEM prog_uchar moodlight[]	= "Mood Light";
 	const static PROGMEM prog_uchar buzzer[]	= "Buzzer";
+	const static PROGMEM prog_uchar buildSettings[]	= "Build Settings";
 	const static PROGMEM prog_uchar extruderFan[]	= "Extruder Fan";
 	const static PROGMEM prog_uchar calibrate[]	= "Calibrate";
 	const static PROGMEM prog_uchar homeOffsets[]	= "Home Offsets";
@@ -1724,27 +1779,30 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(buzzer);
 		break;
 	case 10:
-		lcd.writeFromPgmspace(extruderFan);
+		lcd.writeFromPgmspace(buildSettings);
 		break;
 	case 11:
-		lcd.writeFromPgmspace(calibrate);
+		lcd.writeFromPgmspace(extruderFan);
 		break;
 	case 12:
-		lcd.writeFromPgmspace(homeOffsets);
+		lcd.writeFromPgmspace(calibrate);
 		break;
 	case 13:
-		lcd.writeFromPgmspace(filamentUsed);
+		lcd.writeFromPgmspace(homeOffsets);
 		break;
 	case 14:
-		lcd.writeFromPgmspace(endStops);
+		lcd.writeFromPgmspace(filamentUsed);
 		break;
 	case 15:
-		lcd.writeFromPgmspace(stepsPerMm);
+		lcd.writeFromPgmspace(endStops);
 		break;
 	case 16:
-		lcd.writeFromPgmspace(versions);
+		lcd.writeFromPgmspace(stepsPerMm);
 		break;
 	case 17:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 18:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -1794,34 +1852,38 @@ void MainMenu::handleSelect(uint8_t index) {
 			interface::pushScreen(&buzzerSetRepeats);
 			break;
 		case 10: 
+			// Show Build Settings Mode
+			interface::pushScreen(&buildSettingsMenu);
+			break;
+		case 11: 
 			// Show Extruder Fan Mode
 			interface::pushScreen(&extruderFanMenu);
 			break;
-		case 11:
+		case 12:
 			// Show Calibrate Mode
                         interface::pushScreen(&calibrateMode);
 			break;
-		case 12:
+		case 13:
 			// Show Home Offsets Mode
                         interface::pushScreen(&homeOffsetsMode);
 			break;
-		case 13:
+		case 14:
 			// Show Filament Used Mode
                         interface::pushScreen(&filamentUsedMode);
 			break;
-		case 14:
+		case 15:
 			// Show test end stops menu
 			interface::pushScreen(&testEndStopsMode);
 			break;
-		case 15:
+		case 16:
 			// Show steps per mm menu
 			interface::pushScreen(&stepsPerMMMode);
 			break;
-		case 16:
+		case 17:
 			// Show build from SD screen
                         interface::pushScreen(&versionMode);
 			break;
-		case 17:
+		case 18:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;
@@ -3342,6 +3404,113 @@ void FilamentUsedMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 		case ButtonArray::XMINUS:
 		case ButtonArray::XPLUS:
 			break;
+	}
+}
+
+BuildSettingsMenu::BuildSettingsMenu() {
+	itemCount = 1;
+	reset();
+}
+
+void BuildSettingsMenu::resetState() {
+	itemIndex = 0;
+	firstItemIndex = 0;
+}
+
+void BuildSettingsMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+	const static PROGMEM prog_uchar item1[] = "ABP Copies (SD)";
+
+	switch (index) {
+	case 0:
+		lcd.writeFromPgmspace(item1);
+		break;
+	case 1:
+		break;
+	case 2:
+		break;
+	case 3:
+		break;
+	}
+}
+
+void BuildSettingsMenu::handleSelect(uint8_t index) {
+	OutPacket responsePacket;
+
+	switch (index) {
+		case 0:
+			//Change number of ABP copies
+			interface::pushScreen(&abpCopiesSetScreen);
+			break;
+	}
+}
+
+void ABPCopiesSetScreen::reset() {
+	value = eeprom::getEeprom8(eeprom::ABP_COPIES, 1);
+	if ( value < 1 ) {
+		eeprom_write_byte((uint8_t*)eeprom::ABP_COPIES,1);
+		value = eeprom::getEeprom8(eeprom::ABP_COPIES, 1); //Just in case
+	}
+}
+
+void ABPCopiesSetScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar message1[] = "ABP Copies (SD):";
+	const static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
+
+	if (forceRedraw) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(message1);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(message4);
+	}
+
+	// Redraw tool info
+	lcd.setCursor(0,1);
+	lcd.writeInt(value,3);
+}
+
+void ABPCopiesSetScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
+	switch (button) {
+        case ButtonArray::CANCEL:
+		interface::popScreen();
+		break;
+        case ButtonArray::ZERO:
+		break;
+        case ButtonArray::OK:
+		eeprom_write_byte((uint8_t*)eeprom::ABP_COPIES,value);
+		interface::popScreen();
+		interface::popScreen();
+		break;
+        case ButtonArray::ZPLUS:
+		// increment more
+		if (value <= 249) {
+			value += 5;
+		}
+		break;
+        case ButtonArray::ZMINUS:
+		// decrement more
+		if (value >= 6) {
+			value -= 5;
+		}
+		break;
+        case ButtonArray::YPLUS:
+		// increment less
+		if (value <= 253) {
+			value += 1;
+		}
+		break;
+        case ButtonArray::YMINUS:
+		// decrement less
+		if (value >= 2) {
+			value -= 1;
+		}
+		break;
+
+        case ButtonArray::XMINUS:
+        case ButtonArray::XPLUS:
+		break;
 	}
 }
 
