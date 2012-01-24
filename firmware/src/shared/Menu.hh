@@ -627,6 +627,8 @@ class FilamentUsedMode: public Screen {
 private:
 	FilamentUsedResetMenu filamentUsedResetMenu;
 
+	bool overrideForceRedraw;
+	bool lifetimeDisplay;
 public:
 	micros_t getUpdateRate() {return 100L * 1000L;}
 

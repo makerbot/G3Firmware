@@ -3375,6 +3375,7 @@ void FilamentUsedResetMenu::handleSelect(uint8_t index) {
 	case 3:
 		//Reset to zero
                 eeprom::putEepromInt64(eeprom::FILAMENT_USED, 0);
+                eeprom::putEepromInt64(eeprom::FILAMENT_USED_TRIP, 0);
 	case 2:
 		interface::popScreen();
                 interface::popScreen();
@@ -3383,19 +3384,30 @@ void FilamentUsedResetMenu::handleSelect(uint8_t index) {
 }
 
 void FilamentUsedMode::reset() {
+	lifetimeDisplay = true;
+	overrideForceRedraw = false;
 }
 
 void FilamentUsedMode::update(LiquidCrystal& lcd, bool forceRedraw) {
-	const static PROGMEM prog_uchar message1[] = "Filament Used:";
-	const static PROGMEM prog_uchar message3[] = "         (reset)";
+	const static PROGMEM prog_uchar lifetime[] = "Lifetime Odo.:";
+	const static PROGMEM prog_uchar trip[]	   = "Trip Odometer:";
+	const static PROGMEM prog_uchar but_life[] = "(trip)   (reset)";
+	const static PROGMEM prog_uchar but_trip[] = "(life)   (reset)";
 
-	if (forceRedraw) {
+	if ((forceRedraw) || (overrideForceRedraw)) {
 		lcd.clear();
 
 		lcd.setCursor(0,0);
-		lcd.writeFromPgmspace(message1);
+		if ( lifetimeDisplay )	lcd.writeFromPgmspace(lifetime);
+		else			lcd.writeFromPgmspace(trip);
 
 	        int64_t filamentUsed = eeprom::getEepromInt64(eeprom::FILAMENT_USED, 0);
+
+		if ( ! lifetimeDisplay ) {
+			int64_t trip = eeprom::getEepromInt64(eeprom::FILAMENT_USED_TRIP, 0);
+			filamentUsed = filamentUsed - trip;	
+		}
+
 		float filamentUsedMM = stepsToMM(filamentUsed, AXIS_A);
 
 		lcd.setCursor(0,1);
@@ -3403,11 +3415,14 @@ void FilamentUsedMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		lcd.write('m');
 
 		lcd.setCursor(0,2);
-		lcd.writeFromPgmspace(message3);
+		if ( lifetimeDisplay )	lcd.writeFromPgmspace(but_life);
+		else			lcd.writeFromPgmspace(but_trip);
 
 		lcd.setCursor(0,3);
 		lcd.writeFloat(((filamentUsedMM / 25.4) / 12.0), 4);
 		lcd.writeString("ft");
+
+		overrideForceRedraw = false;
 	}
 }
 
@@ -3417,9 +3432,16 @@ void FilamentUsedMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 			interface::popScreen();
 			break;
 		case ButtonArray::ZERO:
+			lifetimeDisplay ^= true;
+			overrideForceRedraw = true;
 			break;
 		case ButtonArray::OK:
-			interface::pushScreen(&filamentUsedResetMenu);
+			if ( lifetimeDisplay )
+				interface::pushScreen(&filamentUsedResetMenu);
+			else {
+                		eeprom::putEepromInt64(eeprom::FILAMENT_USED_TRIP, eeprom::getEepromInt64(eeprom::FILAMENT_USED, 0));
+				interface::popScreen();
+			}
 			break;
 		case ButtonArray::ZPLUS:
 		case ButtonArray::ZMINUS:

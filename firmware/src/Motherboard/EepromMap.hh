@@ -84,6 +84,7 @@ const static uint16_t STEPS_PER_MM_B		= 0x00AB;
 
 //int64_t (8 bytes) The filament used in steps
 const static uint16_t FILAMENT_USED		= 0x00B3;
+const static uint16_t FILAMENT_USED_TRIP	= 0x00BB;
 
 //Number of ABP copies (1-254) when building from SDCard (1 byte)
 const static uint16_t ABP_COPIES		= 0x00C3;
