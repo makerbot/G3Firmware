@@ -253,13 +253,33 @@ private:
 	bool			printAnotherEnabled;
 };
 
-
 class MonitorMode: public Screen {
 private:
 	CancelBuildMenu cancelBuildMenu;
 
-	uint8_t updatePhase;
-	uint8_t buildTimePhase;
+	enum UpdatePhase {
+		UPDATE_PHASE_FIRST = 0,
+		UPDATE_PHASE_TOOL_TEMP = UPDATE_PHASE_FIRST,
+		UPDATE_PHASE_TOOL_TEMP_SET_POINT,
+		UPDATE_PHASE_PLATFORM_TEMP,
+		UPDATE_PHASE_PLATFORM_SET_POINT,
+		UPDATE_PHASE_BUILD_PHASE_SCROLLER,
+		UPDATE_PHASE_LAST	//Not counted, just an end marker
+	};
+
+	enum BuildTimePhase {
+		BUILD_TIME_PHASE_FIRST = 0,
+		BUILD_TIME_PHASE_COMPLETED_PERCENT = BUILD_TIME_PHASE_FIRST,
+		BUILD_TIME_PHASE_ELAPSED_TIME,
+		BUILD_TIME_PHASE_TIME_LEFT,
+		BUILD_TIME_PHASE_ZPOS,
+		BUILD_TIME_PHASE_FILAMENT,
+		BUILD_TIME_PHASE_COPIES_PRINTED,
+		BUILD_TIME_PHASE_LAST	//Not counted, just an end marker
+	};
+
+	enum UpdatePhase updatePhase;
+	enum BuildTimePhase buildTimePhase, lastBuildTimePhase;
 	float   lastElapsedSeconds;
 	PauseMode pauseMode;
 	bool	pausePushLockout;

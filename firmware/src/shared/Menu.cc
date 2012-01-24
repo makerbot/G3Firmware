@@ -1093,8 +1093,9 @@ void SnakeMode::notifyButtonPressed(ButtonArray::ButtonName button) {
 
 
 void MonitorMode::reset() {
-	updatePhase = 0;
-	buildTimePhase = 0;
+	updatePhase =  UPDATE_PHASE_FIRST;
+	buildTimePhase = BUILD_TIME_PHASE_FIRST;
+	lastBuildTimePhase = BUILD_TIME_PHASE_FIRST;
 	lastElapsedSeconds = 0.0;
 	pausePushLockout = false;
 	pauseMode.autoPause = false;
@@ -1231,7 +1232,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 	// Redraw tool info
 	switch (updatePhase) {
-	case 0:
+	case UPDATE_PHASE_TOOL_TEMP:
 		lcd.setCursor(6,2);
 		if (extruderControl(SLAVE_CMD_GET_TEMP, EXTDR_CMD_GET, responsePacket, 0)) {
 			uint16_t data = responsePacket.read16(1);
@@ -1241,7 +1242,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		}
 		break;
 
-	case 1:
+	case UPDATE_PHASE_TOOL_TEMP_SET_POINT:
 		lcd.setCursor(10,2);
 		if (extruderControl(SLAVE_CMD_GET_SP, EXTDR_CMD_GET, responsePacket, 0)) {
 			uint16_t data = responsePacket.read16(1);
@@ -1251,7 +1252,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		}
 		break;
 
-	case 2:
+	case UPDATE_PHASE_PLATFORM_TEMP:
 		lcd.setCursor(6,3);
 		if (extruderControl(SLAVE_CMD_GET_PLATFORM_TEMP, EXTDR_CMD_GET, responsePacket, 0)) {
 			uint16_t data = responsePacket.read16(1);
@@ -1261,7 +1262,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		}
 		break;
 
-	case 3:
+	case UPDATE_PHASE_PLATFORM_SET_POINT:
 		lcd.setCursor(10,3);
 		if (extruderControl(SLAVE_CMD_GET_PLATFORM_SP, EXTDR_CMD_GET, responsePacket, 0)) {
 			uint16_t data = responsePacket.read16(1);
@@ -1274,7 +1275,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		if ( command::getPauseAtZPos() == 0 )	lcd.write(' ');
 		else					lcd.write('*');
 		break;
-	case 4:
+	case UPDATE_PHASE_BUILD_PHASE_SCROLLER:
 		enum host::HostState hostState = host::getHostState();
 		
 		if ( (hostState != host::HOST_STATE_BUILDING ) && ( hostState != host::HOST_STATE_BUILDING_FROM_SD )) break;
@@ -1285,23 +1286,10 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
        			Motherboard::getBoard().buzz(2, 3, eeprom::getEeprom8(eeprom::BUZZER_REPEATS, 3));
 		}
 
-		//Holding the zero button stops rotation
-        	if ( ! interface::isButtonPressed(ButtonArray::OK) ) {
-			buildTimePhase ++;
+		bool okButtonHeld = interface::isButtonPressed(ButtonArray::OK);
 
-			//Skip Time Left if we skipped the estimation
-			if (( buildDuration == 0 ) && ( buildTimePhase == 2 )) buildTimePhase ++;
-		}
-
-		//If we're setup to print more than one copy, then show that build phase,
-		//otherwise skip it
-		uint8_t totalCopies;
-		if ( buildTimePhase == 5 ) {
-			totalCopies = eeprom::getEeprom8(eeprom::ABP_COPIES, 1);
-			if ( totalCopies <= 1 )	buildTimePhase ++;
-		}
-
-		if ( buildTimePhase >= 6 )	buildTimePhase = 0;
+		//Holding the ok button stops rotation
+        	if ( okButtonHeld )	buildTimePhase = lastBuildTimePhase;
 
 		float secs;
 		int32_t tsecs;
@@ -1311,7 +1299,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		float filamentUsed, lastFilamentUsed;
 
 		switch (buildTimePhase) {
-			case 0:	//Completed Percent
+			case BUILD_TIME_PHASE_COMPLETED_PERCENT:
 				lcd.setCursor(0,1);
 				lcd.writeFromPgmspace(completed_percent);
 				lcd.setCursor(11,1);
@@ -1324,7 +1312,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				strcat(buf, "% ");
 				lcd.writeString(buf);
 				break;
-			case 1: //Elapsed Time
+			case BUILD_TIME_PHASE_ELAPSED_TIME:
 				lcd.setCursor(0,1);
 				lcd.writeFromPgmspace(elapsed_time);
 				lcd.setCursor(9,1);
@@ -1338,7 +1326,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				appendTime(buf, sizeof(buf), (uint32_t)secs);
 				lcd.writeString(buf);
 				break;
-			case 2: // Time Left
+			case BUILD_TIME_PHASE_TIME_LEFT:
 				lcd.setCursor(0,1);
 				if (( timeLeftDisplayed ) || ( command::getFilamentLength() >= 1 )) {
 					lcd.writeFromPgmspace(time_left);
@@ -1362,7 +1350,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 					lcd.writeString(buf);
 				}
 				break;
-			case 3:	// Zpos
+			case BUILD_TIME_PHASE_ZPOS:
 				lcd.setCursor(0,1);
 				lcd.writeFromPgmspace(zpos);
 				lcd.setCursor(6,1);
@@ -1374,7 +1362,7 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 				lcd.writeFromPgmspace(zpos_mm);
 				break;
-			case 4: // Filament
+			case BUILD_TIME_PHASE_FILAMENT:
 				lcd.setCursor(0,1);
 				lcd.writeFromPgmspace(filament);
 				lcd.setCursor(9,1);
@@ -1393,7 +1381,8 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				if ( precision == 1 ) lcd.write('m');
 				lcd.write('m');
 				break;
-			case 5: // Copies printed
+			case BUILD_TIME_PHASE_COPIES_PRINTED:
+				uint8_t totalCopies = eeprom::getEeprom8(eeprom::ABP_COPIES, 1);
 				lcd.setCursor(0,1);
 				lcd.writeFromPgmspace(copies);
 				lcd.setCursor(7,1);
@@ -1402,13 +1391,34 @@ void MonitorMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 				lcd.writeFloat((float)totalCopies, 0);
 				break;
 		}
+
+        	if ( ! okButtonHeld ) {
+			//Advance buildTimePhase and wrap around
+			lastBuildTimePhase = buildTimePhase;
+			buildTimePhase = (enum BuildTimePhase)((uint8_t)buildTimePhase + 1);
+
+			//Skip Time left if we skipped the estimation
+			if (( buildTimePhase == BUILD_TIME_PHASE_TIME_LEFT ) && ( buildDuration == 0 ))
+				buildTimePhase = (enum BuildTimePhase)((uint8_t)buildTimePhase + 1);
+
+			//If we're setup to print more than one copy, then show that build phase,
+			//otherwise skip it
+			if ( buildTimePhase == BUILD_TIME_PHASE_COPIES_PRINTED ) {
+				uint8_t totalCopies = eeprom::getEeprom8(eeprom::ABP_COPIES, 1);
+				if ( totalCopies <= 1 )	
+					buildTimePhase = (enum BuildTimePhase)((uint8_t)buildTimePhase + 1);
+			}
+
+			if ( buildTimePhase >= BUILD_TIME_PHASE_LAST )
+				buildTimePhase = BUILD_TIME_PHASE_FIRST;
+		}
 		break;
 	}
 
-	updatePhase++;
-	if (updatePhase > 6) {
-		updatePhase = 0;
-	}
+	//Advance updatePhase and wrap around
+	updatePhase = (enum UpdatePhase)((uint8_t)updatePhase + 1);
+	if (updatePhase >= UPDATE_PHASE_LAST)
+		updatePhase = UPDATE_PHASE_FIRST;
 }
 
 void MonitorMode::notifyButtonPressed(ButtonArray::ButtonName button) {
@@ -1424,8 +1434,13 @@ void MonitorMode::notifyButtonPressed(ButtonArray::ButtonName button) {
                         interface::popScreen();
 			break;
 		}
+        case ButtonArray::ZPLUS:
+		if ( host::getHostState() == host::HOST_STATE_BUILDING_FROM_SD )
+			updatePhase = UPDATE_PHASE_BUILD_PHASE_SCROLLER;
+		break;
 	case ButtonArray::OK:
-		if (( estimatingBuild ) && ( host::getHostState() == host::HOST_STATE_ESTIMATING_FROM_SD )) {
+		//Skip build if user hit the button during the estimation phase
+		if (( host::getHostState() == host::HOST_STATE_ESTIMATING_FROM_SD ) && ( estimatingBuild )) {
 			buildDuration = 0;
 			host::setHostStateBuildingFromSD();
 			command::setEstimation(false);
