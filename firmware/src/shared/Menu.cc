@@ -2990,9 +2990,9 @@ void HomeOffsetsMode::reset() {
 }
 
 void HomeOffsetsMode::update(LiquidCrystal& lcd, bool forceRedraw) {
-	const static PROGMEM prog_uchar message1x[] = "X Offset(steps):";
-	const static PROGMEM prog_uchar message1y[] = "Y Offset(steps):";
-	const static PROGMEM prog_uchar message1z[] = "Z Offset(steps):";
+	const static PROGMEM prog_uchar message1x[] = "X Offset:";
+	const static PROGMEM prog_uchar message1y[] = "Y Offset:";
+	const static PROGMEM prog_uchar message1z[] = "Z Offset:";
 	const static PROGMEM prog_uchar message4[]  = "Up/Dn/Ent to Set";
 	const static PROGMEM prog_uchar blank[]     = " ";
 	const static PROGMEM prog_uchar mm[]        = "mm";
