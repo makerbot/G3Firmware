@@ -582,6 +582,13 @@ void stopBuild() {
 	do_host_reset = true; // indicate reset after response has been sent
 }
 
+// Reset the current build, used for ATX power on reset
+void resetBuild() {
+	machineName[0] = 0;
+	buildName[0] = 0;
+	currentState = HOST_STATE_READY;
+}
+
 bool isBuildComplete() {
 	if (( command::isEmpty() ) && ( ! sdcard::playbackHasNext() ))	return true;
 	return false;

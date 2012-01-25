@@ -104,6 +104,7 @@ int main() {
 		/// reset
 		bool powerGood = ATX_POWER_GOOD.getValue();
 		if (( ! atxLastPowerGood ) && ( powerGood )) {
+			host::resetBuild();
 			reset(true);
 		}
 		atxLastPowerGood = powerGood;

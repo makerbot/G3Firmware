@@ -64,6 +64,9 @@ sdcard::SdErrorCode startBuildFromSD(bool estimateFirst);
 /// Stop the current build
 void stopBuild();
 
+/// Reset the current build (used for ATX Power reset)
+void resetBuild();
+
 /// Returns true if the build is completed
 bool isBuildComplete();
 
