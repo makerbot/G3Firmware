@@ -3637,7 +3637,7 @@ void OverrideGCodeTempMenu::resetState() {
 
 void OverrideGCodeTempMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar msg1[]   = "Override GCode";
-	const static PROGMEM prog_uchar msg2[]   = "Termperature:";
+	const static PROGMEM prog_uchar msg2[]   = "Temperature:";
 	const static PROGMEM prog_uchar disable[] =  "Disable";
 	const static PROGMEM prog_uchar enable[]  =  "Enable";
 
