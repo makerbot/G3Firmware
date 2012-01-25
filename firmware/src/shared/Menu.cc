@@ -1737,7 +1737,7 @@ int64_t MainMenu::checkAndGetEepromDefault(const uint16_t location, const int64_
 }
 
 MainMenu::MainMenu() {
-	itemCount = 19;
+	itemCount = 20;
 	reset();
 
 	//Read in the axisStepsPerMM, we'll need these for various firmware functions later on
@@ -1762,6 +1762,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar moodlight[]	= "Mood Light";
 	const static PROGMEM prog_uchar buzzer[]	= "Buzzer";
 	const static PROGMEM prog_uchar buildSettings[]	= "Build Settings";
+	const static PROGMEM prog_uchar profiles[]	= "Profiles";
 	const static PROGMEM prog_uchar extruderFan[]	= "Extruder Fan";
 	const static PROGMEM prog_uchar calibrate[]	= "Calibrate";
 	const static PROGMEM prog_uchar homeOffsets[]	= "Home Offsets";
@@ -1806,27 +1807,30 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(buildSettings);
 		break;
 	case 11:
-		lcd.writeFromPgmspace(extruderFan);
+		lcd.writeFromPgmspace(profiles);
 		break;
 	case 12:
-		lcd.writeFromPgmspace(calibrate);
+		lcd.writeFromPgmspace(extruderFan);
 		break;
 	case 13:
-		lcd.writeFromPgmspace(homeOffsets);
+		lcd.writeFromPgmspace(calibrate);
 		break;
 	case 14:
-		lcd.writeFromPgmspace(filamentUsed);
+		lcd.writeFromPgmspace(homeOffsets);
 		break;
 	case 15:
-		lcd.writeFromPgmspace(endStops);
+		lcd.writeFromPgmspace(filamentUsed);
 		break;
 	case 16:
-		lcd.writeFromPgmspace(stepsPerMm);
+		lcd.writeFromPgmspace(endStops);
 		break;
 	case 17:
-		lcd.writeFromPgmspace(versions);
+		lcd.writeFromPgmspace(stepsPerMm);
 		break;
 	case 18:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 19:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -1880,34 +1884,38 @@ void MainMenu::handleSelect(uint8_t index) {
 			interface::pushScreen(&buildSettingsMenu);
 			break;
 		case 11: 
+			// Show Profiles Menu
+			interface::pushScreen(&profilesMenu);
+			break;
+		case 12: 
 			// Show Extruder Fan Mode
 			interface::pushScreen(&extruderFanMenu);
 			break;
-		case 12:
+		case 13:
 			// Show Calibrate Mode
                         interface::pushScreen(&calibrateMode);
 			break;
-		case 13:
+		case 14:
 			// Show Home Offsets Mode
                         interface::pushScreen(&homeOffsetsMode);
 			break;
-		case 14:
+		case 15:
 			// Show Filament Used Mode
                         interface::pushScreen(&filamentUsedMode);
 			break;
-		case 15:
+		case 16:
 			// Show test end stops menu
 			interface::pushScreen(&testEndStopsMode);
 			break;
-		case 16:
+		case 17:
 			// Show steps per mm menu
 			interface::pushScreen(&stepsPerMMMode);
 			break;
-		case 17:
+		case 18:
 			// Show build from SD screen
                         interface::pushScreen(&versionMode);
 			break;
-		case 18:
+		case 19:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;
@@ -3660,6 +3668,356 @@ void OverrideGCodeTempMenu::handleSelect(uint8_t index) {
                 	interface::popScreen();
 			break;
 	}
+}
+
+#define NUM_PROFILES 4
+#define PROFILES_SAVED_AXIS 3
+
+void writeProfileToEeprom(uint8_t pIndex, uint8_t *pName, int32_t homeX,
+			  int32_t homeY, int32_t homeZ, uint8_t hbpTemp,
+			  uint8_t tool0Temp, uint8_t tool1Temp, uint8_t extruderRpm) {
+	uint16_t offset = eeprom::PROFILE_BASE + (uint16_t)pIndex * PROFILE_NEXT_OFFSET;
+
+	cli();
+
+	//Write profile name
+	if ( pName )	eeprom_write_block(pName,(uint8_t*)offset, PROFILE_NAME_LENGTH);
+	offset += PROFILE_NAME_LENGTH;
+
+	//Write home axis
+	eeprom_write_block(&homeX, (void*) offset, 4);		offset += 4;
+	eeprom_write_block(&homeY, (void*) offset, 4);		offset += 4;
+	eeprom_write_block(&homeZ, (void*) offset, 4);		offset += 4;
+
+	//Write temps and extruder RPM
+	eeprom_write_byte((uint8_t *)offset, hbpTemp);		offset += 1;
+	eeprom_write_byte((uint8_t *)offset, tool0Temp);	offset += 1;
+	eeprom_write_byte((uint8_t *)offset, tool1Temp);	offset += 1;
+	eeprom_write_byte((uint8_t *)offset, extruderRpm);	offset += 1;
+	
+	sei();
+}
+
+void readProfileFromEeprom(uint8_t pIndex, uint8_t *pName, int32_t *homeX,
+			   int32_t *homeY, int32_t *homeZ, uint8_t *hbpTemp,
+			   uint8_t *tool0Temp, uint8_t *tool1Temp, uint8_t *extruderRpm) {
+	uint16_t offset = eeprom::PROFILE_BASE + (uint16_t)pIndex * PROFILE_NEXT_OFFSET;
+
+	cli();
+
+	//Read profile name
+	if ( pName )	eeprom_read_block(pName,(uint8_t*)offset, PROFILE_NAME_LENGTH);
+	offset += PROFILE_NAME_LENGTH;
+
+	//Write home axis
+	eeprom_read_block(homeX, (void*) offset, 4);		offset += 4;
+	eeprom_read_block(homeY, (void*) offset, 4);		offset += 4;
+	eeprom_read_block(homeZ, (void*) offset, 4);		offset += 4;
+
+	//Write temps and extruder RPM
+	*hbpTemp	= eeprom_read_byte((uint8_t *)offset);	offset += 1;
+	*tool0Temp	= eeprom_read_byte((uint8_t *)offset);	offset += 1;
+	*tool1Temp	= eeprom_read_byte((uint8_t *)offset);	offset += 1;
+	*extruderRpm	= eeprom_read_byte((uint8_t *)offset);	offset += 1;
+	
+	sei();
+}
+
+void getProfileName(uint8_t pIndex, uint8_t *buf) {
+	uint16_t offset = eeprom::PROFILE_BASE + PROFILE_NEXT_OFFSET * (uint16_t)pIndex;
+
+	cli();
+	eeprom_read_block(buf,(void *)offset,PROFILE_NAME_LENGTH);
+	sei();
+
+	buf[PROFILE_NAME_LENGTH] = '\0';
+}
+
+ProfilesMenu::ProfilesMenu() {
+	itemCount = NUM_PROFILES;
+	reset();
+
+	//Setup defaults if required
+	//If the value is 0xff, write the profile number
+	uint8_t buf[PROFILE_NAME_LENGTH];
+
+        const static PROGMEM prog_uchar defaultProfile[] =  "Profile?";
+
+	//Get the home axis positions, we may need this to write the defaults
+	homePosition = steppers::getPosition();
+
+	for (uint8_t i = 0; i < PROFILES_SAVED_AXIS; i++) {
+		uint16_t offset = eeprom::AXIS_HOME_POSITIONS + 4*(uint16_t)i;
+		cli();
+		eeprom_read_block(&homePosition[i], (void*)offset, 4);
+		sei();
+	}
+
+	for (int i = 0; i < NUM_PROFILES; i ++ ) {
+		uint8_t value = eeprom_read_byte((uint8_t *)eeprom::PROFILE_BASE + (uint16_t)i * PROFILE_HOME_OFFSETS_SIZE);
+
+		//If set to 255, create the default profile name
+		if ( value == 0xff ) {
+			//Create the default profile name
+			for( uint8_t i = 0; i < PROFILE_NAME_LENGTH; i ++ )
+				buf[i] = pgm_read_byte_near(defaultProfile+i);
+			buf[PROFILE_NAME_LENGTH - 1] = '1' + i;
+
+			//Write the defaults
+			writeProfileToEeprom(i, buf, homePosition[0], homePosition[1], homePosition[2],
+					    100, 210, 210, 19);
+		}
+	}
+}
+
+void ProfilesMenu::resetState() {
+	firstItemIndex = 0;
+	itemIndex = 0;
+}
+
+void ProfilesMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+	uint8_t buf[PROFILE_NAME_LENGTH + 1];
+
+	getProfileName(index, buf);
+
+	lcd.writeString((char *)buf);
+}
+
+void ProfilesMenu::handleSelect(uint8_t index) {
+	profileSubMenu.profileIndex = index;
+	interface::pushScreen(&profileSubMenu);
+}
+
+ProfileSubMenu::ProfileSubMenu() {
+	itemCount = 4;
+	reset();
+}
+
+void ProfileSubMenu::resetState() {
+	itemIndex = 0;
+	firstItemIndex = 0;
+}
+
+void ProfileSubMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+	const static PROGMEM prog_uchar msg1[]  = "Restore";
+	const static PROGMEM prog_uchar msg2[]  = "Display Config";
+	const static PROGMEM prog_uchar msg3[]  = "Change Name";
+	const static PROGMEM prog_uchar msg4[]  = "Save To Profile";
+
+	switch (index) {
+	case 0:
+		lcd.writeFromPgmspace(msg1);
+		break;
+	case 1:
+		lcd.writeFromPgmspace(msg2);
+		break;
+	case 2:
+		lcd.writeFromPgmspace(msg3);
+		break;
+	case 3:
+		lcd.writeFromPgmspace(msg4);
+		break;
+	}
+}
+
+void ProfileSubMenu::handleSelect(uint8_t index) {
+	uint8_t hbpTemp, tool0Temp, tool1Temp, extruderRpm;
+
+	switch (index) {
+		case 0:
+			//Restore
+			//Read settings from eeprom
+			readProfileFromEeprom(profileIndex, NULL, &homePosition[0], &homePosition[1], &homePosition[2],
+					      &hbpTemp, &tool0Temp, &tool1Temp, &extruderRpm);
+
+			//Write out the home offsets
+			for (uint8_t i = 0; i < PROFILES_SAVED_AXIS; i++) {
+				uint16_t offset = eeprom::AXIS_HOME_POSITIONS + 4*(uint16_t)i;
+				cli();
+				eeprom_write_block(&homePosition[i], (void*)offset, 4);
+				sei();
+			}
+
+			cli();
+			eeprom_write_byte((uint8_t *)eeprom::PLATFORM_TEMP, hbpTemp);
+			eeprom_write_byte((uint8_t *)eeprom::TOOL0_TEMP,    tool0Temp);
+			eeprom_write_byte((uint8_t *)eeprom::TOOL1_TEMP,    tool1Temp);
+			eeprom_write_byte((uint8_t *)eeprom::EXTRUDE_RPM,   extruderRpm);
+			sei();
+
+                	interface::popScreen();
+                	interface::popScreen();
+
+			//Reset
+			host::stopBuild();
+			break;
+		case 1:
+			//Display settings
+			profileDisplaySettingsMenu.profileIndex = profileIndex;
+			interface::pushScreen(&profileDisplaySettingsMenu);
+			break;
+		case 2:
+			//Change Profile Name
+			profileChangeNameMode.profileIndex = profileIndex;
+			interface::pushScreen(&profileChangeNameMode);
+			break;
+		case 3: //Save To Profile 
+			//Get the home axis positions
+			homePosition = steppers::getPosition();
+			for (uint8_t i = 0; i < PROFILES_SAVED_AXIS; i++) {
+				uint16_t offset = eeprom::AXIS_HOME_POSITIONS + 4*(uint16_t)i;
+				cli();
+				eeprom_read_block(&homePosition[i], (void*)offset, 4);
+				sei();
+			}
+
+			hbpTemp		= eeprom::getEeprom8(eeprom::PLATFORM_TEMP, 110);
+			tool0Temp	= eeprom::getEeprom8(eeprom::TOOL0_TEMP, 220);
+			tool1Temp	= eeprom::getEeprom8(eeprom::TOOL1_TEMP, 220);
+			extruderRpm	= eeprom::getEeprom8(eeprom::EXTRUDE_RPM, 19);
+
+			writeProfileToEeprom(profileIndex, NULL, homePosition[0], homePosition[1], homePosition[2],
+					     hbpTemp, tool0Temp, tool1Temp, extruderRpm);
+
+                	interface::popScreen();
+			break;
+	}
+}
+
+void ProfileChangeNameMode::reset() {
+	cursorLocation = 0;
+	getProfileName(profileIndex, profileName);
+}
+
+void ProfileChangeNameMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar message1[] = "Profile Name:";
+	const static PROGMEM prog_uchar message4[] = "Up/Dn/Ent to Set";
+	const static PROGMEM prog_uchar blank[]	   = " ";
+
+	if (forceRedraw) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(message1);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(message4);
+	}
+
+	lcd.setCursor(0,1);
+	lcd.writeString((char *)profileName);
+
+	//Draw the cursor
+	lcd.setCursor(cursorLocation,2);
+	lcd.write('^');
+
+	//Write a blank before and after the cursor if we're not at the ends
+	if ( cursorLocation >= 1 ) {
+		lcd.setCursor(cursorLocation-1, 2);
+		lcd.writeFromPgmspace(blank);
+	}
+	if ( cursorLocation < PROFILE_NAME_LENGTH ) {
+		lcd.setCursor(cursorLocation+1, 2);
+		lcd.writeFromPgmspace(blank);
+	}
+}
+
+void ProfileChangeNameMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	uint16_t offset;
+
+	switch (button) {
+		case ButtonArray::CANCEL:
+			interface::popScreen();
+			break;
+		case ButtonArray::ZERO:
+			break;
+		case ButtonArray::OK:
+			//Write the profile name
+			offset = eeprom::PROFILE_BASE + (uint16_t)profileIndex * PROFILE_NEXT_OFFSET;
+
+			cli();
+			eeprom_write_block(profileName,(uint8_t*)offset, PROFILE_NAME_LENGTH);
+			sei();
+
+			interface::popScreen();
+			break;
+		case ButtonArray::YPLUS:
+			profileName[cursorLocation] += 1;
+			break;
+		case ButtonArray::ZPLUS:
+			profileName[cursorLocation] += 5;
+			break;
+		case ButtonArray::YMINUS:
+			profileName[cursorLocation] -= 1;
+			break;
+		case ButtonArray::ZMINUS:
+			profileName[cursorLocation] -= 5;
+			break;
+		case ButtonArray::XMINUS:
+			if ( cursorLocation > 0 )			cursorLocation --;
+			break;
+		case ButtonArray::XPLUS:
+			if ( cursorLocation < (PROFILE_NAME_LENGTH-1) )	cursorLocation ++;
+			break;
+	}
+
+	//Hard limits
+	if ( profileName[cursorLocation] < 32 )		profileName[cursorLocation] = 32;
+	if ( profileName[cursorLocation] > 126 )	profileName[cursorLocation] = 126;
+}
+
+ProfileDisplaySettingsMenu::ProfileDisplaySettingsMenu() {
+	itemCount = 8;
+	reset();
+}
+
+void ProfileDisplaySettingsMenu::resetState() {
+	readProfileFromEeprom(profileIndex, profileName, &homeX, &homeY, &homeZ,
+			      &hbpTemp, &tool0Temp, &tool1Temp, &extruderRpm);
+	itemIndex = 2;
+	firstItemIndex = 2;
+}
+
+void ProfileDisplaySettingsMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+	const static PROGMEM prog_uchar xOffset[]     = "XOff: ";
+	const static PROGMEM prog_uchar yOffset[]     = "YOff: ";
+	const static PROGMEM prog_uchar zOffset[]     = "ZOff: ";
+	const static PROGMEM prog_uchar hbp[]         = "HBP Temp:   ";
+	const static PROGMEM prog_uchar tool0[]       = "Tool0 Temp: ";
+	const static PROGMEM prog_uchar extruder[]    = "ExtrdrRPM: ";
+
+	switch (index) {
+	case 0:
+		lcd.writeString((char *)profileName);
+		break;
+	case 2:
+		lcd.writeFromPgmspace(xOffset);
+		lcd.writeFloat(stepsToMM(homeX, AXIS_X), 3);
+		break;
+	case 3:
+		lcd.writeFromPgmspace(yOffset);
+		lcd.writeFloat(stepsToMM(homeY, AXIS_Y), 3);
+		break;
+	case 4:
+		lcd.writeFromPgmspace(zOffset);
+		lcd.writeFloat(stepsToMM(homeZ, AXIS_Z), 3);
+		break;
+	case 5:
+		lcd.writeFromPgmspace(hbp);
+		lcd.writeFloat((float)hbpTemp, 0);
+		break;
+	case 6:
+		lcd.writeFromPgmspace(tool0);
+		lcd.writeFloat((float)tool0Temp, 0);
+		break;
+	case 7:
+		lcd.writeFromPgmspace(extruder);
+		lcd.writeFloat((float)extruderRpm / 10.0, 1);
+		break;
+	}
+}
+
+void ProfileDisplaySettingsMenu::handleSelect(uint8_t index) {
 }
 
 #endif

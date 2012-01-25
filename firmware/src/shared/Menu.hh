@@ -690,6 +690,70 @@ protected:
 	void handleSelect(uint8_t index);
 };
 
+class ProfileChangeNameMode: public Screen {
+private:
+	uint8_t	cursorLocation;
+	uint8_t profileName[8+1];
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+
+	uint8_t profileIndex;
+};
+
+class ProfileDisplaySettingsMenu: public Menu {
+private:
+	uint8_t profileName[8+1];
+	int32_t homeX, homeY, homeZ;
+	uint8_t hbpTemp, tool0Temp, tool1Temp, extruderRpm;
+public:
+	ProfileDisplaySettingsMenu();
+
+	void resetState();
+
+	uint8_t profileIndex;
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class ProfileSubMenu: public Menu {
+private:
+	ProfileChangeNameMode	   profileChangeNameMode;
+	ProfileDisplaySettingsMenu profileDisplaySettingsMenu;
+
+public:
+	ProfileSubMenu();
+
+	void resetState();
+
+	uint8_t profileIndex;
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class ProfilesMenu: public Menu {
+private:
+	ProfileSubMenu profileSubMenu;
+public:
+	ProfilesMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -711,6 +775,7 @@ private:
 	AdvanceABPMode advanceABPMode;
 	BuzzerSetRepeatsMode buzzerSetRepeats;
 	BuildSettingsMenu buildSettingsMenu;
+	ProfilesMenu profilesMenu;
 	ExtruderFanMenu extruderFanMenu;
 	CalibrateMode calibrateMode;
 	HomeOffsetsMode homeOffsetsMode;

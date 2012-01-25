@@ -96,6 +96,19 @@ const static uint16_t PREHEAT_DURING_ESTIMATE	= 0x00C4;
 //0 = Disable, 1 = Enabled
 const static uint16_t OVERRIDE_GCODE_TEMP	= 0x00C5;
 
+//Profiles
+#define PROFILE_NAME_LENGTH			8
+#define PROFILE_HOME_OFFSETS_SIZE		(4 * 3)		//X, Y, Z (uint32_t)
+
+#define PROFILE_NEXT_OFFSET			(PROFILE_NAME_LENGTH + \
+						 PROFILE_HOME_OFFSETS_SIZE + \
+						 4 )		//24 (0x18)    4=Bytes (Hbp, tool0, tool1, extruder)
+
+//4 Profiles = 0x00C6 + PROFILE_NEXT_OFFSET * 4 
+const static uint16_t PROFILE_BASE		= 0x00C6;
+
+//Next free location: 0x126
+
 /// Reset all data in the EEPROM to a default.
 void setDefaults();
 
