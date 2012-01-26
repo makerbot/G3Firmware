@@ -3723,6 +3723,8 @@ void readProfileFromEeprom(uint8_t pIndex, uint8_t *pName, int32_t *homeX,
 	sei();
 }
 
+//buf should have length PROFILE_NAME_LENGTH + 1 
+
 void getProfileName(uint8_t pIndex, uint8_t *buf) {
 	uint16_t offset = eeprom::PROFILE_BASE + PROFILE_NEXT_OFFSET * (uint16_t)pIndex;
 
@@ -3731,6 +3733,20 @@ void getProfileName(uint8_t pIndex, uint8_t *buf) {
 	sei();
 
 	buf[PROFILE_NAME_LENGTH] = '\0';
+}
+
+#define NAME_CHAR_LOWER_LIMIT 32
+#define NAME_CHAR_UPPER_LIMIT 126
+
+bool isValidProfileName(uint8_t pIndex) {
+	uint8_t buf[PROFILE_NAME_LENGTH + 1];
+
+	getProfileName(pIndex, buf);
+	for ( uint8_t i = 0; i < PROFILE_NAME_LENGTH; i ++ ) {
+		if (( buf[i] < NAME_CHAR_LOWER_LIMIT ) || ( buf[i] > NAME_CHAR_UPPER_LIMIT ) || ( buf[i] == 0xff )) return false;
+	}
+
+	return true;
 }
 
 ProfilesMenu::ProfilesMenu() {
@@ -3754,10 +3770,7 @@ ProfilesMenu::ProfilesMenu() {
 	}
 
 	for (int i = 0; i < NUM_PROFILES; i ++ ) {
-		uint8_t value = eeprom_read_byte((uint8_t *)eeprom::PROFILE_BASE + (uint16_t)i * PROFILE_HOME_OFFSETS_SIZE);
-
-		//If set to 255, create the default profile name
-		if ( value == 0xff ) {
+		if ( ! isValidProfileName(i)) {
 			//Create the default profile name
 			for( uint8_t i = 0; i < PROFILE_NAME_LENGTH; i ++ )
 				buf[i] = pgm_read_byte_near(defaultProfile+i);
@@ -3962,8 +3975,8 @@ void ProfileChangeNameMode::notifyButtonPressed(ButtonArray::ButtonName button) 
 	}
 
 	//Hard limits
-	if ( profileName[cursorLocation] < 32 )		profileName[cursorLocation] = 32;
-	if ( profileName[cursorLocation] > 126 )	profileName[cursorLocation] = 126;
+	if ( profileName[cursorLocation] < NAME_CHAR_LOWER_LIMIT )	profileName[cursorLocation] = NAME_CHAR_LOWER_LIMIT;
+	if ( profileName[cursorLocation] > NAME_CHAR_UPPER_LIMIT )	profileName[cursorLocation] = NAME_CHAR_UPPER_LIMIT;
 }
 
 ProfileDisplaySettingsMenu::ProfileDisplaySettingsMenu() {
