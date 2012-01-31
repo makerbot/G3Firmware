@@ -1756,7 +1756,7 @@ int64_t MainMenu::checkAndGetEepromDefault(const uint16_t location, const int64_
 }
 
 MainMenu::MainMenu() {
-	itemCount = 20;
+	itemCount = 21;
 	reset();
 
 	//Read in the axisStepsPerMM, we'll need these for various firmware functions later on
@@ -1786,6 +1786,7 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 	const static PROGMEM prog_uchar calibrate[]	= "Calibrate";
 	const static PROGMEM prog_uchar homeOffsets[]	= "Home Offsets";
 	const static PROGMEM prog_uchar filamentUsed[]	= "Filament Used";
+	const static PROGMEM prog_uchar currentPosition[]= "Position";
 	const static PROGMEM prog_uchar endStops[]	= "Test End Stops";
 	const static PROGMEM prog_uchar stepsPerMm[]	= "Axis Steps:mm";
 	const static PROGMEM prog_uchar versions[]	= "Version";
@@ -1841,15 +1842,18 @@ void MainMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 		lcd.writeFromPgmspace(filamentUsed);
 		break;
 	case 16:
-		lcd.writeFromPgmspace(endStops);
+		lcd.writeFromPgmspace(currentPosition);
 		break;
 	case 17:
-		lcd.writeFromPgmspace(stepsPerMm);
+		lcd.writeFromPgmspace(endStops);
 		break;
 	case 18:
-		lcd.writeFromPgmspace(versions);
+		lcd.writeFromPgmspace(stepsPerMm);
 		break;
 	case 19:
+		lcd.writeFromPgmspace(versions);
+		break;
+	case 20:
 		lcd.writeFromPgmspace(snake);
 		break;
 	}
@@ -1923,18 +1927,22 @@ void MainMenu::handleSelect(uint8_t index) {
                         interface::pushScreen(&filamentUsedMode);
 			break;
 		case 16:
+			// Show Current Position Mode
+                        interface::pushScreen(&currentPositionMode);
+			break;
+		case 17:
 			// Show test end stops menu
 			interface::pushScreen(&testEndStopsMode);
 			break;
-		case 17:
+		case 18:
 			// Show steps per mm menu
 			interface::pushScreen(&stepsPerMMMode);
 			break;
-		case 18:
+		case 19:
 			// Show build from SD screen
                         interface::pushScreen(&versionMode);
 			break;
-		case 19:
+		case 20:
 			// Show build from SD screen
                         interface::pushScreen(&snake);
 			break;
@@ -4050,6 +4058,55 @@ void ProfileDisplaySettingsMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
 }
 
 void ProfileDisplaySettingsMenu::handleSelect(uint8_t index) {
+}
+
+void CurrentPositionMode::reset() {
+}
+
+void CurrentPositionMode::update(LiquidCrystal& lcd, bool forceRedraw) {
+	const static PROGMEM prog_uchar msg1[] = "X:";
+	const static PROGMEM prog_uchar msg2[] = "Y:";
+	const static PROGMEM prog_uchar msg3[] = "Z:";
+	const static PROGMEM prog_uchar msg4[] = "A:";
+	const static PROGMEM prog_uchar mm[] = "mm";
+
+	if (forceRedraw) {
+		lcd.clear();
+
+		lcd.setCursor(0,0);
+		lcd.writeFromPgmspace(msg1);
+
+		lcd.setCursor(0,1);
+		lcd.writeFromPgmspace(msg2);
+
+		lcd.setCursor(0,2);
+		lcd.writeFromPgmspace(msg3);
+
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(msg4);
+	}
+
+	Point position = steppers::getPosition();
+
+	lcd.setCursor(3, 0);
+	lcd.writeFloat(stepsToMM(position[0], AXIS_X), 3);
+	lcd.writeFromPgmspace(mm);
+
+	lcd.setCursor(3, 1);
+	lcd.writeFloat(stepsToMM(position[1], AXIS_Y), 3);
+	lcd.writeFromPgmspace(mm);
+
+	lcd.setCursor(3, 2);
+	lcd.writeFloat(stepsToMM(position[2], AXIS_Z), 3);
+	lcd.writeFromPgmspace(mm);
+
+	lcd.setCursor(3, 3);
+	lcd.writeFloat(stepsToMM(position[3], AXIS_A), 3);
+	lcd.writeFromPgmspace(mm);
+}
+
+void CurrentPositionMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	interface::popScreen();
 }
 
 #endif

@@ -756,6 +756,19 @@ protected:
 	void handleSelect(uint8_t index);
 };
 
+class CurrentPositionMode: public Screen {
+private:
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -783,6 +796,7 @@ private:
 	HomeOffsetsMode homeOffsetsMode;
 	StepsPerMMMode stepsPerMMMode;
 	FilamentUsedMode filamentUsedMode;
+	CurrentPositionMode currentPositionMode;
 	TestEndStopsMode testEndStopsMode;
         VersionMode versionMode;
 	MoodLightMode	moodLightMode;
