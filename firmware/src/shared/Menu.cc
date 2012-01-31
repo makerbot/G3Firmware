@@ -2107,6 +2107,7 @@ void SDMenu::handleSelect(uint8_t index) {
 	e = host::startBuildFromSD(true);
 	if (e != sdcard::SD_SUCCESS) {
 		// TODO: report error
+		interface::pushScreen(&unableToOpenFileMenu);
 		return;
 	}
 }
@@ -4106,6 +4107,43 @@ void CurrentPositionMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 }
 
 void CurrentPositionMode::notifyButtonPressed(ButtonArray::ButtonName button) {
+	interface::popScreen();
+}
+
+		//Unable to open file, filename too long?
+UnableToOpenFileMenu::UnableToOpenFileMenu() {
+	itemCount = 4;
+	reset();
+}
+
+void UnableToOpenFileMenu::resetState() {
+	itemIndex = 3;
+	firstItemIndex = 3;
+}
+
+void UnableToOpenFileMenu::drawItem(uint8_t index, LiquidCrystal& lcd) {
+	const static PROGMEM prog_uchar msg1[]   = "Failed to open";
+	const static PROGMEM prog_uchar msg2[]   = "file.  Name too";
+	const static PROGMEM prog_uchar msg3[]   = "long?";
+	const static PROGMEM prog_uchar cont[]   =  "Continue";
+
+	switch (index) {
+	case 0:
+		lcd.writeFromPgmspace(msg1);
+		break;
+	case 1:
+		lcd.writeFromPgmspace(msg2);
+		break;
+	case 2:
+		lcd.writeFromPgmspace(msg3);
+		break;
+	case 3:
+		lcd.writeFromPgmspace(cont);
+		break;
+	}
+}
+
+void UnableToOpenFileMenu::handleSelect(uint8_t index) {
 	interface::popScreen();
 }
 

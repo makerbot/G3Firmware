@@ -172,12 +172,23 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+class UnableToOpenFileMenu: public Menu {
+public:
+	UnableToOpenFileMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
 
 class SDMenu: public Menu {
 private:
 	uint8_t updatePhase;
 	uint8_t lastItemIndex;
 	bool	drawItemLockout;
+	UnableToOpenFileMenu unableToOpenFileMenu;
 public:
 	SDMenu();
 
