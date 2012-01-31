@@ -448,6 +448,8 @@ class MoodLightMode: public Screen {
 private:
 	uint8_t updatePhase;
 
+	uint8_t scriptId;
+
         MoodLightSetRGBScreen   moodLightSetRGBScreen;
 
 public:

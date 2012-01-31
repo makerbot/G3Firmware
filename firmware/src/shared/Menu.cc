@@ -777,12 +777,13 @@ void ExtruderSetRpmScreen::notifyButtonPressed(ButtonArray::ButtonName button) {
 
 void MoodLightMode::reset() {
 	updatePhase = 0;
+	scriptId = eeprom_read_byte((uint8_t *)eeprom::MOOD_LIGHT_SCRIPT);
 }
 
 void MoodLightMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 	const static PROGMEM prog_uchar mood1[] = "Mood: ";
 	const static PROGMEM prog_uchar mood3_1[] = "(set RGB)";
-	const static PROGMEM prog_uchar mood3_2[] = "(mood)";
+	const static PROGMEM prog_uchar msg4[] = "Up/Dn/Ent to Set";
 	const static PROGMEM prog_uchar blank[]   = "          ";
 	const static PROGMEM prog_uchar moodNotPresent1[] = "Mood Light not";
 	const static PROGMEM prog_uchar moodNotPresent2[] = "present!!";
@@ -814,12 +815,11 @@ void MoodLightMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 		lcd.setCursor(0,0);
 		lcd.writeFromPgmspace(mood1);
 
-		lcd.setCursor(10,2);
-		lcd.writeFromPgmspace(mood3_2);
+		lcd.setCursor(0,3);
+		lcd.writeFromPgmspace(msg4);
 	}
 
  	//Redraw tool info
-	uint8_t scriptId = eeprom_read_byte((uint8_t *)eeprom::MOOD_LIGHT_SCRIPT);
 
 	switch (updatePhase) {
 	case 0:
@@ -845,38 +845,57 @@ void MoodLightMode::update(LiquidCrystal& lcd, bool forceRedraw) {
 
 
 void MoodLightMode::notifyButtonPressed(ButtonArray::ButtonName button) {
-	uint8_t scriptId;
-
 	if ( ! interface::moodLightController().blinkM.blinkMIsPresent )	interface::popScreen();
+
+	uint8_t i;
 
 	switch (button) {
         	case ButtonArray::OK:
-			//Change the script to the next script id
-			scriptId = eeprom_read_byte((uint8_t *)eeprom::MOOD_LIGHT_SCRIPT);
-			scriptId = interface::moodLightController().nextScriptId(scriptId);
 			eeprom_write_byte((uint8_t *)eeprom::MOOD_LIGHT_SCRIPT, scriptId);
-			interface::moodLightController().playScript(scriptId);
+               		interface::popScreen();
 			break;
 
         	case ButtonArray::ZERO:
-			scriptId = eeprom_read_byte((uint8_t *)eeprom::MOOD_LIGHT_SCRIPT);
 			if ( scriptId == 1 )
 			{
 				//Set RGB Values
                         	interface::pushScreen(&moodLightSetRGBScreen);
 			}
+			break;
 
+	        case ButtonArray::ZPLUS:
+			// increment more
+			for ( i = 0; i < 5; i ++ )
+				scriptId = interface::moodLightController().nextScriptId(scriptId);
+			interface::moodLightController().playScript(scriptId);
+			break;
+
+        	case ButtonArray::ZMINUS:
+			// decrement more
+			for ( i = 0; i < 5; i ++ )
+				scriptId = interface::moodLightController().prevScriptId(scriptId);
+			interface::moodLightController().playScript(scriptId);
 			break;
 
         	case ButtonArray::YPLUS:
+			// increment less
+			scriptId = interface::moodLightController().nextScriptId(scriptId);
+			interface::moodLightController().playScript(scriptId);
+			break;
+
         	case ButtonArray::YMINUS:
+			// decrement less
+			scriptId = interface::moodLightController().prevScriptId(scriptId);
+			interface::moodLightController().playScript(scriptId);
+			break;
+
         	case ButtonArray::XMINUS:
         	case ButtonArray::XPLUS:
-        	case ButtonArray::ZMINUS:
-        	case ButtonArray::ZPLUS:
-        		break;
+			break;
 
        	 	case ButtonArray::CANCEL:
+			scriptId = eeprom_read_byte((uint8_t *)eeprom::MOOD_LIGHT_SCRIPT);
+			interface::moodLightController().playScript(scriptId);
                		interface::popScreen();
 			break;
 	}

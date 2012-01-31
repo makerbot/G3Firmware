@@ -43,6 +43,8 @@ public:
 	//Used for Menu
 	const PROGMEM prog_uchar *scriptIdToStr(uint8_t scriptId);
 	uint8_t nextScriptId(uint8_t currentScriptId);
+	uint8_t prevScriptId(uint8_t currentScriptId);
+
 
 	bool start();
 	void playScript(uint8_t scriptId);

@@ -206,9 +206,20 @@ const ColorLookup clut PROGMEM = {
 
 uint8_t MoodLightController::nextScriptId(uint8_t currentScriptId) {
 	if ( currentScriptId <= kDefinedColors )	return currentScriptId + 1;
-	if ( currentScriptId == (kDefinedColors + 1) )	return 100;
+	if ( currentScriptId == (kDefinedColors + 1) )	return kBlinkMStart;
 	if (( currentScriptId >= kBlinkMStart ) && ( currentScriptId < kBlinkMEnd))	return currentScriptId + 1;
 	return 0;
+}
+
+
+//Given a scriptId, return the previous scriptId
+//There has to be a better way, however PROGMEM precludes it
+
+uint8_t MoodLightController::prevScriptId(uint8_t currentScriptId) {
+	if (( currentScriptId <= (kDefinedColors + 1) ) && ( currentScriptId >= 1 ))	return currentScriptId - 1;
+	if ( currentScriptId == kBlinkMStart )	return kDefinedColors + 1;
+	if (( currentScriptId > kBlinkMStart ) && ( currentScriptId <= kBlinkMEnd))	return currentScriptId - 1;
+	return kBlinkMEnd;
 }
 
 
