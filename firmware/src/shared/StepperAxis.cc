@@ -17,19 +17,20 @@ void StepperAxis::setTarget(const int32_t target_in, bool relative) {
                 target = target_in;
         }
         direction = true;
-        if (delta != 0 && interface != 0) {
+        if (delta != 0) {
                 interface->setEnabled(true);
         }
         if (delta < 0) {
                 delta = -delta;
                 direction = false;
         }
+        interface->setDirection(direction);
 }
 
 void StepperAxis::setHoming(const bool direction_in) {
         direction = direction_in;
-        if (interface != 0)
-                interface->setEnabled(true);
+        interface->setDirection(direction);
+        interface->setEnabled(true);
         delta = 1;
 }
 
@@ -38,8 +39,7 @@ void StepperAxis::definePosition(const int32_t position_in) {
 }
 
 void StepperAxis::enableStepper(bool enable) {
-        if (interface != 0)
-                interface->setEnabled(enable);
+        interface->setEnabled(enable);
 }
 
 void StepperAxis::reset() {
@@ -57,12 +57,10 @@ void StepperAxis::reset() {
 
 
 bool StepperAxis::checkEndstop(const bool isHoming) {
-        if (!interface)
-                return false;
 #if defined(SINGLE_SWITCH_ENDSTOPS) && (SINGLE_SWITCH_ENDSTOPS == 1)
-        bool hit_endstop = direction ? interface->isAtMaximum() : interface->isAtMinimum();
+        bool hit_endstop = interface->isAtMinimum();
   // We must move at least ENDSTOP_DEBOUNCE from where we hit the endstop before we declare traveling
-        if (hit_endstop || ((endstop_play < ENDSTOP_DEFAULT_PLAY - ENDSTOP_DEBOUNCE) && endstop_status == (direction?ESS_AT_MAXIMUM:ESS_AT_MINIMUM))) {
+        if (hit_endstop || (endstop_status == (direction?ESS_AT_MAXIMUM:ESS_AT_MINIMUM) && (endstop_play < ENDSTOP_DEFAULT_PLAY - ENDSTOP_DEBOUNCE))) {
                 hit_endstop = true;
     // Did we *just* hit the endstop?
                 if (endstop_status == ESS_TRAVELING || (isHoming && endstop_status == ESS_UNKNOWN)) {
@@ -101,26 +99,17 @@ bool StepperAxis::checkEndstop(const bool isHoming) {
 
 void StepperAxis::doInterrupt(const int32_t intervals) {
         counter += delta;
-		
+
         if (counter >= 0) {
                 counter -= intervals;
-                if (interface != 0) {
-                        interface->setDirection(direction);
-                        bool hit_endstop = checkEndstop(false);
-                        if (direction) {
-                                if (!hit_endstop) interface->step(true);
-                                position++;
-                        } else {
-                                if (!hit_endstop) interface->step(true);
-                                position--;
-                        }
-                        interface->step(false);
+                bool hit_endstop = checkEndstop(false);
+                if (!hit_endstop) interface->step(true);
+                if (direction) {
+                        position++;
                 } else {
-                        if (direction)
-                                position++;
-                        else
-                                position--;
+                        position--;
                 }
+                interface->step(false);
         }
 }
 
@@ -130,7 +119,6 @@ bool StepperAxis::doHoming(const int32_t intervals) {
         counter += delta;
         if (counter >= 0) {
                 counter -= intervals;
-                interface->setDirection(direction);
                 bool hit_endstop = checkEndstop(true);
                 if (direction) {
                         if (!hit_endstop) {

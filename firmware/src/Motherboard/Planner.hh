@@ -40,10 +40,8 @@ namespace planner {
 		Point target;                        // Final 5-axis target
 		uint32_t step_event_count;           // The number of step events required to complete this block
 		int32_t accelerate_until;            // The index of the step event on which to stop acceleration
-		int32_t time_to_accelerate;          // number of microseconds (S*1,000,000) to accelerate
 		int32_t decelerate_after;            // The index of the step event on which to start decelerating
-		int32_t time_to_decelerate;          // number of microseconds (S*1,000,000) to decelerate
-		// int32_t acceleration_rate;           // The acceleration rate used for acceleration calculation
+		int32_t acceleration_rate;           // The acceleration rate used for acceleration calculation
 		// uint8_t direction_bits;              // The direction bit set for this block
 		// uint8_t active_extruder;             // Selects the active extruder
 		
@@ -106,6 +104,7 @@ namespace planner {
 	void setMaxAxisJerk(float jerk, uint8_t axis);
 
 	void setAcceleration(float acceleration);
+	void setJunctionDeviation(float new_junction_deviation);
 	
 	void setAxisStepsPerMM(float steps_per_mm, uint8_t axis);
 	

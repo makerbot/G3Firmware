@@ -26,9 +26,11 @@
 // possible time between steps; in practical terms, your time between steps should
 // be at least eight times this large.  Reducing the interval can cause resource
 // starvation; leave this at 64uS or greater unless you know what you're doing.
-#define INTERVAL_IN_MICROSECONDS 64
-// 1000000 / INTERVAL_IN_MICROSECONDS = 125000
-// #define INTERVALS_PER_SECOND (1000000 / INTERVAL_IN_MICROSECONDS)
+#define INTERVAL_IN_MICROSECONDS 128
+
+// TICKS_PER_ACCELERATION should be set to that ACCELERATION_TICKS_PER_SECOND is not rounded
+#define TICKS_PER_ACCELERATION   5  // lower is better
+#define ACCELERATION_TICKS_PER_SECOND (1000000/(INTERVAL_IN_MICROSECONDS*TICKS_PER_ACCELERATION))
 
 // The pin that connects to the /PS_ON pin on the PSU header.  This pin switches
 // on the PSU when pulled low.
@@ -157,25 +159,28 @@
 // The pin which controls the debug LED (active high)
 #define DEBUG_PIN               Pin(PortB,0)
 
+#define STEPPER_TIMER_DEBUG     Pin(PortC,0) // SDA
+
 // By default, debugging packets should be honored; this is made
 // configurable if we're short on cycles or EEPROM.
 // Define as 1 if debugging packets are honored; 0 if not.
 #define HONOR_DEBUG_PACKETS     1
 
 // The number of movements we can plan ahead at a time
-// THIS MUst BE A POWER OF 2! 4, 8, 16, 32, you get the idea...
+// THIS MUST BE A POWER OF 2! 4, 8, 16, 32, you get the idea...
 #define BLOCK_BUFFER_SIZE 16
 
 //#define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
-#define DEFAULT_ACCELERATION 1000.0 /* mm/s/s */
-#define DEFAULT_MAX_XY_JERK 10.0
-#define DEFAULT_MAX_Z_JERK 10.0
+#define DEFAULT_ACCELERATION 900.0 /* mm/s/s */
+#define DEFAULT_MAX_XY_JERK 5.0
+#define DEFAULT_MAX_Z_JERK 5.0
 #define DEFAULT_MAX_A_JERK 10.0
 #define DEFAULT_MAX_B_JERK 10.0
 
-// // Minimum planner junction speed. Sets the default minimum speed the planner plans for at the end
-// // of the buffer and all stops. This should not be much greater than zero and should only be changed
-// // if unwanted behavior is observed on a user's machine when running at very slow speeds.
-// #define MINIMUM_PLANNER_SPEED 4.0 // (mm/sec)
-// 
+// Minimum planner junction speed. Sets the default minimum speed the planner plans for at the end
+// of the buffer and all stops. This should not be much greater than zero and should only be changed
+// if unwanted behavior is observed on a user's machine when running at very slow speeds.
+#define MINIMUM_PLANNER_SPEED 4.0 // (mm/sec)
+#define DEFAULT_JUNCTION_DEVIATION 0.00005 // mm
+
 #endif // BOARDS_RRMBV12_CONFIGURATION_HH_

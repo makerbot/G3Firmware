@@ -52,13 +52,14 @@
 
     IntersectionDistance[s1_, s2_, a_, d_] := (2 a d - s1^2 + s2^2)/(4 a)
 
+	vt + (1/2)at^2=X for t
 		x + vt + (1/2)at^2=X
 		x = destination
 		X = position
 		v = current speed
 		a = acceleration rate
 		t = time
-		See: http://www.wolframalpha.com/input/?i=x+%2B+vt+%2B+%281%2F2%29at%5E2%3DX+for+t
+		See: http://www.wolframalpha.com/input/?i=vt+%2B+%281%2F2%29at%5E2%3DX+for+t
 	
 	Solved for time, simplified (with a few multiplications as possible) gives:
 	(sqrt(v^2-2*a*(x-X)) - v)/a
@@ -227,8 +228,10 @@ namespace planner {
 	PlannerAxis axes[AXIS_COUNT];
 	
 	float default_acceleration;
+	float default_junction_deviation;
 	Point position; // the current position (planning-wise, not bot/stepper-wise) in steps
 	float previous_speed[AXIS_COUNT]; // Speed of previous path line segment
+	double previous_unit_vec[3];
 	float previous_nominal_speed; // Nominal speed of previous path line segment
 	static float max_xy_jerk;
 	
@@ -246,16 +249,16 @@ namespace planner {
 		position = Point(0,0,0,0,0);
 		previous_nominal_speed = 0.0;
 		
-		// axes[0].max_acceleration = 9000*axes[0].steps_per_mm;
-		// axes[1].max_acceleration = 9000*axes[1].steps_per_mm;
-		// axes[2].max_acceleration = 200*axes[2].steps_per_mm;
-		// axes[3].max_acceleration = 20000*axes[3].steps_per_mm;
-		// axes[4].max_acceleration = 20000*axes[4].steps_per_mm;
-		axes[0].max_acceleration = 1000*axes[0].steps_per_mm;
-		axes[1].max_acceleration = 1000*axes[1].steps_per_mm;
+		axes[0].max_acceleration = 900*axes[0].steps_per_mm;
+		axes[1].max_acceleration = 900*axes[1].steps_per_mm;
 		axes[2].max_acceleration = 200*axes[2].steps_per_mm;
 		axes[3].max_acceleration = 20000*axes[3].steps_per_mm;
 		axes[4].max_acceleration = 20000*axes[4].steps_per_mm;
+		// axes[0].max_acceleration = 500*axes[0].steps_per_mm;
+		// axes[1].max_acceleration = 500*axes[1].steps_per_mm;
+		// axes[2].max_acceleration = 200*axes[2].steps_per_mm;
+		// axes[3].max_acceleration = 20000*axes[3].steps_per_mm;
+		// axes[4].max_acceleration = 20000*axes[4].steps_per_mm;
 	}
 
 	
@@ -276,6 +279,10 @@ namespace planner {
 		// for (int i = 0; i < AXIS_COUNT; i++) {
 		// 	axes[i].max_acceleration = default_acceleration * axes[i].steps_per_mm;
 		// }
+	}
+
+	void setJunctionDeviation(float new_junction_deviation) {
+		default_junction_deviation = new_junction_deviation;
 	}
 	
 	// Calculates the maximum allowable speed at this point when you must be able to reach target_velocity using the 
@@ -310,20 +317,22 @@ namespace planner {
 			return 0.0;  // acceleration was 0, set intersection distance to 0
 		}
 	}
-	
+
+#if 0	
 	// Calculates the time (not distance) in microseconds (S*1,000,000) it takes to go from initial_rate for distance at acceleration rate
 	FORCE_INLINE uint32_t estimate_time_to_accelerate(float initial_rate, float acceleration, float distance) {
-		float abs_acceleration = abs(acceleration);
-		if (abs_acceleration!=0.0 && initial_rate == 0.0) {
-			return (sqrt(-2*abs_acceleration*distance)/acceleration) * 1000000;
-		} else if (abs_acceleration!=0.0) {
-			// (sqrt(v*v-2*a*D)-v)/a
-			return ((sqrt(initial_rate*initial_rate-2*abs_acceleration*distance)-initial_rate)/abs_acceleration) * 1000000;
+		/*
+		if (acceleration!=0.0 && initial_rate == 0.0) {
+					return (sqrt(-2*acceleration*distance)/acceleration) * 1000000;
+				} else */
+		if (acceleration!=0.0) {
+			return abs((sqrt(2*acceleration*distance + initial_rate*initial_rate)-initial_rate)/acceleration) * 1000000;
 		}
 		else {
 			return (distance/initial_rate) * 1000000; // no acceleration is just distance/rate
 		}
 	}
+#endif
 
 	// Calculates trapezoid parameters so that the entry- and exit-speed is compensated by the provided factors.
 	// calculate_trapezoid_for_block(block, block->entry_speed/block->nominal_speed, exit_factor_speed/block->nominal_speed);
@@ -363,9 +372,7 @@ namespace planner {
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {  // Fill variables used by the stepper in a critical section
 			if(busy == false) { // Don't update variables if block is busy.
 				accelerate_until = accelerate_steps;
-				time_to_accelerate = estimate_time_to_accelerate(initial_rate, acceleration, accelerate_steps);
 				decelerate_after = accelerate_steps+plateau_steps;
-				time_to_decelerate = estimate_time_to_accelerate(nominal_rate, -acceleration, decelerate_steps);
 				// initial_rate = initial_rate;
 				// final_rate = final_rate;
 			} // So, ummm, what if it IS busy?!
@@ -506,9 +513,9 @@ namespace planner {
 			}
 			block_index = block_buffer.getNextIndex( block_index );
 		}
-	// Last/newest block in buffer. Exit speed is set with next->stop_speed. Always recalculated.
+	// Last/newest block in buffer. Exit speed is set with MINIMUM_PLANNER_SPEED. Always recalculated.
 		if(next != NULL) {
-			next->calculate_trapezoid(next->stop_speed);
+			next->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
 			next->recalculate_flag = false;
 		}
 	}
@@ -532,6 +539,7 @@ namespace planner {
 		block_buffer.bumpTail();
 	}
 	
+
 	
 	// Buffer the move. IOW, add a new block, and recalculate the acceleration accordingly
 	bool addMoveToBuffer(const Point& target, int32_t us_per_step)
@@ -653,31 +661,57 @@ namespace planner {
 			float axis_jerk = fabs(current_speed[i]);
 			if(axis_jerk > axes[i].max_axis_jerk) {
 				stop_vmax_junction *= (axes[i].max_axis_jerk/axis_jerk);
-			}
-		}
-		block->stop_speed = stop_vmax_junction;
+		block->acceleration_rate = block->acceleration_st / ACCELERATION_TICKS_PER_SECOND;
 		
-		// Now determine the safe max entry speed for this move
+		// Compute path unit vector
+		double unit_vec[3];
+
+		unit_vec[X_AXIS] = delta_mm[X_AXIS]*inverse_millimeters;
+		unit_vec[Y_AXIS] = delta_mm[Y_AXIS]*inverse_millimeters;
+		unit_vec[Z_AXIS] = delta_mm[Z_AXIS]*inverse_millimeters;
+		
+		// Compute maximum allowable entry speed at junction by centripetal acceleration approximation.
+		// Let a circle be tangent to both previous and current path line segments, where the junction 
+		// deviation is defined as the distance from the junction to the closest edge of the circle, 
+		// colinear with the circle center. The circular segment joining the two paths represents the 
+		// path of centripetal acceleration. Solve for max velocity based on max acceleration about the
+		// radius of the circle, defined indirectly by junction deviation. This may be also viewed as 
+		// path width or max_jerk in the previous grbl version. This approach does not actually deviate 
+		// from path, but used as a robust way to compute cornering speeds, as it takes into account the
+		// nonlinearities of both the junction angle and junction velocity.
+		double vmax_junction = MINIMUM_PLANNER_SPEED; // Set default max junction speed
+
+		// Skip first block or when previous_nominal_speed is used as a flag for homing and offset cycles.
 		if ((!block_buffer.isEmpty()) && (previous_nominal_speed > 0.0)) {
-			jerk = sqrt(pow((current_speed[X_AXIS]-previous_speed[X_AXIS]), 2)+pow((current_speed[Y_AXIS]-previous_speed[Y_AXIS]), 2));
-			if((previous_speed[X_AXIS] != 0.0) || (previous_speed[Y_AXIS] != 0.0)) {
-				vmax_junction = block->nominal_speed;
-			}
-			if (jerk > max_xy_jerk) {
-				vmax_junction *= (max_xy_jerk/jerk);
-			}
-			
-			for(int i=Z_AXIS; i < AXIS_COUNT; i++) {
-				float axis_jerk = fabs(current_speed[i] - previous_speed[i]);
-				if(axis_jerk > axes[i].max_axis_jerk) {
-					vmax_junction *= (axes[i].max_axis_jerk/axis_jerk);
+			// Compute cosine of angle between previous and current path. (prev_unit_vec is negative)
+			// NOTE: Max junction velocity is computed without sin() or acos() by trig half angle identity.
+			double cos_theta = - previous_unit_vec[X_AXIS] * unit_vec[X_AXIS] 
+				- previous_unit_vec[Y_AXIS] * unit_vec[Y_AXIS] 
+				- previous_unit_vec[Z_AXIS] * unit_vec[Z_AXIS] ;
+
+			// Skip and use default max junction speed for 0 degree acute junction.
+			if (cos_theta < 0.95) {
+				vmax_junction = min(previous_nominal_speed,block->nominal_speed);
+				// Skip and avoid divide by zero for straight junctions at 180 degrees. Limit to min() of nominal speeds.
+				if (cos_theta > -0.95) {
+				// Compute maximum junction velocity based on maximum acceleration and junction deviation
+					double sin_theta_d2 = sqrt(0.5*(1.0-cos_theta)); // Trig half angle identity. Always positive.
+					vmax_junction = min(vmax_junction,
+						sqrt(default_acceleration * default_junction_deviation * sin_theta_d2/(1.0-sin_theta_d2)) );
 				}
 			}
 		}
-		block->max_entry_speed = vmax_junction;
 		
-		// Initialize block entry speed. Compute based on deceleration to junction jerk of appropriate axes
-		float v_allowable = max_allowable_speed(-block->acceleration,block->stop_speed,block->millimeters);
+		for (int i_axis = A_AXIS; i_axis < B_AXIS; i_axis++) {
+			float jerk = abs(previous_speed[i_axis] - current_speed[i_axis]);
+			if (jerk > axes[i_axis].max_axis_jerk) {
+				vmax_junction *= (axes[i_axis].max_axis_jerk/jerk);
+			}
+		}
+		block->max_entry_speed = vmax_junction;
+
+		// Initialize block entry speed. Compute based on deceleration to user-defined MINIMUM_PLANNER_SPEED.
+		double v_allowable = max_allowable_speed(-block->acceleration,MINIMUM_PLANNER_SPEED,block->millimeters);
 		block->entry_speed = min(vmax_junction, v_allowable);
 		
 		// Initialize planner efficiency flags
@@ -695,16 +729,13 @@ namespace planner {
 		block->recalculate_flag = true; // Always calculate trapezoid for new block
 
 		// Update previous path unit_vector and nominal speed
-		// memcpy(previous_speed, current_speed, sizeof(previous_speed)); // previous_speed[] = current_speed[]
-		previous_speed[0] = current_speed[0];
-		previous_speed[1] = current_speed[1];
-		previous_speed[2] = current_speed[2];
-		previous_speed[3] = current_speed[3];
-		previous_speed[4] = current_speed[4];
+		memcpy(previous_speed, current_speed, sizeof(previous_speed)); // previous_speed[] = current_speed[]
 
+		// Update previous path unit_vector and nominal speed
+		memcpy(previous_unit_vec, unit_vec, sizeof(unit_vec)); // previous_unit_vec[] = unit_vec[]
 		previous_nominal_speed = block->nominal_speed;
 
-		block->calculate_trapezoid(block->stop_speed);
+		block->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
 
 		// Update position
 		position = target;
@@ -735,6 +766,10 @@ namespace planner {
 		}
 		
 		block_buffer.clear();
+
+		previous_unit_vec[0]= 0.0;
+		previous_unit_vec[1]= 0.0;
+		previous_unit_vec[2]= 0.0;
 	}
 	
 	void definePosition(const Point& new_position)
@@ -746,6 +781,10 @@ namespace planner {
 		for (int i = 0; i < AXIS_COUNT; i++) {
 			previous_speed[i] = 0.0;
 		}
+
+		previous_unit_vec[0]= 0.0;
+		previous_unit_vec[1]= 0.0;
+		previous_unit_vec[2]= 0.0;
 	}
 
 	const Point getPosition()

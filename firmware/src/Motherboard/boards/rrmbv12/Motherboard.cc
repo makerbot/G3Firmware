@@ -85,6 +85,7 @@ Motherboard::Motherboard(const Pin& psu_pin) :
 		/* END FIX THIS FIX THIS FIX THIS FIX THIS */
 
         planner::setAcceleration(DEFAULT_ACCELERATION);
+        planner::setJunctionDeviation(DEFAULT_JUNCTION_DEVIATION);
         planner::setMaxXYJerk(DEFAULT_MAX_XY_JERK);
         planner::setMaxAxisJerk(DEFAULT_MAX_Z_JERK, 2);
         planner::setMaxAxisJerk(DEFAULT_MAX_A_JERK, 3);

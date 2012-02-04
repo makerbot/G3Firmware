@@ -27,8 +27,9 @@
 /// be at least eight times this large.  Reducing the interval can cause resource
 /// starvation; leave this at 64uS or greater unless you know what you're doing.
 #define INTERVAL_IN_MICROSECONDS 128
-// 8MHz / INTERVAL_IN_MICROSECONDS = 125000
-#define INTERVALS_PER_SECOND (1000000 / INTERVAL_IN_MICROSECONDS)
+
+#define TICKS_PER_ACCELERATION   125
+#define ACCELERATION_TICKS_PER_SECOND (1000000/(INTERVAL_IN_MICROSECONDS*TICKS_PER_ACCELERATION))
 
 // --- Secure Digital Card configuration ---
 // NOTE: If SD support is enabled, it is implicitly assumed that the
@@ -189,5 +190,13 @@
 #define INTERFACE_FOO_PIN       Pin(PortC,0)
 #define INTERFACE_BAR_PIN       Pin(PortL,0)
 #define INTERFACE_DEBUG_PIN     Pin(PortB,7)
+
+//#define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
+#define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
+#define DEFAULT_MAX_XY_JERK 20.0
+#define DEFAULT_MAX_Z_JERK 10.0
+#define DEFAULT_MAX_A_JERK 10.0
+#define DEFAULT_MAX_B_JERK 10.0
+
 
 #endif // BOARDS_RRMBV12_CONFIGURATION_HH_
