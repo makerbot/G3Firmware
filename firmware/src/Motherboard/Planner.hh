@@ -104,8 +104,9 @@ namespace planner {
 	void setMaxAxisJerk(float jerk, uint8_t axis);
 
 	void setAcceleration(float acceleration);
+#ifdef CENTREPEDAL
 	void setJunctionDeviation(float new_junction_deviation);
-	
+#endif	
 	void setAxisStepsPerMM(float steps_per_mm, uint8_t axis);
 	
 	bool isBufferFull();
