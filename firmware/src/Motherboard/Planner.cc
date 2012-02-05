@@ -660,15 +660,7 @@ namespace planner {
 			if (jerk > max_xy_jerk) {
 				vmax_junction *= (max_xy_jerk/jerk);
 			}
-			
-			for(int i=Z_AXIS; i < AXIS_COUNT; i++) {
-				float axis_jerk = fabs(current_speed[i] - previous_speed[i]);
-				if(axis_jerk > axes[i].max_axis_jerk) {
-					vmax_junction *= (axes[i].max_axis_jerk/axis_jerk);
-				}
-			}
 		}
-		block->max_entry_speed = vmax_junction;
 
 #else // CENTREPEDAL
 
@@ -715,7 +707,7 @@ namespace planner {
 		memcpy(previous_unit_vec, unit_vec, sizeof(unit_vec)); // previous_unit_vec[] = unit_vec[]
 #endif
 
-		for (int i_axis = A_AXIS; i_axis < B_AXIS; i_axis++) {
+		for (int i_axis = Z_AXIS; i_axis < AXIS_COUNT; i_axis++) {
 			float jerk = abs(previous_speed[i_axis] - current_speed[i_axis]);
 			if (jerk > axes[i_axis].max_axis_jerk) {
 				vmax_junction *= (axes[i_axis].max_axis_jerk/jerk);
@@ -750,7 +742,7 @@ namespace planner {
 		// Update position
 		position = target;
 		
-		// Move buffer head -- should this move to after recalculate?
+		// Move buffer head
 		block_buffer.bumpHead();
 
 		planner_recalculate();

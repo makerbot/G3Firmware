@@ -41,7 +41,7 @@ volatile int8_t  feedrate_dirty; // indicates if the feedrate_inverted needs rec
 volatile int32_t feedrate_inverted;
 volatile int32_t feedrate_changerate;
 volatile int32_t acceleration_tick_counter;
-volatile int32_t feedrate_start_halving;
+volatile int32_t feedrate_multiplier; // should always be 2^N and > 0
 volatile uint8_t current_feedrate_index;
 
 volatile int32_t timer_counter;
@@ -92,6 +92,7 @@ void abort() {
 	feedrate = 0;
 	feedrate_inverted = 0;
 	feedrate_dirty = 1;
+        feedrate_multiplier = 1;
 }
 
 /// Define current position as given point
@@ -266,6 +267,19 @@ bool getNextMove() {
 
 	prepareFeedrateIntervals();
 	feedrate_inverted = 1000000/feedrate;
+	
+	// NOTE: the following code is duplicated in the interrupt, and should be a subroutine
+	
+	// if we are supposed to step too fast, we simulate double-size microsteps
+	feedrate_multiplier = 1;
+	while (feedrate_inverted < INTERVAL_IN_MICROSECONDS) {
+		feedrate_multiplier <<= 1; // * 2
+		feedrate_inverted   <<= 1; // * 2
+	}
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+		axes[i].setStepMultiplier(feedrate_multiplier);
+	}
+
 	feedrate_dirty = 0;
 	acceleration_tick_counter = TICKS_PER_ACCELERATION;
 
@@ -322,8 +336,8 @@ bool doInterrupt() {
 		stepperTimingDebugPin.setValue(true);
 		timer_counter -= INTERVAL_IN_MICROSECONDS;
 
-		while (timer_counter <= 0) {
-			if (intervals_remaining-- == 0) {
+		if (timer_counter <= 0) {
+			if ((intervals_remaining -= feedrate_multiplier) == 0) {
 				getNextMove();
 				stepperTimingDebugPin.setValue(false);
 				return is_running;
@@ -336,15 +350,25 @@ bool doInterrupt() {
 				
 				if (feedrate_dirty) {
 					feedrate_inverted = 1000000/feedrate;
+
+					// if we are supposed to step too fast, we simulate double-size microsteps
+					feedrate_multiplier = 1;
+					while (feedrate_inverted < INTERVAL_IN_MICROSECONDS) {
+						feedrate_multiplier <<= 1; // * 2
+						feedrate_inverted   <<= 1; // * 2
+					}
+					for (int i = 0; i < STEPPER_COUNT; i++) {
+						axes[i].setStepMultiplier(feedrate_multiplier);
+					}
+					
 					feedrate_dirty = 0;
 				}
 				
 				timer_counter += feedrate_inverted;
 				
-				if (feedrate_steps_remaining-- <= 0) {
+				if ((feedrate_steps_remaining -= feedrate_multiplier) <= 0) {
 					current_feedrate_index++;
 					prepareFeedrateIntervals();
-					break;
 				}
 			}
 		}

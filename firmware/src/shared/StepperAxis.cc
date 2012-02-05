@@ -8,6 +8,12 @@ StepperAxis::StepperAxis(StepperInterface& stepper_interface) : interface(&stepp
         reset();
 }
 
+void StepperAxis::setStepMultiplier(const int8_t new_multiplier) {
+        step_multiplier = new_multiplier;
+        step_change = direction ? step_multiplier : -step_multiplier;
+}
+
+
 void StepperAxis::setTarget(const int32_t target_in, bool relative) {
         if (relative) {
                 delta = target_in;
@@ -23,6 +29,9 @@ void StepperAxis::setTarget(const int32_t target_in, bool relative) {
         if (delta < 0) {
                 delta = -delta;
                 direction = false;
+                step_change = -step_multiplier;
+        } else {
+                step_change = step_multiplier;
         }
         interface->setDirection(direction);
 }
@@ -49,6 +58,8 @@ void StepperAxis::reset() {
         target = 0;
         counter = 0;
         delta = 0;
+        step_multiplier = 1;
+        step_change = 1;
 #if defined(SINGLE_SWITCH_ENDSTOPS) && (SINGLE_SWITCH_ENDSTOPS == 1)
         endstop_play = ENDSTOP_DEFAULT_PLAY;
         endstop_status = ESS_UNKNOWN;
@@ -103,13 +114,12 @@ void StepperAxis::doInterrupt(const int32_t intervals) {
         if (counter >= 0) {
                 counter -= intervals;
                 bool hit_endstop = checkEndstop(false);
-                if (!hit_endstop) interface->step(true);
-                if (direction) {
-                        position++;
-                } else {
-                        position--;
-                }
-                interface->step(false);
+                if (!hit_endstop)
+                        for (int8_t steps = step_multiplier; steps > 0; steps--) {
+                                interface->step(true);
+                                interface->step(false);
+                        }
+                position += step_change;
         }
 }
 
@@ -120,22 +130,16 @@ bool StepperAxis::doHoming(const int32_t intervals) {
         if (counter >= 0) {
                 counter -= intervals;
                 bool hit_endstop = checkEndstop(true);
-                if (direction) {
-                        if (!hit_endstop) {
+                if (!hit_endstop) {
+                        // we honor the step multiplier here, but it *really* should be 1 for homing
+                        for (int8_t steps = step_multiplier; steps > 0; steps--) {
                                 interface->step(true);
-                        } else {
-                                return false;
+                                interface->step(false);
                         }
-                        position++;
                 } else {
-                        if (!hit_endstop) {
-                                interface->step(true);
-                        } else {
-                                return false;
-                        }
-                        position--;
+                        return false;
                 }
-                interface->step(false);
+                position += step_change;
         }
         return true;
 }
