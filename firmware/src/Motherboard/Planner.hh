@@ -36,7 +36,13 @@ namespace planner {
 	// the source g-code and may never actually be reached if acceleration management is active.
 	class Block {
 	public:
-	// Fields used by the bresenham algorithm for tracing the line
+		typedef enum {
+			Busy          = 1<<0,
+			Recalculate   = 1<<1,
+			NominalLength = 1<<2,
+		} PlannerFlags;
+
+		// Fields used by the bresenham algorithm for tracing the line
 		Point target;                        // Final 5-axis target
 		uint32_t step_event_count;           // The number of step events required to complete this block
 		int32_t accelerate_until;            // The index of the step event on which to stop acceleration
@@ -46,23 +52,24 @@ namespace planner {
 		// uint8_t active_extruder;             // Selects the active extruder
 		
 
-	// Fields used by the motion planner to manage acceleration
-	//  float speed_x, speed_y, speed_z, speed_e;        // Nominal mm/minute for each axis
+		// Fields used by the motion planner to manage acceleration
+		//  float speed_x, speed_y, speed_z, speed_e;        // Nominal mm/minute for each axis
 		float nominal_speed;                               // The nominal speed for this block in mm/min  
 		float entry_speed;                                 // Entry speed at previous-current junction in mm/min
 		float max_entry_speed;                             // Maximum allowable junction entry speed in mm/min
 		float millimeters;                                 // The total travel of this block in mm
 		float acceleration;                                // acceleration mm/sec^2
-		float stop_speed;                            // Speed to decelerate to if this is the last move
-		uint8_t recalculate_flag;                    // Planner flag to recalculate trapezoids on entry junction
-		uint8_t nominal_length_flag;                 // Planner flag for nominal speed always reached
+		// float stop_speed;                            // Speed to decelerate to if this is the last move
+		// uint8_t recalculate_flag;                    // Planner flag to recalculate trapezoids on entry junction
+		// uint8_t nominal_length_flag;                 // Planner flag for nominal speed always reached
 
-	// Settings for the trapezoid generator
+		// Settings for the trapezoid generator
 		uint32_t nominal_rate;                        // The nominal step rate for this block in step_events/sec 
 		uint32_t initial_rate;                        // The jerk-adjusted step rate at start of block  
 		uint32_t final_rate;                          // The minimal rate at exit
 		uint32_t acceleration_st;                     // acceleration steps/sec^2
-		uint8_t busy;
+		// uint8_t busy;
+		uint8_t flags;
 		
 		Block() : target() {};
 		

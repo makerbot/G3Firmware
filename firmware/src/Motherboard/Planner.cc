@@ -374,7 +374,7 @@ namespace planner {
 		}
 
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {  // Fill variables used by the stepper in a critical section
-			if(busy == false) { // Don't update variables if block is busy.
+			if(!(flags & Block::Busy)) { // Don't update variables if block is busy.
 				accelerate_until = accelerate_steps;
 				decelerate_after = accelerate_steps+plateau_steps;
 				// initial_rate = initial_rate;
@@ -425,13 +425,13 @@ namespace planner {
 
 				// If nominal length true, max junction speed is guaranteed to be reached. Only compute
 				// for max allowable speed if block is decelerating and nominal length is false.
-				if ((!current->nominal_length_flag) && (current->max_entry_speed > next->entry_speed)) {
+				if ((!(current->flags & Block::NominalLength)) && (current->max_entry_speed > next->entry_speed)) {
 					current->entry_speed = min( current->max_entry_speed,
 						max_allowable_speed(-current->acceleration,next->entry_speed,current->millimeters));
 				} else {
 					current->entry_speed = current->max_entry_speed;
 				}
-				current->recalculate_flag = true;
+				current->flags |= Block::Recalculate;
 
 			}
 		} // Skip last block. Already initialized and set for recalculation.
@@ -464,7 +464,7 @@ namespace planner {
 		// full speed change within the block, we need to adjust the entry speed accordingly. Entry
 		// speeds have already been reset, maximized, and reverse planned by reverse planner.
 		// If nominal length is true, max junction speed is guaranteed to be reached. No need to recheck.
-		if (!previous->nominal_length_flag) {
+		if (!(previous->flags & Block::NominalLength)) {
 			if (previous->entry_speed < current->entry_speed) {
 				float entry_speed = min( current->entry_speed,
 					max_allowable_speed(-previous->acceleration,previous->entry_speed,previous->millimeters) );
@@ -472,7 +472,7 @@ namespace planner {
 				// Check for junction speed change
 				if (current->entry_speed != entry_speed) {
 					current->entry_speed = entry_speed;
-					current->recalculate_flag = true;
+					current->flags |= Block::Recalculate;
 				}
 			}
 		}
@@ -509,10 +509,10 @@ namespace planner {
 			next = &block_buffer[block_index];
 			if (current) {
 				// Recalculate if current block entry or exit junction speed has changed.
-				if (current->recalculate_flag || next->recalculate_flag) {
+				if ((current->flags & Block::Recalculate) || (next->flags & Block::Recalculate)) {
 					// NOTE: Entry and exit factors always > 0 by all previous logic operations.
 					current->calculate_trapezoid(next->entry_speed);
-					current->recalculate_flag = false; // Reset current only to ensure next trapezoid is computed
+					current->flags &= ~Block::Recalculate; // Reset current only to ensure next trapezoid is computed
 				}
 			}
 			block_index = block_buffer.getNextIndex( block_index );
@@ -520,7 +520,7 @@ namespace planner {
 	// Last/newest block in buffer. Exit speed is set with MINIMUM_PLANNER_SPEED. Always recalculated.
 		if(next != NULL) {
 			next->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
-			next->recalculate_flag = false;
+			next->flags &= ~Block::Recalculate;
 		}
 	}
 
@@ -553,7 +553,7 @@ namespace planner {
 		
 		Block *block = block_buffer.getHead();
 		// Mark block as not busy (Not executed by the stepper interrupt)
-		block->busy = false;
+		block->flags = 0;
 		
 		block->target = target;
 
@@ -651,14 +651,9 @@ namespace planner {
 
 		vmax_junction = min(vmax_junction, block->nominal_speed);
 		
-		// Determine the stopping speed for this move, in case it's the last one
-		// this is basically the same as the entry speed calcs (done next) except this move is
-		//  the "previous" one and the "current" speed would be zero.
-		float jerk = sqrt(pow((current_speed[X_AXIS]), 2)+pow((current_speed[Y_AXIS]), 2));
-		
 		// Now determine the safe max entry speed for this move
 		if ((!block_buffer.isEmpty()) && (previous_nominal_speed > 0.0)) {
-			jerk = sqrt(pow((current_speed[X_AXIS]-previous_speed[X_AXIS]), 2)+pow((current_speed[Y_AXIS]-previous_speed[Y_AXIS]), 2));
+			float jerk = sqrt(pow((current_speed[X_AXIS]-previous_speed[X_AXIS]), 2)+pow((current_speed[Y_AXIS]-previous_speed[Y_AXIS]), 2));
 			if((previous_speed[X_AXIS] != 0.0) || (previous_speed[Y_AXIS] != 0.0)) {
 				vmax_junction = block->nominal_speed;
 			}
@@ -741,10 +736,10 @@ namespace planner {
 		// the reverse and forward planners, the corresponding block junction speed will always be at the
 		// the maximum junction speed and may always be ignored for any speed reduction checks.
 		if (block->nominal_speed <= v_allowable)
-			block->nominal_length_flag = true;
+			block->flags |= Block::NominalLength;
 		else
-			block->nominal_length_flag = false;
-		block->recalculate_flag = true; // Always calculate trapezoid for new block
+			block->flags &= ~Block::NominalLength;
+		block->flags &= ~Block::Recalculate; // Always calculate trapezoid for new block
 
 		// Update previous path speed and nominal speed
 		memcpy(previous_speed, current_speed, sizeof(previous_speed)); // previous_speed[] = current_speed[]

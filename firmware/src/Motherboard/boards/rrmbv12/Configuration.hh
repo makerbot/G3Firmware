@@ -168,11 +168,11 @@
 
 // The number of movements we can plan ahead at a time
 // THIS MUST BE A POWER OF 2! 4, 8, 16, 32, you get the idea...
-#define BLOCK_BUFFER_SIZE 32
+#define BLOCK_BUFFER_SIZE 16
 
 //#define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
 #define DEFAULT_ACCELERATION 900.0 /* mm/s/s */
-#define DEFAULT_MAX_XY_JERK 8.0 // <-- unused if CENTREPEDAL is defined below
+#define DEFAULT_MAX_XY_JERK 5.0 // <-- unused if CENTREPEDAL is defined below
 #define DEFAULT_MAX_Z_JERK 5.0
 #define DEFAULT_MAX_A_JERK 10.0
 #define DEFAULT_MAX_B_JERK 10.0
@@ -180,7 +180,7 @@
 // Minimum planner junction speed. Sets the default minimum speed the planner plans for at the end
 // of the buffer and all stops. This should not be much greater than zero and should only be changed
 // if unwanted behavior is observed on a user's machine when running at very slow speeds.
-#define MINIMUM_PLANNER_SPEED 4.0 // (mm/sec)
+#define MINIMUM_PLANNER_SPEED 2.0 // (mm/sec)
 
 //  define CENTREPEDAL to use centrepedal calucations -- so far I can't get there to work -Rob
 #undef CENTREPEDAL

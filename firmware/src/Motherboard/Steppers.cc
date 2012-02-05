@@ -212,7 +212,7 @@ bool getNextMove() {
 	
 	current_block = planner::getNextBlock();
 	// Mark block as busy (being executed by the stepper interrupt)
-	current_block->busy = true;
+	current_block->flags |= planner::Block::Busy;
 	
 	Point &target = current_block->target;
 	
@@ -280,7 +280,7 @@ bool getNextMove() {
 	}
 	is_running = true;
 	
-	current_block->busy = false;
+	current_block->flags &= ~planner::Block::Busy;
 	planner::doneWithNextBlock();
 	
 	return true;
