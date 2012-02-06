@@ -76,13 +76,13 @@ Motherboard::Motherboard(const Pin& psu_pin) :
                                       eeprom::AXIS_INVERSION);
 #endif
 
-		/* FIX THIS FIX THIS FIX THIS FIX THIS */
-		planner::setAxisStepsPerMM(94.1397046, 0);
-		planner::setAxisStepsPerMM(94.1397046, 1);
-		planner::setAxisStepsPerMM(2560.0, 2);
-		planner::setAxisStepsPerMM(100.470957613814818, 3);
-		planner::setAxisStepsPerMM(100.470957613814818, 4);
-		/* END FIX THIS FIX THIS FIX THIS FIX THIS */
+        /* FIX THIS FIX THIS FIX THIS FIX THIS */
+        planner::setAxisStepsPerMM(94.1397046, 0);
+        planner::setAxisStepsPerMM(94.1397046, 1);
+        planner::setAxisStepsPerMM(2560.0, 2);
+        planner::setAxisStepsPerMM(100.470957613814818, 3);
+        planner::setAxisStepsPerMM(100.470957613814818, 4);
+        /* END FIX THIS FIX THIS FIX THIS FIX THIS */
 
         planner::setAcceleration(DEFAULT_ACCELERATION);
 #ifdef CENTREPEDAL

@@ -93,9 +93,11 @@ namespace steppers {
     ///                  disabled when not moving.
     void setHoldZ(bool holdZ);
 
-    // bool getNextMove();
-
     void startRunning();
+
+    void currentBlockChanged();
+
+    uint32_t getCurrentStep();
 };
 
 #endif // STEPPERS_HH_

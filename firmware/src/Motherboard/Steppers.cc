@@ -21,6 +21,7 @@
 #include "Planner.hh"
 #include <math.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 namespace steppers {
 
@@ -66,7 +67,7 @@ void init(Motherboard& motherboard) {
 	}
 	timer_counter = 0;
 
-	current_block = 0;
+	current_block = NULL;
 	
 	for (int i = 0; i < 3; i++) {
 		feedrate_elements[i] = feedrate_element();
@@ -85,6 +86,7 @@ void abort() {
 	is_running = false;
 	is_homing = false;
 	timer_counter = 0;
+	current_block = NULL;
 	// feedrate_scale_shift = 0;
 	// feedrate_intervals = 0;
 	// feedrate_intervals_remaining = 0;
@@ -203,13 +205,44 @@ inline void prepareFeedrateIntervals() {
 	// acceleration_tick_counter = 0;
 }
 
+inline void recalcFeedrate() {
+	feedrate_inverted = 1000000/feedrate;
+
+	// if we are supposed to step too fast, we simulate double-size microsteps
+	feedrate_multiplier = 1;
+	while (feedrate_inverted < INTERVAL_IN_MICROSECONDS) {
+		feedrate_multiplier <<= 1; // * 2
+		feedrate_inverted   <<= 1; // * 2
+	}
+	
+	for (int i = 0; i < STEPPER_COUNT; i++) {
+		axes[i].setStepMultiplier(feedrate_multiplier);
+	}
+	
+	feedrate_dirty = 0;
+}
+
+uint32_t getCurrentStep() {
+	return intervals - intervals_remaining;
+}
+
+
 // load up the next movment
 // WARNING: called from inside the ISR, so get out fast
-bool getNextMove() {	
+bool getNextMove() {
+	stepperTimingDebugPin.setValue(true);
 	is_running = false; // this ensures that the interrupt does not .. interrupt us
 
-	if (planner::isBufferEmpty())
+	if (current_block != NULL) {
+		current_block->flags &= ~planner::Block::Busy;
+		planner::doneWithNextBlock();
+		current_block = NULL;
+	}
+	
+	if (planner::isBufferEmpty()) {
+		stepperTimingDebugPin.setValue(false);
 		return false;
+	}
 	
 	current_block = planner::getNextBlock();
 	// Mark block as busy (being executed by the stepper interrupt)
@@ -266,25 +299,11 @@ bool getNextMove() {
 	}
 
 	prepareFeedrateIntervals();
-	feedrate_inverted = 1000000/feedrate;
-	
-	// NOTE: the following code is duplicated in the interrupt, and should be a subroutine
-	
-	// if we are supposed to step too fast, we simulate double-size microsteps
-	feedrate_multiplier = 1;
-	while (feedrate_inverted < INTERVAL_IN_MICROSECONDS) {
-		feedrate_multiplier <<= 1; // * 2
-		feedrate_inverted   <<= 1; // * 2
-	}
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-		axes[i].setStepMultiplier(feedrate_multiplier);
-	}
-
-	feedrate_dirty = 0;
+	recalcFeedrate();
 	acceleration_tick_counter = TICKS_PER_ACCELERATION;
 
 	// We use += here so that the odd rounded-off time from the last move is still waited out
-	timer_counter += feedrate;
+	timer_counter += feedrate_inverted;
 
 	intervals = max_delta;
 	intervals_remaining = intervals;
@@ -294,10 +313,58 @@ bool getNextMove() {
 	}
 	is_running = true;
 	
-	current_block->flags &= ~planner::Block::Busy;
-	planner::doneWithNextBlock();
-	
+	stepperTimingDebugPin.setValue(false);
 	return true;
+}
+
+void currentBlockChanged() {
+	// If we are here, then we are moving AND the interrupts are frozen, so get out *fast*
+	uint32_t current_step = intervals - intervals_remaining;
+
+	current_feedrate_index = 0;
+	int feedrate_being_setup = 0;
+	// setup acceleration
+	feedrate = 0;
+	if (current_block->accelerate_until > current_step) {
+		feedrate = current_block->initial_rate;
+
+		feedrate_elements[feedrate_being_setup].steps     = current_block->accelerate_until;
+		feedrate_elements[feedrate_being_setup].rate      = current_block->acceleration_rate;
+		feedrate_elements[feedrate_being_setup].target    = current_block->nominal_rate;
+		feedrate_being_setup++;
+	} else {
+		// reclac current_step to be the current step inside this submovement
+		current_step -= current_block->accelerate_until;
+	}
+
+	// setup plateau
+	if (current_block->decelerate_after > current_block->accelerate_until && current_block->decelerate_after > current_step) {
+		if (feedrate == 0)
+			feedrate = current_block->nominal_rate;
+		
+		feedrate_elements[feedrate_being_setup].steps     = current_block->decelerate_after - current_block->accelerate_until;
+		feedrate_elements[feedrate_being_setup].rate      = 0;
+		feedrate_elements[feedrate_being_setup].target    = current_block->nominal_rate;
+		feedrate_being_setup++;
+	} else {
+		// reclac current_step to be the current step inside this submovement
+		current_step -= current_block->decelerate_after - current_block->accelerate_until;
+	}
+
+	// setup deceleration
+	if (current_block->decelerate_after < current_block->step_event_count) {
+		if (feedrate == 0)
+			feedrate = current_block->nominal_rate;
+
+		feedrate_elements[feedrate_being_setup].steps     = current_block->step_event_count - current_block->decelerate_after;
+		feedrate_elements[feedrate_being_setup].rate      = -current_block->acceleration_rate;
+		feedrate_elements[feedrate_being_setup].target    = current_block->final_rate;
+	}
+
+	prepareFeedrateIntervals();
+	// remove the amount of steps we've already taken...
+	feedrate_steps_remaining -= current_step;
+	recalcFeedrate();
 }
 
 /// Start homing
@@ -333,13 +400,13 @@ void startRunning() {
 
 bool doInterrupt() {
 	if (is_running) {
-		stepperTimingDebugPin.setValue(true);
+                // stepperTimingDebugPin.setValue(true);
 		timer_counter -= INTERVAL_IN_MICROSECONDS;
 
 		if (timer_counter <= 0) {
-			if ((intervals_remaining -= feedrate_multiplier) == 0) {
+			if ((intervals_remaining -= feedrate_multiplier) <= 0) {
 				getNextMove();
-				stepperTimingDebugPin.setValue(false);
+                                // stepperTimingDebugPin.setValue(false);
 				return is_running;
 				// is_running = false;
 			} else {
@@ -349,19 +416,7 @@ bool doInterrupt() {
 				}
 				
 				if (feedrate_dirty) {
-					feedrate_inverted = 1000000/feedrate;
-
-					// if we are supposed to step too fast, we simulate double-size microsteps
-					feedrate_multiplier = 1;
-					while (feedrate_inverted < INTERVAL_IN_MICROSECONDS) {
-						feedrate_multiplier <<= 1; // * 2
-						feedrate_inverted   <<= 1; // * 2
-					}
-					for (int i = 0; i < STEPPER_COUNT; i++) {
-						axes[i].setStepMultiplier(feedrate_multiplier);
-					}
-					
-					feedrate_dirty = 0;
+					recalcFeedrate();
 				}
 				
 				timer_counter += feedrate_inverted;
@@ -392,7 +447,7 @@ bool doInterrupt() {
 
 		}
 		
-		stepperTimingDebugPin.setValue(false);
+                // stepperTimingDebugPin.setValue(false);
 		return is_running;
 	} else if (is_homing) {
 		is_homing = false;
