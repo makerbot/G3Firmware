@@ -34,6 +34,7 @@ public:
 	typedef T BufDataType;
 private:
 	const BufSizeType size; /// Size of this buffer
+	const BufSizeType size_mask; /// Mask of the buffer size, in binary, as size-1.
 	volatile BufSizeType length; /// Current length of valid buffer data
 	volatile BufSizeType start; /// Current start point of valid bufffer data
 	BufDataType* const data; /// Pointer to buffer data
@@ -41,7 +42,7 @@ private:
 	volatile bool underflow; /// Underflow indicator
 public:
 	CircularBufferTempl(BufSizeType size_in, BufDataType* data_in) :
-		size(size_in), length(0), start(0), data(data_in), overflow(false),
+		size(size_in), size_mask(size-1), length(0), start(0), data(data_in), overflow(false),
 				underflow(false) {
 	}
 
@@ -69,7 +70,7 @@ public:
 			return BufDataType();
 		}
 		const BufDataType& popped_byte = operator[](0);
-		start = (start + 1) % size;
+		start = (start + 1) & size_mask;
 		length--;
 		return popped_byte;
 	}
@@ -82,7 +83,7 @@ public:
 			underflow = true;
 			sz = length;
 		}
-		start = (start + sz) % size;
+		start = (start + sz) & size_mask;
 		length -= sz;
 	}
 
@@ -102,7 +103,7 @@ public:
 	}
 	/// Read the buffer directly
 	inline BufDataType& operator[](BufSizeType index) {
-		const BufSizeType actual_index = (index + start) % size;
+		const BufSizeType actual_index = (index + start) & size_mask;
 		return data[actual_index];
 	}
 	/// Check the overflow flag

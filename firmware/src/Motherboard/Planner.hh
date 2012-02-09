@@ -28,7 +28,6 @@
 
 #include "Configuration.hh"
 #include <stdint.h>
-#include "CircularBuffer.hh"
 #include "Point.hh"
 
 namespace planner {

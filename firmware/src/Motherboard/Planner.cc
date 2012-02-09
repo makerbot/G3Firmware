@@ -78,6 +78,9 @@
 #include "Steppers.hh"
 #include "Point.hh"
 
+// My tests show it takes about 72ms to plan one segment on a Gen3 MB, so we need to give it room. -Rob
+#define MIN_MS_PER_SEGMENT 1200
+
 #define X_AXIS 0
 #define Y_AXIS 1
 #define Z_AXIS 2
@@ -639,6 +642,12 @@ namespace planner {
 		// 	if (target[i] < position[i]) { block->direction_bits |= (1<<i); }
 		}		
 		block->millimeters = sqrt(block->millimeters);
+		
+		// CLEAN ME: Ugly dirty check to prevent a lot of small moves from causing a planner buffer underrun
+		// For now, we'll just make sure each movement takes at least MIN_MS_PER_SEGMENT millisesconds to complete
+		if ((us_per_step * block->step_event_count) < MIN_MS_PER_SEGMENT) {
+			us_per_step = MIN_MS_PER_SEGMENT / block->step_event_count;
+		}
 		
 		float inverse_millimeters = 1.0/block->millimeters; // Inverse millimeters to remove multiple divides
 		// Calculate 1 second/(seconds for this movement)

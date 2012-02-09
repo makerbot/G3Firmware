@@ -435,9 +435,9 @@ bool doInterrupt() {
 				
 				if (feedrate_dirty) {
 					recalcFeedrate();
-					if (feedrate_inverted < INTERVAL_IN_MICROSECONDS) {
-						feedrate_inverted = INTERVAL_IN_MICROSECONDS;
-					}
+					// if (feedrate_inverted < INTERVAL_IN_MICROSECONDS) {
+					// 	feedrate_inverted = INTERVAL_IN_MICROSECONDS;
+					// }
 				}
 				
 				timer_counter += feedrate_inverted;

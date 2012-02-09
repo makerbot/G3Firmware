@@ -32,7 +32,7 @@ namespace command {
 
 // Pin stepperTimingDebugPin = STEPPER_TIMER_DEBUG;
 
-#define COMMAND_BUFFER_SIZE 512
+#define COMMAND_BUFFER_SIZE 512 // Must be 2^N: 256, 512, 1204, etc
 uint8_t buffer_data[COMMAND_BUFFER_SIZE];
 CircularBuffer command_buffer(COMMAND_BUFFER_SIZE, buffer_data);
 
