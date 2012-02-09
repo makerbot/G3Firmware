@@ -121,6 +121,7 @@ inline const T& max(const T& a, const T& b) { return (a)>(b)?(a):(b); }
 
 namespace planner {
 	
+	Pin stepperTimingDebugPin = STEPPER_TIMER_DEBUG;
 	
 	// Super-simple circular buffer, where old nodes are reused
 	// TODO: Move to a seperate file
@@ -224,6 +225,28 @@ namespace planner {
 		// note that X+Y has it's own setting, and this if for all the rest
 		float max_axis_jerk;
 	};
+#if 0	
+	 // precision is the number of bit to use for  the fractional part
+	template <typedef base_type, int8_t precision, typedef intermediate_type = base_type>
+	struct QuickFixedPoint
+	{
+		base_type value;
+		QuickFixedPoint(float init_value) : value((base_type)(init_value * (float)(1<<precision))) {}
+		
+		base_type operator+(QuickFixedPoint a) {
+			return (value + a);
+		}
+		base_type operator-(QuickFixedPoint a) {
+			return (value - a);
+		}
+		base_type operator*(QuickFixedPoint a) {
+			return (value * a)>>a.precision;
+		}
+		base_type operator/(QuickFixedPoint a) {
+			return (value / a)>>a.precision;
+		}
+	};
+#endif
 	
 	PlannerAxis axes[AXIS_COUNT];
 	
@@ -251,8 +274,8 @@ namespace planner {
 		position = Point(0,0,0,0,0);
 		previous_nominal_speed = 0.0;
 		
-		axes[0].max_acceleration = 900*axes[0].steps_per_mm;
-		axes[1].max_acceleration = 900*axes[1].steps_per_mm;
+		axes[0].max_acceleration = 3000*axes[0].steps_per_mm;
+		axes[1].max_acceleration = 3000*axes[1].steps_per_mm;
 		axes[2].max_acceleration = 200*axes[2].steps_per_mm;
 		axes[3].max_acceleration = 10000*axes[3].steps_per_mm;
 		axes[4].max_acceleration = 10000*axes[4].steps_per_mm;
@@ -261,6 +284,10 @@ namespace planner {
 		// axes[2].max_acceleration = 200*axes[2].steps_per_mm;
 		// axes[3].max_acceleration = 20000*axes[3].steps_per_mm;
 		// axes[4].max_acceleration = 20000*axes[4].steps_per_mm;
+
+		stepperTimingDebugPin.setDirection(true);
+		stepperTimingDebugPin.setValue(false);
+
 	}
 
 	
@@ -292,18 +319,19 @@ namespace planner {
 	// Calculates the maximum allowable speed at this point when you must be able to reach target_velocity using the 
 	// acceleration within the allotted distance.
 	FORCE_INLINE float max_allowable_speed(float acceleration, float target_velocity, float distance) {
-		return  sqrt(target_velocity*target_velocity-2*acceleration*distance);
+		return sqrt((target_velocity*target_velocity)-(acceleration*2.0)*distance);
 	}
 
 	// Calculates the distance (not time) it takes to accelerate from initial_rate to target_rate using the 
-	// given acceleration:
-	FORCE_INLINE float estimate_acceleration_distance(float initial_rate, float target_rate, float acceleration)
+	// given acceleration.
+	// Rates are given pre-squared, and accelereation pre-doubled for caching in the calling subroutine.
+	FORCE_INLINE int32_t estimate_acceleration_distance(int32_t initial_rate_squared, int32_t target_rate_squared, int32_t acceleration_doubled)
 	{
-		if (acceleration!=0) {
-			return((target_rate*target_rate-initial_rate*initial_rate)/(2.0*acceleration));
+		if (acceleration_doubled!=0) {
+			return((target_rate_squared-initial_rate_squared)/(acceleration_doubled));
 		}
 		else {
-			return 0.0;  // acceleration was 0, set acceleration distance to 0
+			return 0;  // acceleration was 0, set acceleration distance to 0
 		}
 	}
 
@@ -312,10 +340,11 @@ namespace planner {
 	// a total travel of distance. This can be used to compute the intersection point between acceleration and
 	// deceleration in the cases where the trapezoid has no plateau (i.e. never reaches maximum speed)
 
-	FORCE_INLINE float intersection_distance(float initial_rate, float final_rate, float acceleration, float distance) 
+	// Rates are given pre-squared, and accelereation pre-doubled for caching in the calling subroutine.
+	FORCE_INLINE int32_t intersection_distance(int32_t initial_rate_squared, int32_t final_rate_squared, int32_t acceleration_doubled, int32_t distance)
 	{
-		if (acceleration!=0) {
-			return((2.0*acceleration*distance-initial_rate*initial_rate+final_rate*final_rate)/(4.0*acceleration));
+		if (acceleration_doubled!=0) {
+			return((acceleration_doubled*distance-initial_rate_squared+final_rate_squared)/(acceleration_doubled<<1));
 		}
 		else {
 			return 0.0;  // acceleration was 0, set intersection distance to 0
@@ -341,6 +370,8 @@ namespace planner {
 	// Calculates trapezoid parameters so that the entry- and exit-speed is compensated by the provided factors.
 	// calculate_trapezoid_for_block(block, block->entry_speed/block->nominal_speed, exit_factor_speed/block->nominal_speed);
 	void Block::calculate_trapezoid(float exit_factor_speed) {
+		stepperTimingDebugPin.setValue(true);
+
 		float entry_factor = entry_speed/nominal_speed;
 		float exit_factor = exit_factor_speed/nominal_speed;
 		
@@ -353,11 +384,19 @@ namespace planner {
 		if(local_final_rate < 120)
 			local_final_rate = 120;
 
+		uint32_t local_initial_rate_squared = local_initial_rate;
+		         local_initial_rate_squared = (local_initial_rate_squared*local_initial_rate_squared);
+		uint32_t local_final_rate_squared   = local_final_rate;
+		         local_final_rate_squared   = (local_final_rate_squared*local_final_rate_squared);
+		uint32_t nominal_rate_squared       = nominal_rate;
+		         nominal_rate_squared       = (nominal_rate_squared*nominal_rate_squared);
+		
 		int32_t acceleration = acceleration_st;
+		int32_t acceleration_doubled = acceleration_st<<1; // * 2
 		int32_t accelerate_steps =
-			ceil(estimate_acceleration_distance(local_initial_rate, nominal_rate, acceleration));
+			/*ceil*/(estimate_acceleration_distance(local_initial_rate_squared, nominal_rate_squared, acceleration_doubled));
 		int32_t decelerate_steps =
-			floor(estimate_acceleration_distance(nominal_rate, local_final_rate, -acceleration));
+			/*floor*/(estimate_acceleration_distance(nominal_rate_squared, local_final_rate_squared, -acceleration_doubled));
 
 		// Calculate the size of Plateau of Nominal Rate.
 		int32_t plateau_steps = step_event_count-accelerate_steps-decelerate_steps;
@@ -366,8 +405,8 @@ namespace planner {
 		// have to use intersection_distance() to calculate when to abort acceleration and start braking
 		// in order to reach the local_final_rate exactly at the end of this block.
 		if (plateau_steps < 0) {
-			accelerate_steps = ceil(
-				intersection_distance(local_initial_rate, local_final_rate, acceleration, step_event_count));
+			accelerate_steps = /*ceil*/(
+				intersection_distance(local_initial_rate_squared, local_final_rate_squared, acceleration_doubled, step_event_count));
 			accelerate_steps = max(accelerate_steps, 0L); // Check limits due to numerical round-off
 			accelerate_steps = min(accelerate_steps, (int32_t)step_event_count);
 			plateau_steps = 0;
@@ -383,6 +422,8 @@ namespace planner {
 			// if(flags & Block::Busy)
 			// 	steppers::currentBlockChanged();
 		} // ISR state will be automatically restored here
+
+		stepperTimingDebugPin.setValue(false);
 	}
 	
 	// forward declare, so we can order the code in a slightly more readable fashion
@@ -565,8 +606,13 @@ namespace planner {
 	// Buffer the move. IOW, add a new block, and recalculate the acceleration accordingly
 	bool addMoveToBuffer(const Point& target, int32_t us_per_step)
 	{
-		if (block_buffer.isFull())
+		// stepperTimingDebugPin.setValue(true);
+		if (block_buffer.isFull()) {
+			// stepperTimingDebugPin.setValue(true);
+			// stepperTimingDebugPin.setValue(true);
 			return false;
+			// stepperTimingDebugPin.setValue(false);
+		}	
 		
 		Block *block = block_buffer.getHead();
 		// Mark block as not busy (Not executed by the stepper interrupt)
@@ -757,7 +803,7 @@ namespace planner {
 		memcpy(previous_speed, current_speed, sizeof(previous_speed)); // previous_speed[] = current_speed[]
 		previous_nominal_speed = block->nominal_speed;
 
-		block->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
+		// block->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
 
 		// Update position
 		position = target;
@@ -768,6 +814,7 @@ namespace planner {
 		planner_recalculate();
 		
 		steppers::startRunning();
+		// stepperTimingDebugPin.setValue(false);
 		return true;
 	}
 

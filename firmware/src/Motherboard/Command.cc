@@ -30,6 +30,8 @@
 
 namespace command {
 
+// Pin stepperTimingDebugPin = STEPPER_TIMER_DEBUG;
+
 #define COMMAND_BUFFER_SIZE 512
 uint8_t buffer_data[COMMAND_BUFFER_SIZE];
 CircularBuffer command_buffer(COMMAND_BUFFER_SIZE, buffer_data);
@@ -114,8 +116,12 @@ void reset() {
 
 // Handle movement comands -- called from a few places
 static void handleMovementCommand(const uint8_t &command) {
+	// stepperTimingDebugPin.setDirection(true);
+	// stepperTimingDebugPin.setValue(false);
 	// if we're already moving, check to make sure the buffer isn't full
 	if (mode == MOVING && planner::isBufferFull()) {
+		// stepperTimingDebugPin.setValue(true);
+		// stepperTimingDebugPin.setValue(false);
 		return; // we'll be back!
 	}
 	if (command == HOST_CMD_QUEUE_POINT_ABS) {
@@ -385,6 +391,9 @@ void runCommandSlice() {
 				}
 			} else {
 			}
+		} else { // command buffer is empty
+			// stepperTimingDebugPin.setValue(true);
+			// stepperTimingDebugPin.setValue(false);
 		}
 	}
 }

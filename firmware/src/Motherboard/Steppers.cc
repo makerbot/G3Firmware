@@ -107,7 +107,11 @@ void definePosition(const Point& position) {
 /// Get current position
 const Point getPosition() {
 #if STEPPER_COUNT > 3
-	return Point(axes[0].position,axes[1].position,axes[2].position,axes[3].position,axes[4].position);
+	#if STEPPER_COUNT > 4
+		return Point(axes[0].position,axes[1].position,axes[2].position,axes[3].position,axes[4].position);
+	#else
+		return Point(axes[0].position,axes[1].position,axes[2].position,axes[3].position,0);
+	#endif
 #else
 	return Point(axes[0].position,axes[1].position,axes[2].position);
 #endif
@@ -208,16 +212,16 @@ inline void prepareFeedrateIntervals() {
 inline void recalcFeedrate() {
 	feedrate_inverted = 1000000/feedrate;
 
-	// if we are supposed to step too fast, we simulate double-size microsteps
-	feedrate_multiplier = 1;
-	while (feedrate_inverted < INTERVAL_IN_MICROSECONDS) {
-		feedrate_multiplier <<= 1; // * 2
-		feedrate_inverted   <<= 1; // * 2
-	}
-	
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-		axes[i].setStepMultiplier(feedrate_multiplier);
-	}
+	// // if we are supposed to step too fast, we simulate double-size microsteps
+	// feedrate_multiplier = 1;
+	// while (feedrate_inverted < INTERVAL_IN_MICROSECONDS) {
+	// 	feedrate_multiplier <<= 1; // * 2
+	// 	feedrate_inverted   <<= 1; // * 2
+	// }
+	// 
+	// for (int i = 0; i < STEPPER_COUNT; i++) {
+	// 	axes[i].setStepMultiplier(feedrate_multiplier);
+	// }
 	
 	feedrate_dirty = 0;
 }
@@ -230,7 +234,7 @@ uint32_t getCurrentStep() {
 // load up the next movment
 // WARNING: called from inside the ISR, so get out fast
 bool getNextMove() {
-	stepperTimingDebugPin.setValue(true);
+	// stepperTimingDebugPin.setValue(true);
 	is_running = false; // this ensures that the interrupt does not .. interrupt us
 
 	if (current_block != NULL) {
@@ -240,6 +244,7 @@ bool getNextMove() {
 	}
 	
 	if (planner::isBufferEmpty()) {
+		stepperTimingDebugPin.setValue(true);
 		stepperTimingDebugPin.setValue(false);
 		return false;
 	}
@@ -313,7 +318,7 @@ bool getNextMove() {
 	}
 	is_running = true;
 	
-	stepperTimingDebugPin.setValue(false);
+	// stepperTimingDebugPin.setValue(false);
 	return true;
 }
 
@@ -410,21 +415,32 @@ bool doInterrupt() {
 				return is_running;
 				// is_running = false;
 			} else {
-
+				// if we are supposed to step too fast, we simulate double-size microsteps
+				feedrate_multiplier = 1;
+				while (timer_counter <= -feedrate_inverted && feedrate_steps_remaining > 0) {
+					feedrate_multiplier++;
+					timer_counter += feedrate_inverted;
+					feedrate_steps_remaining--;
+				}
+	
 				for (int i = 0; i < STEPPER_COUNT; i++) {
+					axes[i].setStepMultiplier(feedrate_multiplier);
 					axes[i].doInterrupt(intervals);
+				}
+				
+				if (feedrate_steps_remaining-- <= 0) {
+					current_feedrate_index++;
+					prepareFeedrateIntervals();
 				}
 				
 				if (feedrate_dirty) {
 					recalcFeedrate();
+					if (feedrate_inverted < INTERVAL_IN_MICROSECONDS) {
+						feedrate_inverted = INTERVAL_IN_MICROSECONDS;
+					}
 				}
 				
 				timer_counter += feedrate_inverted;
-				
-				if ((feedrate_steps_remaining -= feedrate_multiplier) <= 0) {
-					current_feedrate_index++;
-					prepareFeedrateIntervals();
-				}
 			}
 		}
 		
