@@ -124,7 +124,7 @@ void setHoldZ(bool holdZ_in) {
 #if 0
 void setTarget(const Point& target, int32_t dda_interval) {
 	int32_t max_delta = 0;
-	for (int i = 0; i < AXIS_COUNT; i++) {
+	for (int i = 0; i < STEPPER_COUNT; i++) {
 		axes[i].setTarget(target[i], false);
 		const int32_t delta = axes[i].delta;
 		// Only shut z axis on inactivity
@@ -171,7 +171,7 @@ void setTarget(const Point& target, int32_t dda_interval) {
 	intervals = max_delta;
 	intervals_remaining = intervals;
 	const int32_t negative_half_interval = -intervals / 2;
-	for (int i = 0; i < ALL_AXIS_COUNT; i++) {
+	for (int i = 0; i < STEPPER_COUNT; i++) {
 		axes[i].counter = negative_half_interval;
 	}
 	is_running = true;
@@ -179,7 +179,7 @@ void setTarget(const Point& target, int32_t dda_interval) {
 
 /*
 void setTargetNew(const Point& target, int32_t us, uint8_t relative) {
-for (int i = 0; i < AXIS_COUNT; i++) {
+for (int i = 0; i < STEPPER_COUNT; i++) {
 axes[i].setTarget(target[i], (relative & (1 << i)) != 0);
 // Only shut z axis on inactivity
 const int32_t delta = axes[i].delta;
@@ -193,7 +193,7 @@ axes[i].enableStepper(true);
 intervals = us / INTERVAL_IN_MICROSECONDS;
 intervals_remaining = intervals;
 const int32_t negative_half_interval = -intervals / 2;
-for (int i = 0; i < AXIS_COUNT; i++) {
+for (int i = 0; i < STEPPER_COUNT; i++) {
 axes[i].counter = negative_half_interval;
 }
 is_running = true;
@@ -244,8 +244,8 @@ bool getNextMove() {
 	}
 	
 	if (planner::isBufferEmpty()) {
-		stepperTimingDebugPin.setValue(true);
-		stepperTimingDebugPin.setValue(false);
+		// stepperTimingDebugPin.setValue(true);
+		// stepperTimingDebugPin.setValue(false);
 		return false;
 	}
 	
@@ -292,7 +292,12 @@ bool getNextMove() {
 		feedrate_elements[feedrate_being_setup].rate      = 0;
 		feedrate_elements[feedrate_being_setup].target    = current_block->nominal_rate;
 		feedrate_being_setup++;
-	}
+	}/*
+	 else {
+			stepperTimingDebugPin.setValue(true);
+			stepperTimingDebugPin.setValue(false);
+		}*/
+	
 
 	// setup deceleration
 	if (current_block->decelerate_after < current_block->step_event_count) {
@@ -378,7 +383,7 @@ void startHoming(const bool maximums, const uint8_t axes_enabled, const uint32_t
 	intervals_remaining = INT32_MAX;
 	intervals = us_per_step / INTERVAL_IN_MICROSECONDS;
 	const int32_t negative_half_interval = -(intervals>>1);
-	for (int i = 0; i < AXIS_COUNT; i++) {
+	for (int i = 0; i < STEPPER_COUNT; i++) {
 		axes[i].counter = negative_half_interval;
 		if ((axes_enabled & (1<<i)) != 0) {
 			axes[i].setHoming(maximums);
@@ -430,6 +435,8 @@ bool doInterrupt() {
 				
 				if ((feedrate_steps_remaining-=feedrate_multiplier) <= 0) {
 					current_feedrate_index++;
+					stepperTimingDebugPin.setValue(true);
+					stepperTimingDebugPin.setValue(false);
 					prepareFeedrateIntervals();
 				}
 				

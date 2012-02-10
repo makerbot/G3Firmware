@@ -44,9 +44,9 @@ namespace planner {
 		// Fields used by the bresenham algorithm for tracing the line
 		Point target;                        // Final 5-axis target
 		uint32_t step_event_count;           // The number of step events required to complete this block
-		int32_t accelerate_until;            // The index of the step event on which to stop acceleration
-		int32_t decelerate_after;            // The index of the step event on which to start decelerating
-		int32_t acceleration_rate;           // The acceleration rate used for acceleration calculation
+		uint32_t accelerate_until;            // The index of the step event on which to stop acceleration
+		uint32_t decelerate_after;            // The index of the step event on which to start decelerating
+		uint32_t acceleration_rate;           // The acceleration rate used for acceleration calculation
 		// uint8_t direction_bits;              // The direction bit set for this block
 		// uint8_t active_extruder;             // Selects the active extruder
 		
