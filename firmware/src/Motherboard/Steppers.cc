@@ -30,9 +30,9 @@ int32_t intervals;
 volatile int32_t intervals_remaining;
 
 struct feedrate_element {
-	int32_t rate; // interval value of the feedrate axis
-	int32_t steps;     // number of steps of the master axis to change
-	int32_t target;
+	uint32_t rate; // interval value of the feedrate axis
+	uint32_t steps;     // number of steps of the master axis to change
+	uint32_t target;
 };
 feedrate_element feedrate_elements[3];
 volatile int32_t feedrate_steps_remaining;
@@ -255,6 +255,7 @@ bool getNextMove() {
 	
 	Point &target = current_block->target;
 	
+	feedrate_multiplier = 1; // setTarget sets the multiplier to one
 	int32_t max_delta = current_block->step_event_count;
 	for (int i = 0; i < STEPPER_COUNT; i++) {
 		axes[i].setTarget(target[i], false);
@@ -417,10 +418,9 @@ bool doInterrupt() {
 			} else {
 				// if we are supposed to step too fast, we simulate double-size microsteps
 				feedrate_multiplier = 1;
-				while (timer_counter <= -feedrate_inverted && feedrate_steps_remaining > 0) {
+				while (timer_counter <= -feedrate_inverted) {
 					feedrate_multiplier++;
 					timer_counter += feedrate_inverted;
-					feedrate_steps_remaining--;
 				}
 	
 				for (int i = 0; i < STEPPER_COUNT; i++) {
@@ -428,7 +428,7 @@ bool doInterrupt() {
 					axes[i].doInterrupt(intervals);
 				}
 				
-				if (feedrate_steps_remaining-- <= 0) {
+				if ((feedrate_steps_remaining-=feedrate_multiplier) <= 0) {
 					current_feedrate_index++;
 					prepareFeedrateIntervals();
 				}

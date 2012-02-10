@@ -171,7 +171,7 @@
 
 //#define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
 #define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
-#define DEFAULT_MAX_XY_JERK 15.0 // <-- unused if CENTREPEDAL is defined below
+#define DEFAULT_MAX_XY_JERK 10.0 // <-- unused if CENTREPEDAL is defined below
 #define DEFAULT_MAX_Z_JERK 10.0
 #define DEFAULT_MAX_A_JERK 10.0
 #define DEFAULT_MAX_B_JERK 10.0

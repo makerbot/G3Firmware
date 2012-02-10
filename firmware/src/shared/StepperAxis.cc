@@ -26,12 +26,13 @@ void StepperAxis::setTarget(const int32_t target_in, bool relative) {
         if (delta != 0) {
                 interface->setEnabled(true);
         }
+	step_multiplier = 1;
         if (delta < 0) {
                 delta = -delta;
                 direction = false;
-                step_change = -step_multiplier;
+                step_change = -1;
         } else {
-                step_change = step_multiplier;
+                step_change = 1;
         }
         interface->setDirection(direction);
 }

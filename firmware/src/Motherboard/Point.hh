@@ -5,7 +5,11 @@
 #include <stdint.h>
 
 
-#define AXIS_COUNT STEPPER_COUNT
+#if STEPPER_COUNT > 3
+#define AXIS_COUNT 5
+#else
+#define AXIS_COUNT 3
+#endif
 
 /// Class that represents an N-dimensional point, where N is the number of
 /// stepper axes present in the system. Can support 3 or 5 axes.
