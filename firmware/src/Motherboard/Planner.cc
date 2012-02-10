@@ -78,8 +78,8 @@
 #include "Steppers.hh"
 #include "Point.hh"
 
-// My tests show it takes about 72ms to plan one segment on a Gen3 MB, so we need to give it room. -Rob
-#define MIN_MS_PER_SEGMENT 1200
+// Give the processor some time to breathe and plan...
+#define MIN_MS_PER_SEGMENT 1500
 
 #define X_AXIS 0
 #define Y_AXIS 1
@@ -251,11 +251,11 @@ namespace planner {
 	};
 #endif
 	
-	PlannerAxis axes[AXIS_COUNT];
+	PlannerAxis axes[STEPPER_COUNT];
 	
 	float default_acceleration;
 	Point position; // the current position (planning-wise, not bot/stepper-wise) in steps
-	float previous_speed[AXIS_COUNT]; // Speed of previous path line segment
+	float previous_speed[STEPPER_COUNT]; // Speed of previous path line segment
 #ifdef CENTREPEDAL
 	float default_junction_deviation;
 	float previous_unit_vec[3];
@@ -269,7 +269,7 @@ namespace planner {
 	
 	void init()
 	{
-		for (int i = 0; i < AXIS_COUNT; i++) {
+		for (int i = 0; i < STEPPER_COUNT; i++) {
 			// axes[i] = PlannerAxis(); // redundant, or a reset?
 			previous_speed[i] = 0.0;
 		}
@@ -308,7 +308,7 @@ namespace planner {
 
 	void setAcceleration(float new_acceleration) {
 		default_acceleration = new_acceleration;
-		// for (int i = 0; i < AXIS_COUNT; i++) {
+		// for (int i = 0; i < STEPPER_COUNT; i++) {
 		// 	axes[i].max_acceleration = default_acceleration * axes[i].steps_per_mm;
 		// }
 	}
@@ -326,12 +326,11 @@ namespace planner {
 	}
 
 	// Calculates the distance (not time) it takes to accelerate from initial_rate to target_rate using the 
-	// given acceleration.
-	// Rates are given pre-squared, and accelereation pre-doubled for caching in the calling subroutine.
-	FORCE_INLINE int32_t estimate_acceleration_distance(int32_t initial_rate_squared, int32_t target_rate_squared, int32_t acceleration_doubled)
+	// given acceleration:
+	FORCE_INLINE float estimate_acceleration_distance(float initial_rate_squared, float target_rate_squared, float acceleration_doubled)
 	{
 		if (acceleration_doubled!=0) {
-			return((target_rate_squared-initial_rate_squared)/(acceleration_doubled));
+			return (int32_t)((int64_t)(target_rate_squared-initial_rate_squared)/acceleration_doubled);
 		}
 		else {
 			return 0;  // acceleration was 0, set acceleration distance to 0
@@ -343,14 +342,13 @@ namespace planner {
 	// a total travel of distance. This can be used to compute the intersection point between acceleration and
 	// deceleration in the cases where the trapezoid has no plateau (i.e. never reaches maximum speed)
 
-	// Rates are given pre-squared, and accelereation pre-doubled for caching in the calling subroutine.
-	FORCE_INLINE int32_t intersection_distance(int32_t initial_rate_squared, int32_t final_rate_squared, int32_t acceleration_doubled, int32_t distance)
+	FORCE_INLINE float intersection_distance(float initial_rate_squared, float final_rate_squared, float acceleration_doubled, float distance) 
 	{
 		if (acceleration_doubled!=0) {
-			return((acceleration_doubled*distance-initial_rate_squared+final_rate_squared)/(acceleration_doubled<<1));
+			return (int32_t)((int64_t)(acceleration_doubled*distance-initial_rate_squared+final_rate_squared)/(acceleration_doubled*2.0));
 		}
 		else {
-			return 0.0;  // acceleration was 0, set intersection distance to 0
+			return 0;  // acceleration was 0, set intersection distance to 0
 		}
 	}
 
@@ -386,23 +384,20 @@ namespace planner {
 			local_initial_rate = 120;
 		if(local_final_rate < 120)
 			local_final_rate = 120;
-
-		uint32_t local_initial_rate_squared = local_initial_rate;
-		         local_initial_rate_squared = (local_initial_rate_squared*local_initial_rate_squared);
-		uint32_t local_final_rate_squared   = local_final_rate;
-		         local_final_rate_squared   = (local_final_rate_squared*local_final_rate_squared);
-		uint32_t nominal_rate_squared       = nominal_rate;
-		         nominal_rate_squared       = (nominal_rate_squared*nominal_rate_squared);
 		
-		int32_t acceleration = acceleration_st;
-		int32_t acceleration_doubled = acceleration_st<<1; // * 2
+		float local_initial_rate_squared = ((float)local_initial_rate*(float)local_initial_rate);
+		float local_final_rate_squared   = ((float)local_final_rate  *(float)local_final_rate);
+		float nominal_rate_squared       = ((float)nominal_rate      *(float)nominal_rate);
+		
+		int32_t acceleration_doubled        = acceleration_st<<(1); // == acceleration_st*2
+		
 		int32_t accelerate_steps =
-			/*ceil*/(estimate_acceleration_distance(local_initial_rate_squared, nominal_rate_squared, acceleration_doubled));
+			ceil(estimate_acceleration_distance(local_initial_rate_squared, nominal_rate_squared, acceleration_doubled));
 		int32_t decelerate_steps =
-			/*floor*/(estimate_acceleration_distance(nominal_rate_squared, local_final_rate_squared, -acceleration_doubled));
+			floor(estimate_acceleration_distance(nominal_rate_squared, local_final_rate_squared, -acceleration_doubled));
 
 		// Calculate the size of Plateau of Nominal Rate.
-		int32_t plateau_steps = step_event_count-accelerate_steps-decelerate_steps;
+		int64_t plateau_steps = (int64_t)step_event_count-accelerate_steps-decelerate_steps;
 
 		// Is the Plateau of Nominal Rate smaller than nothing? That means no cruising, and we will
 		// have to use intersection_distance() to calculate when to abort acceleration and start braking
@@ -626,18 +621,18 @@ namespace planner {
 		// // store the absolute number of steps in each direction, without direction
 		Point steps = (target - position);
 
-		float delta_mm[AXIS_COUNT];
+		float delta_mm[STEPPER_COUNT];
 		block->millimeters = 0.0;
 		block->step_event_count = 0;
 		// // Compute direction bits for this block -- UNUSED FOR NOW
 		// block->direction_bits = 0;
-		for (int i = 0; i < AXIS_COUNT; i++) {
+		for (int i = 0; i < STEPPER_COUNT; i++) {
 			int32_t abs_steps = abs(steps[i]);
 			if (abs_steps > block->step_event_count) {
 				block->step_event_count = abs_steps;
 			}
 			delta_mm[i] = ((float)steps[i])/axes[i].steps_per_mm;
-			if (i < A_AXIS)
+			if (i < A_AXIS || block->millimeters == 0) // cound distznce of A and B only if X, Y, and Z don't move
 				block->millimeters += delta_mm[i] * delta_mm[i];
 		// 	if (target[i] < position[i]) { block->direction_bits |= (1<<i); }
 		}		
@@ -667,14 +662,14 @@ namespace planner {
 		// TODO make sure we are going the minimum speed, at least
 		// if(feed_rate<minimumfeedrate) feed_rate=minimumfeedrate;
 		
-		float current_speed[AXIS_COUNT];
-		for(int i=0; i < AXIS_COUNT; i++) {
+		float current_speed[STEPPER_COUNT];
+		for(int i=0; i < STEPPER_COUNT; i++) {
 			current_speed[i] = delta_mm[i] * inverse_second;
 		}
 
 		// // Limit speed per axis (already done in RepG)
 		// float speed_factor = 1.0; //factor <=1 do decrease speed
-		// for(int i=0; i < AXIS_COUNT; i++) {
+		// for(int i=0; i < STEPPER_COUNT; i++) {
 		// 	if(fabs(current_speed[i]) > max_feedrate[i])
 		// 		speed_factor = min(speed_factor, max_feedrate[i] / fabs(current_speed[i]));
 		// }
@@ -705,7 +700,7 @@ namespace planner {
 		// Compute and limit the acceleration rate for the trapezoid generator.
 		block->acceleration_st = ceil(default_acceleration * steps_per_mm); // convert to: acceleration steps/sec^2
 		// Limit acceleration per axis
-		for(int i=0; i < AXIS_COUNT; i++) {
+		for(int i=0; i < STEPPER_COUNT; i++) {
 			if((uint32_t)((float)block->acceleration_st * (float)steps[i] / (float)block->step_event_count) > axes[i].max_acceleration)
 				block->acceleration_st = axes[i].max_acceleration;
 		}
@@ -721,7 +716,7 @@ namespace planner {
 		// Skip the first block
 		if ((!block_buffer.isEmpty()) && (previous_nominal_speed > 0.0)) {
 			float jerk = sqrt(pow((current_speed[X_AXIS]-previous_speed[X_AXIS]), 2)+pow((current_speed[Y_AXIS]-previous_speed[Y_AXIS]), 2));
-			if((previous_speed[X_AXIS] != 0.0) || (previous_speed[Y_AXIS] != 0.0)) {
+			if((previous_speed[X_AXIS] != 0.0) || (previous_speed[Y_AXIS] != 0.0) || (previous_speed[Z_AXIS] != 0.0)) {
 				vmax_junction = block->nominal_speed;
 			}
 
@@ -729,7 +724,7 @@ namespace planner {
 				vmax_junction *= (max_xy_jerk/jerk);
 			}
 
-			for (int i_axis = Z_AXIS; i_axis < AXIS_COUNT; i_axis++) {
+			for (int i_axis = Z_AXIS; i_axis < STEPPER_COUNT; i_axis++) {
 				jerk = abs(previous_speed[i_axis] - current_speed[i_axis]);
 				if (jerk > axes[i_axis].max_axis_jerk) {
 					vmax_junction *= (axes[i_axis].max_axis_jerk/jerk);
@@ -777,7 +772,7 @@ namespace planner {
 				}
 			}
 
-			for (int i_axis = Z_AXIS; i_axis < AXIS_COUNT; i_axis++) {
+			for (int i_axis = Z_AXIS; i_axis < STEPPER_COUNT; i_axis++) {
 				float jerk = abs(previous_speed[i_axis] - current_speed[i_axis]);
 				if (jerk > axes[i_axis].max_axis_jerk) {
 					vmax_junction *= (axes[i_axis].max_axis_jerk/jerk);
@@ -839,7 +834,7 @@ namespace planner {
 		position = steppers::getPosition();
 		
 		// reset speed
-		for (int i = 0; i < AXIS_COUNT; i++) {
+		for (int i = 0; i < STEPPER_COUNT; i++) {
 			previous_speed[i] = 0.0;
 		}
 		
@@ -858,7 +853,7 @@ namespace planner {
 		steppers::definePosition(new_position);
 		
 		// reset speed
-		for (int i = 0; i < AXIS_COUNT; i++) {
+		for (int i = 0; i < STEPPER_COUNT; i++) {
 			previous_speed[i] = 0.0;
 		}
 
