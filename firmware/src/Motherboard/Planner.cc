@@ -285,7 +285,7 @@ namespace planner {
 			previous_speed[i] = 0.0;
 		}
 		
-		position = Point(0,0,0,0,0);
+		position = steppers::getPosition();
 		previous_nominal_speed = 0.0;
 		
 		axes[0].max_acceleration = 2000*axes[0].steps_per_mm;

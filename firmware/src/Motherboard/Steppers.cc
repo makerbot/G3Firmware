@@ -94,9 +94,6 @@ void abort() {
 	is_homing = false;
 	timer_counter = 0;
 	current_block = NULL;
-	// feedrate_scale_shift = 0;
-	// feedrate_intervals = 0;
-	// feedrate_intervals_remaining = 0;
 	feedrate_steps_remaining = 0;
 	feedrate = 0;
 	feedrate_inverted = 0;
@@ -326,12 +323,12 @@ bool getNextMove() {
 		// We don't setup anything else because we limit to the target speed anyway.
 	}
 	
-	if (feedrate == 0)
-		feedrate = 10; // well, it's gotta be something!
+	// if (feedrate == 0)
+	// 	feedrate = 10; // well, it's gotta be something!
 	
 	prepareFeedrateIntervals();
 	recalcFeedrate();
-	// acceleration_tick_counter = TICKS_PER_ACCELERATION;
+	acceleration_tick_counter = TICKS_PER_ACCELERATION;
 	
 	timer_counter = feedrate_inverted;
 
@@ -362,7 +359,10 @@ void currentBlockChanged() {
 		feedrate_elements[feedrate_being_setup].target    = current_block->nominal_rate;
 		feedrate_being_setup++;
 
-		feedrate = ((current_block->nominal_rate+current_block->initial_rate)*current_step)/current_block->accelerate_until;
+		// use linear interpolation -- wrong, but close enough
+		// feedrate = ((current_block->nominal_rate+current_block->initial_rate)*current_step)/current_block->accelerate_until;
+		// // Sqrt[2 a d + s^2]
+		// feedrate = sqrt(2*current_block->acceleration_rate*current_step + current_block->initial_rate*current_block->initial_rate);
 	}
 
 	// setup plateau
@@ -388,7 +388,10 @@ void currentBlockChanged() {
 		feedrate_elements[feedrate_being_setup].target    = current_block->final_rate;
 
 		if (feedrate_being_setup == 0) {
-			feedrate = ((current_block->final_rate+current_block->nominal_rate)*(current_step - current_block->decelerate_after))/(current_block->step_event_count - current_block->decelerate_after);
+			// use linear interpolation -- wrong, but close enough
+			// feedrate = ((current_block->final_rate+current_block->nominal_rate)*(current_step - current_block->decelerate_after))/(current_block->step_event_count - current_block->decelerate_after);
+			// // Sqrt[2 a d + s^2]
+			// feedrate = sqrt(-2*current_block->acceleration_rate*(current_step - current_block->decelerate_after) + current_block->nominal_rate*current_block->nominal_rate);
 		}
 	} else {
 		// and in case there wasn't a deceleration phase, we'll do the same for whichever phase was last...
@@ -481,10 +484,6 @@ bool doInterrupt() {
 		if (feedrate_changerate != 0 && acceleration_tick_counter-- <= 0) {
 			acceleration_tick_counter = TICKS_PER_ACCELERATION;
 			// Change our feedrate. Here it's important to note that we can over/undershoot
-			// To handle this, if we're accelerating, we simply clamp to max speed.
-			// If we are decelerating, we have to be more careful.
-			// But for now, we don't allow decelrating to a "stop" so we punt and just don't
-			// allow it to go under the set speed.
 
 			feedrate += feedrate_changerate;
 			feedrate_dirty = 1;
