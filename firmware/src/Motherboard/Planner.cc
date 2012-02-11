@@ -144,12 +144,13 @@ namespace planner {
 		
 	private:
 		volatile BufSizeType head, tail;
+		volatile bool full;
 		BufSizeType size;
 		BufSizeType size_mask;
 		BufDataType* const data; /// Pointer to buffer data
 	
 	public:
-		ReusingCircularBufferTempl(BufSizeType size_in, BufDataType* buffer_in) : head(0), tail(0), size(size_in), size_mask(size_in-1), data(buffer_in) {
+		ReusingCircularBufferTempl(BufSizeType size_in, BufDataType* buffer_in) : head(0), tail(0), full(false), size(size_in), size_mask(size_in-1), data(buffer_in) {
 			for (BufSizeType i = 0; i < size; i++) {
 				data[i] = BufDataType();
 			}
@@ -191,29 +192,33 @@ namespace planner {
 		// WARNING: no sanity checks!
 		inline void bumpHead() {
 			head = getNextIndex(head);
+			if (getNextIndex(head) == tail)
+				full = true;
 		}
 
 		// bump the tail with buffer--. cannot return anything useful, so it doesn't
 		// WARNING: no sanity checks!
 		inline void bumpTail() {
 			tail = getNextIndex(tail);
+			full = false;
 		}
 		
 		inline bool isEmpty() {
-			return head == tail;
+			return !full && head == tail;
 		}
 		
 		inline bool isFull() {
-			return getNextIndex(head) == tail;
+			return full;
 		}
 		
 		inline BufSizeType getUsedCount() {
-			return ((head-tail+size) & size_mask);
+			return full ? size : ((head-tail+size) & size_mask);
 		}
 		
 		inline void clear() {
 			head = 0;
 			tail = 0;
+			full = false;
 		}
 	};
 	
@@ -277,7 +282,6 @@ namespace planner {
 	void init()
 	{
 		for (int i = 0; i < STEPPER_COUNT; i++) {
-			// axes[i] = PlannerAxis(); // redundant, or a reset?
 			previous_speed[i] = 0.0;
 		}
 		
@@ -292,7 +296,14 @@ namespace planner {
 
 		stepperTimingDebugPin.setDirection(true);
 		stepperTimingDebugPin.setValue(false);
+		
+		block_buffer.clear();
 
+#ifdef CENTREPEDAL
+		previous_unit_vec[0]= 0.0;
+		previous_unit_vec[1]= 0.0;
+		previous_unit_vec[2]= 0.0;
+#endif
 	}
 
 	
@@ -373,7 +384,7 @@ namespace planner {
 	// Calculates trapezoid parameters so that the entry- and exit-speed is compensated by the provided factors.
 	// calculate_trapezoid_for_block(block, block->entry_speed/block->nominal_speed, exit_factor_speed/block->nominal_speed);
 	void Block::calculate_trapezoid(float exit_factor_speed) {
-		stepperTimingDebugPin.setValue(true);
+		// stepperTimingDebugPin.setValue(true);
 
 		float entry_factor = entry_speed/nominal_speed;
 		float exit_factor = exit_factor_speed/nominal_speed;
@@ -395,7 +406,7 @@ namespace planner {
 		// 	bit_shift_amount = 8;
 		// 	bit_shift_fix_amount = 16;
 		// }
-		
+		// 
 		// We use two passed for each variable, using it as a temp the first pass.
 		int32_t local_initial_rate_squared = local_initial_rate >> bit_shift_amount;
 		        local_initial_rate_squared = (local_initial_rate_squared * local_initial_rate_squared);
@@ -431,17 +442,17 @@ namespace planner {
 		}
 
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {  // Fill variables used by the stepper in a critical section
-			if(!(flags & Block::Busy)) {
+			// if(!(flags & Block::Busy)) {
 				accelerate_until = accelerate_steps;
 				decelerate_after = accelerate_steps+plateau_steps;
 				initial_rate     = local_initial_rate;
 				final_rate       = local_final_rate;
-			}
-			// if(flags & Block::Busy)
-			// 	steppers::currentBlockChanged();
+			// }
+			if(flags & Block::Busy)
+				steppers::currentBlockChanged();
 		} // ISR state will be automatically restored here
 
-		stepperTimingDebugPin.setValue(false);
+		// stepperTimingDebugPin.setValue(false);
 	}
 	
 	// forward declare, so we can order the code in a slightly more readable fashion
@@ -527,13 +538,18 @@ namespace planner {
 		// We have to be careful here, but we want to try to smooth out the movement if it's not too late.
 		// That smoothing will happen in Block::calculate_trapezoid later.
 		// However, if it *is* too late, then we need to fix the current entry speed.
-		// if (previous->flags & Block::Busy) {
-		// 	uint32_t current_step = steppers::getCurrentStep();
-		// 	// If we are withing 10 steps, we're probably too late
-		// 	// if (current_step > (previous->decelerate_after - 10)) {
-		//                                 // current->entry_speed = MINIMUM_PLANNER_SPEED;
-		// 	// }
-		// }
+		if (previous->flags & Block::Busy) {
+			stepperTimingDebugPin.setValue(true);
+			uint32_t current_step = steppers::getCurrentStep();
+			uint32_t current_feedrate = steppers::getCurrentFeedrate();
+			// current_feedrate is in steps/second, but entry_speed is in mm/s
+			float current_speed = (float)current_feedrate * (previous->millimeters/(float)previous->step_event_count);
+			
+			if (current_speed < current->entry_speed && current_step > previous->decelerate_after) {
+				current->entry_speed = current_speed;
+			}
+			stepperTimingDebugPin.setValue(false);
+		}
 
 		// If the previous block is an acceleration block, but it is not long enough to complete the
 		// full speed change within the block, we need to adjust the entry speed accordingly. Entry
@@ -594,10 +610,8 @@ namespace planner {
 		}
 		
 		// Last/newest block in buffer. Exit speed is set with MINIMUM_PLANNER_SPEED. Always recalculated.
-		if(next != NULL) {
-			next->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
-			next->flags &= ~Block::Recalculate;
-		}
+		next->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
+		next->flags &= ~Block::Recalculate;
 	}
 
 	bool isBufferFull() {
@@ -634,7 +648,7 @@ namespace planner {
 		// stepperTimingDebugPin.setValue(true);
 		if (block_buffer.isFull()) {
 			// stepperTimingDebugPin.setValue(true);
-			// stepperTimingDebugPin.setValue(true);
+			// stepperTimingDebugPin.setValue(false);
 			return false;
 			// stepperTimingDebugPin.setValue(false);
 		}	
@@ -744,12 +758,12 @@ namespace planner {
 		
 		// Now determine the safe max entry speed for this move
 		// Skip the first block
+		is_planning_and_using_prev_speed = true;
 		if ((!block_buffer.isEmpty()) && (previous_nominal_speed > 0.0)) {
 			// block clearing of previous_speed
-			is_planning_and_using_prev_speed = true;
 
 			float jerk = sqrt(pow((current_speed[X_AXIS]-previous_speed[X_AXIS]), 2)+pow((current_speed[Y_AXIS]-previous_speed[Y_AXIS]), 2));
-			if((previous_speed[X_AXIS] != 0.0) || (previous_speed[Y_AXIS] != 0.0) || (previous_speed[Z_AXIS] != 0.0)) {
+			if((previous_speed[X_AXIS] != 0.0) || (previous_speed[Y_AXIS] != 0.0)) {
 				vmax_junction = block->nominal_speed;
 			}
 
@@ -842,6 +856,9 @@ namespace planner {
 		memcpy(previous_speed, current_speed, sizeof(previous_speed)); // previous_speed[] = current_speed[]
 		previous_nominal_speed = block->nominal_speed;
 
+		// allow clearing of previous speed again
+		is_planning_and_using_prev_speed = false;
+
 		// block->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
 
 		// Update position
@@ -854,9 +871,6 @@ namespace planner {
 		
 		steppers::startRunning();
 		
-		// allow clearing of previous speed again
-		is_planning_and_using_prev_speed = false;
-
 		// stepperTimingDebugPin.setValue(false);
 		return true;
 	}
@@ -876,6 +890,7 @@ namespace planner {
 		for (int i = 0; i < STEPPER_COUNT; i++) {
 			previous_speed[i] = 0.0;
 		}
+		previous_nominal_speed = 0.0;
 		
 		block_buffer.clear();
 
@@ -895,7 +910,8 @@ namespace planner {
 		for (int i = 0; i < STEPPER_COUNT; i++) {
 			previous_speed[i] = 0.0;
 		}
-
+		previous_nominal_speed = 0.0;
+		
 #ifdef CENTREPEDAL
 		previous_unit_vec[0]= 0.0;
 		previous_unit_vec[1]= 0.0;

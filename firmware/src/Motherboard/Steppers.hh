@@ -98,6 +98,7 @@ namespace steppers {
     void currentBlockChanged();
 
     uint32_t getCurrentStep();
+    uint32_t getCurrentFeedrate();
 };
 
 #endif // STEPPERS_HH_
