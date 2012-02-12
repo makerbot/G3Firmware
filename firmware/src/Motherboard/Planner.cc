@@ -516,7 +516,7 @@ namespace planner {
 		// We have to be careful here, but we want to try to smooth out the movement if it's not too late.
 		// That smoothing will happen in Block::calculate_trapezoid later.
 		// However, if it *is* too late, then we need to fix the current entry speed.
-		if (previous->flags & Block::Busy) {
+		if (previous->flags & Block::Busy && current->flags & Block::Recalculate) {
 			stepperTimingDebugPin.setValue(true);
 			uint32_t current_step = steppers::getCurrentStep();
 			uint32_t current_feedrate = steppers::getCurrentFeedrate();
@@ -730,7 +730,7 @@ namespace planner {
 		block->acceleration_st = ceil(default_acceleration * steps_per_mm); // convert to: acceleration steps/sec^2
 		// Limit acceleration per axis
 		for(int i=0; i < STEPPER_COUNT; i++) {
-			// warning: arethmetic overflow is easy here. Try to mitigate.
+			// warning: arithmetic overflow is easy here. Try to mitigate.
 			float step_scale = (float)steps[i] / (float)block->step_event_count;
 			float axis_acceleration_st = (float)block->acceleration_st * step_scale;
 			if((uint32_t)axis_acceleration_st > axes[i].max_acceleration)
