@@ -79,7 +79,7 @@
 #include "Point.hh"
 
 // Give the processor some time to breathe and plan...
-#define MIN_MS_PER_SEGMENT 6000
+#define MIN_MS_PER_SEGMENT 12000
 
 #define X_AXIS 0
 #define Y_AXIS 1
@@ -333,10 +333,10 @@ namespace planner {
 
 	// Calculates the distance (not time) it takes to accelerate from initial_rate to target_rate using the 
 	// given acceleration:
-	FORCE_INLINE int32_t estimate_acceleration_distance(int64_t initial_rate_squared, int64_t target_rate_squared, int32_t acceleration_doubled)
+	FORCE_INLINE int32_t estimate_acceleration_distance(int32_t initial_rate_squared, int32_t target_rate_squared, int32_t acceleration_doubled)
 	{
 		if (acceleration_doubled!=0) {
-			return (((int64_t)target_rate_squared-(int64_t)initial_rate_squared)/acceleration_doubled);
+			return ((target_rate_squared-initial_rate_squared)/acceleration_doubled);
 		}
 		else {
 			return 0;  // acceleration was 0, set acceleration distance to 0
@@ -348,10 +348,10 @@ namespace planner {
 	// a total travel of distance. This can be used to compute the intersection point between acceleration and
 	// deceleration in the cases where the trapezoid has no plateau (i.e. never reaches maximum speed)
 
-	FORCE_INLINE int32_t intersection_distance(int64_t initial_rate_squared, int64_t final_rate_squared, int32_t acceleration_mangled, int32_t acceleration_quadrupled, int32_t distance) 
+	FORCE_INLINE int32_t intersection_distance(int32_t initial_rate_squared, int32_t final_rate_squared, int32_t acceleration_mangled, int32_t acceleration_quadrupled, int32_t distance) 
 	{
 		if (acceleration_quadrupled!=0) {
-			return (((int64_t)acceleration_mangled*(int64_t)distance-(int64_t)initial_rate_squared+(int64_t)final_rate_squared)/acceleration_quadrupled);
+			return ((acceleration_mangled*distance-initial_rate_squared+final_rate_squared)/acceleration_quadrupled);
 		}
 		else {
 			return 0;  // acceleration was 0, set intersection distance to 0
@@ -391,31 +391,16 @@ namespace planner {
 		if(local_final_rate < 120)
 			local_final_rate = 120;
 		
-		// If we will overflow, then throw away 4 bits of resolution.
-		// 0xFFFF+1 == sqrt(0xFFFFFFFF+1)
-		uint8_t bit_shift_amount = 0;
-		uint8_t bit_shift_fix_amount = 0;
-		// if (local_initial_rate > 0xFFFF || local_final_rate > 0xFFFF || nominal_rate > 0xFFFF) {
-		// 	bit_shift_amount = 8;
-		// 	bit_shift_fix_amount = 16;
-		// }
-		// 
-		// We use two passed for each variable, using it as a temp the first pass.
-		int64_t local_initial_rate_squared = local_initial_rate >> bit_shift_amount;
-		        local_initial_rate_squared = (local_initial_rate_squared * local_initial_rate_squared);
-
-		int64_t local_final_rate_squared   = local_final_rate   >> bit_shift_amount;
-		        local_final_rate_squared   = (local_final_rate_squared   * local_final_rate_squared);
-
-		int64_t nominal_rate_squared       = nominal_rate       >> bit_shift_amount;
-		        nominal_rate_squared       = (nominal_rate_squared       * nominal_rate_squared);
+		int32_t local_initial_rate_squared = (local_initial_rate * local_initial_rate);
+		int32_t local_final_rate_squared   = (local_final_rate   * local_final_rate);
+		int32_t nominal_rate_squared       = (nominal_rate       * nominal_rate);
 		
 		int32_t local_acceleration_doubled = acceleration_st<<(1); // == acceleration_st*2
 		
 		int32_t accelerate_steps =
-			/*ceil*/(estimate_acceleration_distance(local_initial_rate_squared, nominal_rate_squared, local_acceleration_doubled))<<bit_shift_fix_amount;
+			/*ceil*/(estimate_acceleration_distance(local_initial_rate_squared, nominal_rate_squared, local_acceleration_doubled));
 		int32_t decelerate_steps =
-			/*floor*/(estimate_acceleration_distance(nominal_rate_squared, local_final_rate_squared, -local_acceleration_doubled))<<bit_shift_fix_amount;
+			/*floor*/(estimate_acceleration_distance(nominal_rate_squared, local_final_rate_squared, -local_acceleration_doubled));
 
 		// Calculate the size of Plateau of Nominal Rate.
 		int32_t plateau_steps = step_event_count-accelerate_steps-decelerate_steps;
@@ -428,7 +413,7 @@ namespace planner {
 			// To get the math right when shifting, we need to alter the first acceleration_doubled by bit_shift_amount^2, and un-bit_shift_amount^2 after
 			int32_t local_acceleration_quadrupled = local_acceleration_doubled<<(1); // == acceleration_st*2
 			accelerate_steps = /*ceil*/(
-				intersection_distance(local_initial_rate_squared, local_final_rate_squared, local_acceleration_doubled>>(bit_shift_fix_amount), local_acceleration_quadrupled, step_event_count))<<(bit_shift_fix_amount);
+				intersection_distance(local_initial_rate_squared, local_final_rate_squared, local_acceleration_doubled, local_acceleration_quadrupled, step_event_count));
 			accelerate_steps = max(accelerate_steps, 0L); // Check limits due to numerical round-off
 			accelerate_steps = min(accelerate_steps, (int32_t)step_event_count);
 			plateau_steps = 0;
