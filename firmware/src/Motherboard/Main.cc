@@ -34,7 +34,7 @@ void reset(bool hard_reset) {
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
 		Motherboard& board = Motherboard::getBoard();
 		sdcard::reset();
-		steppers::abort();
+		planner::abort(); // calls steppers::abort()
 		command::reset();
 		eeprom::init();
 		board.reset();

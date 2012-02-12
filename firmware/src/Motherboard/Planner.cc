@@ -79,7 +79,7 @@
 #include "Point.hh"
 
 // Give the processor some time to breathe and plan...
-#define MIN_MS_PER_SEGMENT 2000
+#define MIN_MS_PER_SEGMENT 6000
 
 #define X_AXIS 0
 #define Y_AXIS 1
@@ -281,12 +281,7 @@ namespace planner {
 	
 	void init()
 	{
-		for (int i = 0; i < STEPPER_COUNT; i++) {
-			previous_speed[i] = 0.0;
-		}
-		
-		position = steppers::getPosition();
-		previous_nominal_speed = 0.0;
+		abort();
 		
 		axes[0].max_acceleration = 2000*axes[0].steps_per_mm;
 		axes[1].max_acceleration = 2000*axes[1].steps_per_mm;
@@ -296,8 +291,6 @@ namespace planner {
 
 		stepperTimingDebugPin.setDirection(true);
 		stepperTimingDebugPin.setValue(false);
-		
-		block_buffer.clear();
 
 #ifdef CENTREPEDAL
 		previous_unit_vec[0]= 0.0;
@@ -340,10 +333,10 @@ namespace planner {
 
 	// Calculates the distance (not time) it takes to accelerate from initial_rate to target_rate using the 
 	// given acceleration:
-	FORCE_INLINE int32_t estimate_acceleration_distance(int32_t initial_rate_squared, int32_t target_rate_squared, int32_t acceleration_doubled)
+	FORCE_INLINE int32_t estimate_acceleration_distance(int64_t initial_rate_squared, int64_t target_rate_squared, int32_t acceleration_doubled)
 	{
 		if (acceleration_doubled!=0) {
-			return ((target_rate_squared-initial_rate_squared)/acceleration_doubled);
+			return (((int64_t)target_rate_squared-(int64_t)initial_rate_squared)/acceleration_doubled);
 		}
 		else {
 			return 0;  // acceleration was 0, set acceleration distance to 0
@@ -355,10 +348,10 @@ namespace planner {
 	// a total travel of distance. This can be used to compute the intersection point between acceleration and
 	// deceleration in the cases where the trapezoid has no plateau (i.e. never reaches maximum speed)
 
-	FORCE_INLINE int32_t intersection_distance(int32_t initial_rate_squared, int32_t final_rate_squared, int32_t acceleration_mangled, int32_t acceleration_quadrupled, int32_t distance) 
+	FORCE_INLINE int32_t intersection_distance(int64_t initial_rate_squared, int64_t final_rate_squared, int32_t acceleration_mangled, int32_t acceleration_quadrupled, int32_t distance) 
 	{
 		if (acceleration_quadrupled!=0) {
-			return ((acceleration_mangled*distance-initial_rate_squared+final_rate_squared)/acceleration_quadrupled);
+			return (((int64_t)acceleration_mangled*(int64_t)distance-(int64_t)initial_rate_squared+(int64_t)final_rate_squared)/acceleration_quadrupled);
 		}
 		else {
 			return 0;  // acceleration was 0, set intersection distance to 0
@@ -408,13 +401,13 @@ namespace planner {
 		// }
 		// 
 		// We use two passed for each variable, using it as a temp the first pass.
-		int32_t local_initial_rate_squared = local_initial_rate >> bit_shift_amount;
+		int64_t local_initial_rate_squared = local_initial_rate >> bit_shift_amount;
 		        local_initial_rate_squared = (local_initial_rate_squared * local_initial_rate_squared);
 
-		int32_t local_final_rate_squared   = local_final_rate   >> bit_shift_amount;
+		int64_t local_final_rate_squared   = local_final_rate   >> bit_shift_amount;
 		        local_final_rate_squared   = (local_final_rate_squared   * local_final_rate_squared);
 
-		int32_t nominal_rate_squared       = nominal_rate       >> bit_shift_amount;
+		int64_t nominal_rate_squared       = nominal_rate       >> bit_shift_amount;
 		        nominal_rate_squared       = (nominal_rate_squared       * nominal_rate_squared);
 		
 		int32_t local_acceleration_doubled = acceleration_st<<(1); // == acceleration_st*2
@@ -543,11 +536,18 @@ namespace planner {
 			uint32_t current_step = steppers::getCurrentStep();
 			uint32_t current_feedrate = steppers::getCurrentFeedrate();
 			// current_feedrate is in steps/second, but entry_speed is in mm/s
-			float current_speed = (float)current_feedrate * (previous->millimeters/(float)previous->step_event_count);
+			// use the ratio of nominal_speed/nominal_rate to figure the current speed
+			float current_speed = ((float)current_feedrate * previous->nominal_speed)/(float)previous->nominal_rate;
 			
-			if (current_speed < current->entry_speed && current_step > previous->decelerate_after) {
-				current->entry_speed = current_speed;
-			}
+			// adjust the previous block to just cover the space left, and firect recalculation
+			previous->entry_speed = previous->max_entry_speed = current_speed;
+			
+			// Recalculate the length of the movement -- for acceleration only.
+			// The Stepper/Axis objects have track of actual movement length by now.
+			previous->step_event_count = previous->step_event_count - current_step;
+			previous->flags |= Block::Recalculate;
+			// assume it's not nominal length, to be safe
+			previous->flags &= ~Block::NominalLength;
 			stepperTimingDebugPin.setValue(false);
 		}
 
@@ -679,6 +679,9 @@ namespace planner {
 		}		
 		block->millimeters = sqrt(block->millimeters);
 		
+		if (block->step_event_count == 0)
+			return false;
+		
 		// CLEAN ME: Ugly dirty check to prevent a lot of small moves from causing a planner buffer underrun
 		// For now, we'll just make sure each movement takes at least MIN_MS_PER_SEGMENT millisesconds to complete
 		if ((us_per_step * block->step_event_count) < MIN_MS_PER_SEGMENT) {
@@ -756,11 +759,12 @@ namespace planner {
 		// Start with a safe speed
 		float vmax_junction = MINIMUM_PLANNER_SPEED;
 		
+		// block clearing of previous_speed
+		is_planning_and_using_prev_speed = true;
+
 		// Now determine the safe max entry speed for this move
 		// Skip the first block
-		is_planning_and_using_prev_speed = true;
 		if ((!block_buffer.isEmpty()) && (previous_nominal_speed > 0.0)) {
-			// block clearing of previous_speed
 
 			float jerk = sqrt(pow((current_speed[X_AXIS]-previous_speed[X_AXIS]), 2)+pow((current_speed[Y_AXIS]-previous_speed[Y_AXIS]), 2));
 			if((previous_speed[X_AXIS] != 0.0) || (previous_speed[Y_AXIS] != 0.0)) {

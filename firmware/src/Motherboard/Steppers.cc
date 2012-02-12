@@ -213,7 +213,7 @@ inline void prepareFeedrateIntervals() {
 	feedrate_steps_remaining  = feedrate_elements[current_feedrate_index].steps;
 	feedrate_changerate       = feedrate_elements[current_feedrate_index].rate;
 	feedrate_target           = feedrate_elements[current_feedrate_index].target;
-	feedrate_dirty = 1;
+	// feedrate_dirty = 1;
 	// acceleration_tick_counter = 0;
 }
 
@@ -247,7 +247,7 @@ uint32_t getCurrentFeedrate() {
 // load up the next movment
 // WARNING: called from inside the ISR, so get out fast
 bool getNextMove() {
-	stepperTimingDebugPin.setValue(true);
+	// stepperTimingDebugPin.setValue(true);
 	is_running = false; // this ensures that the interrupt does not .. interrupt us
 
 	if (current_block != NULL) {
@@ -323,8 +323,10 @@ bool getNextMove() {
 		// We don't setup anything else because we limit to the target speed anyway.
 	}
 	
-	// if (feedrate == 0)
-	// 	feedrate = 10; // well, it's gotta be something!
+	if (feedrate == 0) {
+		is_running = false;
+		return false;
+	}
 	
 	prepareFeedrateIntervals();
 	recalcFeedrate();
@@ -340,62 +342,52 @@ bool getNextMove() {
 	}
 	is_running = true;
 	
-	stepperTimingDebugPin.setValue(false);
+	// stepperTimingDebugPin.setValue(false);
 	return true;
 }
 
 void currentBlockChanged() {
 	stepperTimingDebugPin.setValue(true);
 	// If we are here, then we are moving AND the interrupts are frozen, so get out *fast*
-	uint32_t current_step = intervals - intervals_remaining;
 
 	current_feedrate_index = 0;
 	int feedrate_being_setup = 0;
 	// setup acceleration
 	feedrate = 0;
-	if (current_block->accelerate_until > current_step) {
-		feedrate_elements[feedrate_being_setup].steps     = current_block->accelerate_until - current_step;
+	if (current_block->accelerate_until > 0) {
+		feedrate = current_block->initial_rate;
+
+		feedrate_elements[feedrate_being_setup].steps     = current_block->accelerate_until;
 		feedrate_elements[feedrate_being_setup].rate      = current_block->acceleration_rate;
 		feedrate_elements[feedrate_being_setup].target    = current_block->nominal_rate;
 		feedrate_being_setup++;
-
-		// use linear interpolation -- wrong, but close enough
-		// feedrate = ((current_block->nominal_rate+current_block->initial_rate)*current_step)/current_block->accelerate_until;
-		// // Sqrt[2 a d + s^2]
-		// feedrate = sqrt(2*current_block->acceleration_rate*current_step + current_block->initial_rate*current_block->initial_rate);
 	}
 
 	// setup plateau
-	if (current_block->decelerate_after > current_block->accelerate_until && current_block->decelerate_after > current_step) {
+	if (current_block->decelerate_after > current_block->accelerate_until) {
+		if (feedrate_being_setup == 0)
+			feedrate = current_block->nominal_rate;
+		
 		feedrate_elements[feedrate_being_setup].steps     = current_block->decelerate_after - current_block->accelerate_until;
 		feedrate_elements[feedrate_being_setup].rate      = 0;
 		feedrate_elements[feedrate_being_setup].target    = current_block->nominal_rate;
 		feedrate_being_setup++;
-
-		if (feedrate_being_setup == 0) {
-			feedrate = current_block->nominal_rate;
-			feedrate_elements[feedrate_being_setup].steps -= current_step;
-		}
 	}
+	
 
 	// setup deceleration
 	if (current_block->decelerate_after < current_block->step_event_count) {
-		stepperTimingDebugPin.setValue(false);
-		stepperTimingDebugPin.setValue(true);
+		if (feedrate_being_setup == 0)
+			feedrate = current_block->nominal_rate;
+
 		// To prevent "falling off the end" we will say we have a "bazillion" steps left...
 		feedrate_elements[feedrate_being_setup].steps     = INT32_MAX; //current_block->step_event_count - current_block->decelerate_after;
 		feedrate_elements[feedrate_being_setup].rate      = -current_block->acceleration_rate;
 		feedrate_elements[feedrate_being_setup].target    = current_block->final_rate;
-
-		if (feedrate_being_setup == 0) {
-			// use linear interpolation -- wrong, but close enough
-			// feedrate = ((current_block->final_rate+current_block->nominal_rate)*(current_step - current_block->decelerate_after))/(current_block->step_event_count - current_block->decelerate_after);
-			// // Sqrt[2 a d + s^2]
-			// feedrate = sqrt(-2*current_block->acceleration_rate*(current_step - current_block->decelerate_after) + current_block->nominal_rate*current_block->nominal_rate);
-		}
 	} else {
 		// and in case there wasn't a deceleration phase, we'll do the same for whichever phase was last...
 		feedrate_elements[feedrate_being_setup-1].steps     = INT32_MAX;
+		// We don't setup anything else because we limit to the target speed anyway.
 	}
 
 	prepareFeedrateIntervals();
