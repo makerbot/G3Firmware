@@ -40,4 +40,16 @@ float getEepromFixed16(const uint16_t location, const float default_value) {
         return ((float)data[0]) + ((float)data[1])/256.0;
 }
 
+uint32_t getEeprom32(const uint16_t location, const uint32_t default_value) {
+	uint32_t data = eeprom_read_dword((const uint32_t*)location);
+        if (data == 0xffffffff) return default_value;
+        return data;
+}
+
+float getEepromFixed32(const uint16_t location, const float default_value) {
+        int32_t data = getEeprom32(location, 0xffffffff);
+        if (data == 0xffffffff) return default_value;
+        return ((float)data)/65536.0;
+}
+
 } // namespace eeprom

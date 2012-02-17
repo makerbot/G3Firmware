@@ -129,6 +129,48 @@ void Motherboard::reset() {
 	for (int i = 0; i < STEPPER_COUNT; i++) {
 		stepper[i].init(i);
 	}
+	
+	
+	// Defaults are from my cupcake -Rob
+	//X 94.1397046
+	planner::setAxisStepsPerMM(eeprom::getEepromFixed32(eeprom::STEPS_PER_MM+ 0, 94.1397046), 0);
+	//Y 94.1397046             
+	planner::setAxisStepsPerMM(eeprom::getEepromFixed32(eeprom::STEPS_PER_MM+ 4, 94.1397046), 1);
+	//Z 2560.0                 
+	planner::setAxisStepsPerMM(eeprom::getEepromFixed32(eeprom::STEPS_PER_MM+ 8, 2560.0), 2);
+	//A 100.470957613814818    
+	planner::setAxisStepsPerMM(eeprom::getEepromFixed32(eeprom::STEPS_PER_MM+12, 100.470957613814818), 3);
+	//B 100.470957613814818    
+	planner::setAxisStepsPerMM(eeprom::getEepromFixed32(eeprom::STEPS_PER_MM+16, 100.470957613814818), 4);
+
+	// Master acceleraion
+	planner::setAcceleration(eeprom::getEeprom32(eeprom::MASTER_ACCELERATION_RATE, DEFAULT_ACCELERATION));
+
+	//X -- default conservative
+	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+ 0, 2000), 0);
+	//Y -- default conservative            
+	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+ 4, 2000), 1);
+	//Z -- default conservative            
+	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+ 8, 10), 2);
+	//A -- default conservative            
+	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+12, 5000), 3);
+	//B -- default conservative            
+	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+16, 5000), 4);
+
+
+	#ifdef CENTREPEDAL
+		// uses the same eeprom address as the X/Y junction jerk~
+		planner::setJunctionDeviation(eeprom::getEepromFixed32(eeprom::AXIS_JUNCTION_JERK+ 0, DEFAULT_JUNCTION_DEVIATION));
+	#else
+		planner::setMaxXYJerk(eeprom::getEepromFixed32(eeprom::AXIS_JUNCTION_JERK+ 0, DEFAULT_MAX_XY_JERK));
+	#endif
+	planner::setMaxAxisJerk(eeprom::getEepromFixed32(eeprom::AXIS_JUNCTION_JERK+ 4, DEFAULT_MAX_Z_JERK), 2);
+	planner::setMaxAxisJerk(eeprom::getEepromFixed32(eeprom::AXIS_JUNCTION_JERK+ 8, DEFAULT_MAX_A_JERK), 3);
+	planner::setMaxAxisJerk(eeprom::getEepromFixed32(eeprom::AXIS_JUNCTION_JERK+12, DEFAULT_MAX_B_JERK), 4);
+
+
+	planner::setMinimumPlannerSpeed(eeprom::getEepromFixed32(eeprom::MINIMUM_PLANNER_SPEED, DEFAULT_MINIMUM_PLANNER_SPEED));
+
 	// Initialize the host and slave UARTs
         UART::getHostUART().enable(true);
         UART::getHostUART().in.reset();

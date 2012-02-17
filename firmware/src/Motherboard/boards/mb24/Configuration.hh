@@ -28,7 +28,8 @@
 /// starvation; leave this at 64uS or greater unless you know what you're doing.
 #define INTERVAL_IN_MICROSECONDS 128
 
-#define TICKS_PER_ACCELERATION   125
+// TICKS_PER_ACCELERATION should be set to that ACCELERATION_TICKS_PER_SECOND is not rounded
+#define TICKS_PER_ACCELERATION   5  // lower is better
 #define ACCELERATION_TICKS_PER_SECOND (1000000/(INTERVAL_IN_MICROSECONDS*TICKS_PER_ACCELERATION))
 
 // --- Secure Digital Card configuration ---
@@ -191,12 +192,26 @@
 #define INTERFACE_BAR_PIN       Pin(PortL,0)
 #define INTERFACE_DEBUG_PIN     Pin(PortB,7)
 
+
+// The number of movements we can plan ahead at a time
+// THIS MUST BE A POWER OF 2! 4, 8, 16, 32, you get the idea...
+#define BLOCK_BUFFER_SIZE 16
+
 //#define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
-#define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
-#define DEFAULT_MAX_XY_JERK 20.0
-#define DEFAULT_MAX_Z_JERK 10.0
+#define DEFAULT_ACCELERATION 2000.0 /* mm/s/s */
+#define DEFAULT_MAX_XY_JERK 8.0 // <-- unused if CENTREPEDAL is defined below
+#define DEFAULT_MAX_Z_JERK 8.0
 #define DEFAULT_MAX_A_JERK 10.0
 #define DEFAULT_MAX_B_JERK 10.0
+
+// Minimum planner junction speed. Sets the default minimum speed the planner plans for at the end
+// of the buffer and all stops. This should not be much greater than zero and should only be changed
+// if unwanted behavior is observed on a user's machine when running at very slow speeds.
+#define DEFAULT_MINIMUM_PLANNER_SPEED 4.0 // (mm/sec)
+
+//  define CENTREPEDAL to use centrepedal calucations -- so far I can't get there to work -Rob
+#undef CENTREPEDAL
+#define DEFAULT_JUNCTION_DEVIATION 0.05 // mm
 
 
 #endif // BOARDS_RRMBV12_CONFIGURATION_HH_

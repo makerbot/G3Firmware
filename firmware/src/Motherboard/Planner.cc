@@ -129,7 +129,7 @@ inline long abs(long x) { return __builtin_labs(x); }
 
 namespace planner {
 	
-	Pin stepperTimingDebugPin = STEPPER_TIMER_DEBUG;
+	// Pin stepperTimingDebugPin = STEPPER_TIMER_DEBUG;
 	
 	// Super-simple circular buffer, where old nodes are reused
 	// TODO: Move to a seperate file
@@ -264,6 +264,7 @@ namespace planner {
 	PlannerAxis axes[STEPPER_COUNT];
 	
 	float default_acceleration;
+	float minimum_planner_speed;
 	Point position; // the current position (planning-wise, not bot/stepper-wise) in steps
 	float previous_speed[STEPPER_COUNT]; // Speed of previous path line segment
 #ifdef CENTREPEDAL
@@ -282,15 +283,9 @@ namespace planner {
 	void init()
 	{
 		abort();
-		
-		axes[0].max_acceleration = 2000*axes[0].steps_per_mm;
-		axes[1].max_acceleration = 2000*axes[1].steps_per_mm;
-		axes[2].max_acceleration = 10*axes[2].steps_per_mm;
-		axes[3].max_acceleration = 10000*axes[3].steps_per_mm;
-		axes[4].max_acceleration = 10000*axes[4].steps_per_mm;
 
-		stepperTimingDebugPin.setDirection(true);
-		stepperTimingDebugPin.setValue(false);
+		// stepperTimingDebugPin.setDirection(true);
+		// stepperTimingDebugPin.setValue(false);
 
 #ifdef CENTREPEDAL
 		previous_unit_vec[0]= 0.0;
@@ -301,7 +296,8 @@ namespace planner {
 
 	
 	void setMaxAxisJerk(float jerk, uint8_t axis) {
-		axes[axis].max_axis_jerk = jerk;
+		if (axis < STEPPER_COUNT)
+			axes[axis].max_axis_jerk = jerk;
 	}
 	
 	void setMaxXYJerk(float jerk) {
@@ -309,14 +305,22 @@ namespace planner {
 	}
 	
 	void setAxisStepsPerMM(float steps_per_mm, uint8_t axis) {
-		axes[axis].steps_per_mm = steps_per_mm;
+		if (axis < STEPPER_COUNT)
+			axes[axis].steps_per_mm = steps_per_mm;
 	}
 
-	void setAcceleration(float new_acceleration) {
-		default_acceleration = new_acceleration;
-		// for (int i = 0; i < STEPPER_COUNT; i++) {
-		// 	axes[i].max_acceleration = default_acceleration * axes[i].steps_per_mm;
-		// }
+	void setAcceleration(int32_t new_acceleration) {
+		default_acceleration = (float)new_acceleration;
+	}
+	
+	// This is in steps/mm.
+	void setAxisAcceleration(int32_t new_acceleration, uint8_t axis) {
+		if (axis < STEPPER_COUNT)
+			axes[axis].max_acceleration = (float)new_acceleration*axes[axis].steps_per_mm;
+	}
+
+	void setMinimumPlannerSpeed(float speed) {
+		minimum_planner_speed = speed;
 	}
 
 #ifdef CENTREPEDAL
@@ -517,7 +521,7 @@ namespace planner {
 		// That smoothing will happen in Block::calculate_trapezoid later.
 		// However, if it *is* too late, then we need to fix the current entry speed.
 		if (previous->flags & Block::Busy && current->flags & Block::Recalculate) {
-			stepperTimingDebugPin.setValue(true);
+			// stepperTimingDebugPin.setValue(true);
 			uint32_t current_step = steppers::getCurrentStep();
 			uint32_t current_feedrate = steppers::getCurrentFeedrate();
 			// current_feedrate is in steps/second, but entry_speed is in mm/s
@@ -533,7 +537,7 @@ namespace planner {
 			previous->flags |= Block::Recalculate;
 			// assume it's not nominal length, to be safe
 			previous->flags &= ~Block::NominalLength;
-			stepperTimingDebugPin.setValue(false);
+			// stepperTimingDebugPin.setValue(false);
 		}
 
 		// If the previous block is an acceleration block, but it is not long enough to complete the
@@ -594,8 +598,8 @@ namespace planner {
 			block_index = block_buffer.getNextIndex( block_index );
 		}
 		
-		// Last/newest block in buffer. Exit speed is set with MINIMUM_PLANNER_SPEED. Always recalculated.
-		next->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
+		// Last/newest block in buffer. Exit speed is set with minimum_planner_speed. Always recalculated.
+		next->calculate_trapezoid(minimum_planner_speed);
 		next->flags &= ~Block::Recalculate;
 	}
 
@@ -731,7 +735,7 @@ namespace planner {
 		// Limit acceleration per axis
 		for(int i=0; i < STEPPER_COUNT; i++) {
 			// warning: arithmetic overflow is easy here. Try to mitigate.
-			float step_scale = (float)steps[i] / (float)block->step_event_count;
+			float step_scale = (float)abs(steps[i]) / (float)block->step_event_count;
 			float axis_acceleration_st = (float)block->acceleration_st * step_scale;
 			if((uint32_t)axis_acceleration_st > axes[i].max_acceleration)
 				block->acceleration_st = axes[i].max_acceleration;
@@ -742,7 +746,7 @@ namespace planner {
 #ifndef CENTREPEDAL
 		// Compute the speed trasitions, or "jerks"
 		// Start with a safe speed
-		float vmax_junction = MINIMUM_PLANNER_SPEED;
+		float vmax_junction = minimum_planner_speed;
 		
 		// block clearing of previous_speed
 		is_planning_and_using_prev_speed = true;
@@ -786,7 +790,7 @@ namespace planner {
 		// path width or max_jerk in the previous grbl version. This approach does not actually deviate 
 		// from path, but used as a robust way to compute cornering speeds, as it takes into account the
 		// nonlinearities of both the junction angle and junction velocity.
-		float vmax_junction = MINIMUM_PLANNER_SPEED; // Set default max junction speed
+		float vmax_junction = minimum_planner_speed; // Set default max junction speed
 
 		// Skip first block or when previous_nominal_speed is used as a flag for homing and offset cycles.
 		if ((!block_buffer.isEmpty()) && (previous_nominal_speed > 0.0)) {
@@ -823,8 +827,8 @@ namespace planner {
 #endif
 		block->max_entry_speed = vmax_junction;
 
-		// Initialize block entry speed. Compute based on deceleration to user-defined MINIMUM_PLANNER_SPEED.
-		float v_allowable = max_allowable_speed(-block->acceleration, MINIMUM_PLANNER_SPEED, block->millimeters);
+		// Initialize block entry speed. Compute based on deceleration to user-defined minimum_planner_speed.
+		float v_allowable = max_allowable_speed(-block->acceleration, minimum_planner_speed, block->millimeters);
 		block->entry_speed = min(vmax_junction, v_allowable);
 		
 		// Initialize planner efficiency flags
@@ -848,7 +852,7 @@ namespace planner {
 		// allow clearing of previous speed again
 		is_planning_and_using_prev_speed = false;
 
-		// block->calculate_trapezoid(MINIMUM_PLANNER_SPEED);
+		// block->calculate_trapezoid(minimum_planner_speed);
 
 		// Update position
 		position = target;

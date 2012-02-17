@@ -49,7 +49,7 @@ volatile int32_t timer_counter;
 StepperAxis axes[STEPPER_COUNT];
 volatile bool is_homing;
 
-Pin stepperTimingDebugPin = STEPPER_TIMER_DEBUG;
+// Pin stepperTimingDebugPin = STEPPER_TIMER_DEBUG;
 
 bool holdZ = false;
 
@@ -85,8 +85,8 @@ void init(Motherboard& motherboard) {
 	acceleration_tick_counter = 0;
 	current_feedrate_index = 0;
 	
-	stepperTimingDebugPin.setDirection(true);
-	stepperTimingDebugPin.setValue(false);
+	// stepperTimingDebugPin.setDirection(true);
+	// stepperTimingDebugPin.setValue(false);
 }
 
 void abort() {
@@ -240,7 +240,9 @@ uint32_t getCurrentStep() {
 	return intervals - intervals_remaining;
 }
 
+// WARNING: Freezes the current feedrate!
 uint32_t getCurrentFeedrate() {
+	feedrate_changerate = 0;
 	return feedrate;
 }
 
@@ -347,7 +349,7 @@ bool getNextMove() {
 }
 
 void currentBlockChanged() {
-	stepperTimingDebugPin.setValue(true);
+	// stepperTimingDebugPin.setValue(true);
 	// If we are here, then we are moving AND the interrupts are frozen, so get out *fast*
 
 	current_feedrate_index = 0;
@@ -397,7 +399,7 @@ void currentBlockChanged() {
 	
 	// the steppers themselves havne't changed...
 	
-	stepperTimingDebugPin.setValue(false);
+	// stepperTimingDebugPin.setValue(false);
 }
 
 /// Start homing
@@ -457,8 +459,8 @@ bool doInterrupt() {
 				
 				if ((feedrate_steps_remaining-=feedrate_multiplier) <= 0) {
 					current_feedrate_index++;
-					stepperTimingDebugPin.setValue(true);
-					stepperTimingDebugPin.setValue(false);
+					// stepperTimingDebugPin.setValue(true);
+					// stepperTimingDebugPin.setValue(false);
 					prepareFeedrateIntervals();
 				}
 				

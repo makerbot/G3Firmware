@@ -34,10 +34,10 @@ void reset(bool hard_reset) {
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
 		Motherboard& board = Motherboard::getBoard();
 		sdcard::reset();
-		planner::abort(); // calls steppers::abort()
 		command::reset();
 		eeprom::init();
-		board.reset();
+		board.reset(); // sets up the steps/mm and such for the planner...
+		planner::abort(); // calls steppers::abort()
 		sei();
 		// If we've just come from a hard reset, wait for 2.5 seconds before
 		// trying to ping an extruder.  This gives the extruder time to boot

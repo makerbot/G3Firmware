@@ -179,7 +179,7 @@
 // Minimum planner junction speed. Sets the default minimum speed the planner plans for at the end
 // of the buffer and all stops. This should not be much greater than zero and should only be changed
 // if unwanted behavior is observed on a user's machine when running at very slow speeds.
-#define MINIMUM_PLANNER_SPEED 4.0 // (mm/sec)
+#define DEFAULT_MINIMUM_PLANNER_SPEED 4.0 // (mm/sec)
 
 //  define CENTREPEDAL to use centrepedal calucations -- so far I can't get there to work -Rob
 #undef CENTREPEDAL
