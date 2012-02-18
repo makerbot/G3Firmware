@@ -30,7 +30,6 @@
 
 namespace command {
 
-// Pin stepperTimingDebugPin = STEPPER_TIMER_DEBUG;
 
 #define COMMAND_BUFFER_SIZE 512 // Must be 2^N: 256, 512, 1204, etc
 uint8_t buffer_data[COMMAND_BUFFER_SIZE];
@@ -116,27 +115,10 @@ void reset() {
 
 // Handle movement comands -- called from a few places
 static void handleMovementCommand(const uint8_t &command) {
-	// stepperTimingDebugPin.setDirection(true);
-	// stepperTimingDebugPin.setValue(false);
 	// if we're already moving, check to make sure the buffer isn't full
 	if (mode == MOVING && planner::isBufferFull()) {
-		// stepperTimingDebugPin.setValue(true);
-		// stepperTimingDebugPin.setValue(false);
 		return; // we'll be back!
 	}
-	/*
-	if (command == HOST_CMD_QUEUE_POINT_ABS) {
-			// check for completion
-			if (command_buffer.getLength() >= 17) {
-				command_buffer.pop(); // remove the command code
-				mode = MOVING;
-				int32_t x = pop32();
-				int32_t y = pop32();
-				int32_t z = pop32();
-				int32_t dda = pop32();
-				// planner::addMoveToBuffer(Point(x,y,z), dda); // <- this is a BAD IDEA
-			}
-		} else */
 	if (command == HOST_CMD_QUEUE_POINT_EXT) {
 		// check for completion
 		if (command_buffer.getLength() >= 25) {
@@ -150,22 +132,22 @@ static void handleMovementCommand(const uint8_t &command) {
 			int32_t dda = pop32();
 			planner::addMoveToBuffer(Point(x,y,z,a,b), dda);
 		}
-	}/*
+	}
 	 else if (command == HOST_CMD_QUEUE_POINT_NEW) {
-			// check for completion
-			if (command_buffer.getLength() >= 26) {
-				command_buffer.pop(); // remove the command code
-				mode = MOVING;
-				int32_t x = pop32();
-				int32_t y = pop32();
-				int32_t z = pop32();
-				int32_t a = pop32();
-				int32_t b = pop32();
-				int32_t us = pop32();
-				uint8_t relative = pop8();
-				//steppers::setTargetNew(Point(x,y,z,a,b),us,relative);
-			}
-		}*/
+		// check for completion
+		if (command_buffer.getLength() >= 26) {
+			command_buffer.pop(); // remove the command code
+			mode = MOVING;
+			int32_t x = pop32();
+			int32_t y = pop32();
+			int32_t z = pop32();
+			int32_t a = pop32();
+			int32_t b = pop32();
+			int32_t us = pop32();
+			uint8_t relative = pop8();
+			planner::addMoveToBufferRelative(Point(x,y,z,a,b), us, relative);
+		}
+	}
 	
 }
 
@@ -191,7 +173,7 @@ void runCommandSlice() {
 		} else {
 			if (command_buffer.getLength() > 0) {
 				uint8_t command = command_buffer[0];
-				if (command == HOST_CMD_QUEUE_POINT_ABS || command == HOST_CMD_QUEUE_POINT_EXT || command == HOST_CMD_QUEUE_POINT_NEW) {
+				if (command == HOST_CMD_QUEUE_POINT_EXT || command == HOST_CMD_QUEUE_POINT_NEW) {
 					handleMovementCommand(command);
 				}
 			}
@@ -253,7 +235,18 @@ void runCommandSlice() {
 		if (command_buffer.getLength() > 0) {
 			uint8_t command = command_buffer[0];
 			
-			if (command == HOST_CMD_QUEUE_POINT_EXT) {
+			if (command == HOST_CMD_QUEUE_POINT_ABS) {
+				// check for completion
+				if (command_buffer.getLength() >= 17) {
+					// No longer supported, but we clear it off of the buffer to avoid a inifinite loop
+					command_buffer.pop(); // remove the command code
+					int32_t x = pop32();
+					int32_t y = pop32();
+					int32_t z = pop32();
+					int32_t dda = pop32();
+					// steppers::setTarget(Point(x,y,z),dda);
+				}
+			} else if (command == HOST_CMD_QUEUE_POINT_EXT || command == HOST_CMD_QUEUE_POINT_NEW) {
 				handleMovementCommand(command);
 			} else if (command == HOST_CMD_CHANGE_TOOL) {
 				if (command_buffer.getLength() >= 2) {
@@ -323,7 +316,7 @@ void runCommandSlice() {
 					tool_wait_timeout.start(toolTimeout*1000000L);
 				}
 			} else if (command == HOST_CMD_WAIT_FOR_PLATFORM) {
-        // FIXME: Almost equivalent to WAIT_FOR_TOOL
+				// FIXME: Almost equivalent to WAIT_FOR_TOOL
 				if (command_buffer.getLength() >= 6) {
 					mode = WAIT_ON_PLATFORM;
 					command_buffer.pop();
@@ -396,8 +389,6 @@ void runCommandSlice() {
 			} else {
 			}
 		} else { // command buffer is empty
-			// stepperTimingDebugPin.setValue(true);
-			// stepperTimingDebugPin.setValue(false);
 		}
 	}
 }

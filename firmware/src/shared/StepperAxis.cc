@@ -42,6 +42,7 @@ void StepperAxis::setHoming(const bool direction_in) {
         interface->setDirection(direction);
         interface->setEnabled(true);
         delta = 1;
+	step_change = direction ? 1 : -1;
 }
 
 void StepperAxis::definePosition(const int32_t position_in) {

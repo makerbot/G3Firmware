@@ -91,21 +91,6 @@ Motherboard::Motherboard() :
                                       Pin(),
                                       eeprom::AXIS_INVERSION);
 #endif
-
-		/* FIX THIS FIX THIS FIX THIS FIX THIS */
-		planner::setAxisStepsPerMM(94.1397046, 0);
-		planner::setAxisStepsPerMM(94.1397046, 1);
-		planner::setAxisStepsPerMM(2560.0, 2);
-		planner::setAxisStepsPerMM(100.470957613814818, 3);
-		planner::setAxisStepsPerMM(100.470957613814818, 4);
-		/* END FIX THIS FIX THIS FIX THIS FIX THIS */
-
-        planner::setAcceleration(DEFAULT_ACCELERATION);
-        planner::setMaxXYJerk(DEFAULT_MAX_XY_JERK);
-        planner::setMaxAxisJerk(DEFAULT_MAX_Z_JERK, 2);
-        planner::setMaxAxisJerk(DEFAULT_MAX_A_JERK, 3);
-        planner::setMaxAxisJerk(DEFAULT_MAX_B_JERK, 4);
-
 }
 
 /// Reset the motherboard to its initial state.
@@ -143,27 +128,29 @@ void Motherboard::reset() {
 	//B 100.470957613814818    
 	planner::setAxisStepsPerMM(eeprom::getEepromFixed32(eeprom::STEPS_PER_MM+16, 100.470957613814818), 4);
 
+
 	// Master acceleraion
 	planner::setAcceleration(eeprom::getEeprom32(eeprom::MASTER_ACCELERATION_RATE, DEFAULT_ACCELERATION));
 
+
 	//X -- default conservative
-	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+ 0, 2000), 0);
+	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+ 0, DEFAULT_X_ACCELERATION), 0);
 	//Y -- default conservative            
-	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+ 4, 2000), 1);
+	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+ 4, DEFAULT_Y_ACCELERATION), 1);
 	//Z -- default conservative            
-	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+ 8, 10), 2);
+	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+ 8, DEFAULT_Z_ACCELERATION), 2);
 	//A -- default conservative            
-	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+12, 5000), 3);
+	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+12, DEFAULT_A_ACCELERATION), 3);
 	//B -- default conservative            
-	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+16, 5000), 4);
+	planner::setAxisAcceleration(eeprom::getEeprom32(eeprom::AXIS_ACCELERATION_RATES+16, DEFAULT_B_ACCELERATION), 4);
 
 
-	#ifdef CENTREPEDAL
-		// uses the same eeprom address as the X/Y junction jerk~
-		planner::setJunctionDeviation(eeprom::getEepromFixed32(eeprom::AXIS_JUNCTION_JERK+ 0, DEFAULT_JUNCTION_DEVIATION));
-	#else
-		planner::setMaxXYJerk(eeprom::getEepromFixed32(eeprom::AXIS_JUNCTION_JERK+ 0, DEFAULT_MAX_XY_JERK));
-	#endif
+#ifdef CENTREPEDAL
+	// uses the same eeprom address as the X/Y junction jerk~
+	planner::setJunctionDeviation(eeprom::getEepromFixed32(eeprom::AXIS_JUNCTION_JERK+ 0, DEFAULT_JUNCTION_DEVIATION));
+#else
+	planner::setMaxXYJerk(eeprom::getEepromFixed32(eeprom::AXIS_JUNCTION_JERK+ 0, DEFAULT_MAX_XY_JERK));
+#endif
 	planner::setMaxAxisJerk(eeprom::getEepromFixed32(eeprom::AXIS_JUNCTION_JERK+ 4, DEFAULT_MAX_Z_JERK), 2);
 	planner::setMaxAxisJerk(eeprom::getEepromFixed32(eeprom::AXIS_JUNCTION_JERK+ 8, DEFAULT_MAX_A_JERK), 3);
 	planner::setMaxAxisJerk(eeprom::getEepromFixed32(eeprom::AXIS_JUNCTION_JERK+12, DEFAULT_MAX_B_JERK), 4);

@@ -60,7 +60,7 @@ public:
         ///                     to be relative to the current position.
         void setTarget(const int32_t target_in, bool relative);
 
-        /// Set the step multiplier -- must be 2^N
+        /// Set the step multiplier
         /// \param[in] new_multiplier
         void setStepMultiplier(const int8_t new_multiplier);
 

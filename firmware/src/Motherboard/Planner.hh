@@ -85,6 +85,15 @@ namespace planner {
 	/// \return If the move was buffered
 	bool addMoveToBuffer(const Point& target, int32_t us_per_step);
 
+	/// Buffer a movement to the target point (in step-space). We should avoid this, as it requires more calculation.
+	/// \param[in] target New position to move to, in step-space
+	/// \param[in] ms Duration of the move, in milliseconds
+	/// \param[in] relative Bitfield specifying whether each axis should
+	///                     interpret the new position as absolute or
+	///                     relative.
+	/// \return If the move was buffered
+	bool addMoveToBufferRelative(const Point& target, const int32_t ms, const int8_t relative);
+
 	/// Home one or more axes
 	/// \param[in] maximums If true, home in the positive direction
 	/// \param[in] axes_enabled Bitfield specifiying which axes to

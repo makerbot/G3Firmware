@@ -188,7 +188,7 @@ namespace planner {
 			return data[index];
 		}
 		
-		// bump the head with buffer++. cannot return anything useful, so it doesn't
+		// bump the head. cannot return anything useful, so it doesn't
 		// WARNING: no sanity checks!
 		inline void bumpHead() {
 			head = getNextIndex(head);
@@ -196,7 +196,7 @@ namespace planner {
 				full = true;
 		}
 
-		// bump the tail with buffer--. cannot return anything useful, so it doesn't
+		// bump the tail. cannot return anything useful, so it doesn't
 		// WARNING: no sanity checks!
 		inline void bumpTail() {
 			tail = getNextIndex(tail);
@@ -238,28 +238,6 @@ namespace planner {
 		// note that X+Y has it's own setting, and this if for all the rest
 		float max_axis_jerk;
 	};
-#if 0	
-	 // precision is the number of bit to use for  the fractional part
-	template <typedef base_type, int8_t precision, typedef intermediate_type = base_type>
-	struct QuickFixedPoint
-	{
-		base_type value;
-		QuickFixedPoint(float init_value) : value((base_type)(init_value * (float)(1<<precision))) {}
-		
-		base_type operator+(QuickFixedPoint a) {
-			return (value + a);
-		}
-		base_type operator-(QuickFixedPoint a) {
-			return (value - a);
-		}
-		base_type operator*(QuickFixedPoint a) {
-			return (value * a)>>a.precision;
-		}
-		base_type operator/(QuickFixedPoint a) {
-			return (value / a)>>a.precision;
-		}
-	};
-#endif
 	
 	PlannerAxis axes[STEPPER_COUNT];
 	
@@ -331,6 +309,7 @@ namespace planner {
 	
 	// Calculates the maximum allowable speed at this point when you must be able to reach target_velocity using the 
 	// acceleration within the allotted distance.
+	// Needs to be conbverted to fixed-point.
 	FORCE_INLINE float max_allowable_speed(float acceleration, float target_velocity, float distance) {
 		return sqrt((target_velocity*target_velocity)-(acceleration*2.0)*distance);
 	}
@@ -362,7 +341,8 @@ namespace planner {
 		}
 	}
 
-#if 0	
+// Disabled because it's not used, but if it is in the future, here's how
+#if 0
 	// Calculates the time (not distance) in microseconds (S*1,000,000) it takes to go from initial_rate for distance at acceleration rate
 	FORCE_INLINE uint32_t estimate_time_to_accelerate(float initial_rate, float acceleration, float distance) {
 		/*
@@ -629,6 +609,26 @@ namespace planner {
 		block_buffer.bumpTail();
 	}
 	
+	bool addMoveToBufferRelative(const Point& move, const int32_t ms, const int8_t relative) {
+		Point target;
+		int32_t max_delta = 0;
+		for (int i = 0; i < STEPPER_COUNT; i++) {
+			int32_t delta = 0;
+			if ((relative & (1 << i))) {
+				target[i] = position[i] + move[i];
+				delta = abs(move[i]);
+			} else {
+				target[i] = move[i];
+				delta = abs(target[i] - position[i]);
+				
+			}
+			if (delta > max_delta) {
+				max_delta = delta;
+			}
+		}
+		
+		return addMoveToBuffer(target, ms/max_delta);
+	}
 
 	
 	// Buffer the move. IOW, add a new block, and recalculate the acceleration accordingly
@@ -700,7 +700,8 @@ namespace planner {
 			current_speed[i] = delta_mm[i] * inverse_second;
 		}
 
-		// // Limit speed per axis (already done in RepG)
+		// Limit speed per axis (already done in RepG, so I'm killing it here. Left for reference. -Rob)
+		
 		// float speed_factor = 1.0; //factor <=1 do decrease speed
 		// for(int i=0; i < STEPPER_COUNT; i++) {
 		// 	if(fabs(current_speed[i]) > max_feedrate[i])
@@ -773,7 +774,9 @@ namespace planner {
 		}
 
 #else // CENTREPEDAL
-
+		
+		// NEEDS MORE TESTING
+		
 		// Compute path unit vector
 		float unit_vec[3];
 
@@ -851,8 +854,6 @@ namespace planner {
 
 		// allow clearing of previous speed again
 		is_planning_and_using_prev_speed = false;
-
-		// block->calculate_trapezoid(minimum_planner_speed);
 
 		// Update position
 		position = target;

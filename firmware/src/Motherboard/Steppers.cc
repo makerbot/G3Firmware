@@ -127,86 +127,6 @@ void setHoldZ(bool holdZ_in) {
 	holdZ = holdZ_in;
 }
 
-#if 0
-void setTarget(const Point& target, int32_t dda_interval) {
-	int32_t max_delta = 0;
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-		axes[i].setTarget(target[i], false);
-		const int32_t delta = axes[i].delta;
-		// Only shut z axis on inactivity
-		if (i == 2 && !holdZ) axes[i].enableStepper(delta != 0);
-		else if (delta != 0) axes[i].enableStepper(true);
-		if (delta > max_delta) {
-			max_delta = delta;
-		}
-	}
-		// // compute number of intervals for this move
-		//intervals = ((max_delta * dda_interval) / INTERVAL_IN_MICROSECONDS);
-
-		// reset feedrate_scale_shift and feedrate position
-	if (feedrate_scale_shift != 0) {
-		axes[STEPRATE_AXIS].position = axes[STEPRATE_AXIS].position << feedrate_scale_shift;
-		feedrate_scale_shift = 0;
-	}
-	if (axes[STEPRATE_AXIS].position == 0) {
-		axes[STEPRATE_AXIS].definePosition(dda_interval);
-	}
-
-	axes[STEPRATE_AXIS].setTarget(dda_interval, /*relative =*/ false);
-
-	if (max_delta == 0) {
-		is_running = false;
-		return;
-	}
-
-	// WARNING: Edge case where axes[STEPRATE_AXIS].delta > INT32_MAX is unhandled
-	int8_t scale_shift = 0;
-	while ((axes[STEPRATE_AXIS].delta >> scale_shift) > max_delta) {
-		scale_shift++;
-	}
-	if (scale_shift > 0) {
-		feedrate_scale_shift = scale_shift;
-		axes[STEPRATE_AXIS].position = axes[STEPRATE_AXIS].position >> feedrate_scale_shift;
-		axes[STEPRATE_AXIS].target   = axes[STEPRATE_AXIS].target   >> feedrate_scale_shift;
-		axes[STEPRATE_AXIS].delta    = axes[STEPRATE_AXIS].delta    >> feedrate_scale_shift;
-	}
-
-	// We use += here so that the odd rounded-off time from the last move is still waited out
-	timer_counter += axes[STEPRATE_AXIS].position << feedrate_scale_shift;
-
-	intervals = max_delta;
-	intervals_remaining = intervals;
-	const int32_t negative_half_interval = -intervals / 2;
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-		axes[i].counter = negative_half_interval;
-	}
-	is_running = true;
-}
-
-/*
-void setTargetNew(const Point& target, int32_t us, uint8_t relative) {
-for (int i = 0; i < STEPPER_COUNT; i++) {
-axes[i].setTarget(target[i], (relative & (1 << i)) != 0);
-// Only shut z axis on inactivity
-const int32_t delta = axes[i].delta;
-if (i == 2 && !holdZ) {
-axes[i].enableStepper(delta != 0);
-} else if (delta != 0) {
-axes[i].enableStepper(true);
-}
-}
-// compute number of intervals for this move
-intervals = us / INTERVAL_IN_MICROSECONDS;
-intervals_remaining = intervals;
-const int32_t negative_half_interval = -intervals / 2;
-for (int i = 0; i < STEPPER_COUNT; i++) {
-axes[i].counter = negative_half_interval;
-}
-is_running = true;
-}
-*/
-#endif
-
 inline void prepareFeedrateIntervals() {
 	if (current_feedrate_index > 2)
 		return;
@@ -222,17 +142,6 @@ inline void recalcFeedrate() {
 		return; // SHRIEK!
 	feedrate_inverted = 1000000/feedrate;
 
-	// // if we are supposed to step too fast, we simulate double-size microsteps
-	// feedrate_multiplier = 1;
-	// while (feedrate_inverted < INTERVAL_IN_MICROSECONDS) {
-	// 	feedrate_multiplier <<= 1; // * 2
-	// 	feedrate_inverted   <<= 1; // * 2
-	// }
-	// 
-	// for (int i = 0; i < STEPPER_COUNT; i++) {
-	// 	axes[i].setStepMultiplier(feedrate_multiplier);
-	// }
-	
 	feedrate_dirty = 0;
 }
 
@@ -397,7 +306,7 @@ void currentBlockChanged() {
 	
 	timer_counter = feedrate_inverted;
 	
-	// the steppers themselves havne't changed...
+	// the steppers themselves haven't changed...
 	
 	// stepperTimingDebugPin.setValue(false);
 }
@@ -466,9 +375,6 @@ bool doInterrupt() {
 				
 				if (feedrate_dirty) {
 					recalcFeedrate();
-					// if (feedrate_inverted < INTERVAL_IN_MICROSECONDS) {
-					// 	feedrate_inverted = INTERVAL_IN_MICROSECONDS;
-					// }
 				}
 				
 				timer_counter += feedrate_inverted;
