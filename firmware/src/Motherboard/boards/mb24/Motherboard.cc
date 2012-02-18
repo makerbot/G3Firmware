@@ -94,6 +94,31 @@ Motherboard::Motherboard() :
 #endif
 }
 
+void Motherboard::setupFixedStepperTimer() {
+	TCCR1A = 0x00;
+	TCCR1B = 0x09;
+	TCCR1C = 0x00;
+	OCR1A = INTERVAL_IN_MICROSECONDS * 16;
+	TIMSK1 = 0x02; // turn on OCR1A match interrupt
+}
+
+void Motherboard::setupAccelStepperTimer() {
+  // waveform generation = 0100 = CTC
+  TCCR1B &= ~(1<<WGM13);
+  TCCR1B |=  (1<<WGM12);
+  TCCR1A &= ~(1<<WGM11);
+  TCCR1A &= ~(1<<WGM10);
+
+  // output mode = 00 (disconnected)
+  TCCR1A &= ~(3<<COM1A0);
+  TCCR1A &= ~(3<<COM1B0);
+  TCCR1B = (TCCR1B & ~(0x07<<CS10)) | (2<<CS10); // 2MHz timer
+
+  OCR1A = 0x4000;
+  TCNT1 = 0;
+  TIMSK1 |= (1<<OCIE1A);	//Enable interrupt
+}
+
 /// Reset the motherboard to its initial state.
 /// This only resets the board, and does not send a reset
 /// to any attached toolheads.
@@ -122,17 +147,31 @@ void Motherboard::reset(bool hard_reset) {
         UART::getHostUART().in.reset();
         UART::getSlaveUART().enable(true);
         UART::getSlaveUART().in.reset();
-	// Reset and configure timer 1, the microsecond and stepper
+
+	// Reset and configure timer 1, the stepper
 	// interrupt timer.
-	TCCR1A = 0x00;
-	TCCR1B = 0x09;
-	TCCR1C = 0x00;
-	OCR1A = INTERVAL_IN_MICROSECONDS * 16;
-	TIMSK1 = 0x02; // turn on OCR1A match interrupt
+	setupFixedStepperTimer();
+
 	// Reset and configure timer 2, the debug LED flasher timer.
 	TCCR2A = 0x00;
 	TCCR2B = 0x07; // prescaler at 1/1024
 	TIMSK2 = 0x01; // OVF flag on
+
+	// Reset and configure timer 3, the microsecond and interface
+	// interrupt timer.
+	TCCR3A = 0x00;
+	TCCR3B = 0x0B; //Prescaler = 64
+	TCCR3C = 0x00;
+	OCR3A = INTERVAL_IN_MICROSECONDS * 16;
+	TIMSK3 = 0x02; // turn on OCR3A match interrupt
+
+	// Reset and configure timer 4, the accelerated "ADVANCE" timer
+	// interrupt timer.
+	TCCR4A = 0x00;
+	TCCR4B = 0x09;
+	TCCR4C = 0x00;
+	OCR4A = 100 * 16;
+	TIMSK4 = 0x02; // turn on OCR4A match interrupt
 
         buzzerRepeats  = 0;
         buzzerDuration = 0.0;
@@ -147,6 +186,7 @@ void Motherboard::reset(bool hard_reset) {
 	ESTOP_PIN.setDirection(false);
 #endif
 
+	steppers::reset();
 
 	// Check if the interface board is attached
         hasInterfaceBoard = interface::isConnected();
@@ -199,20 +239,28 @@ void Motherboard::resetCurrentSeconds() {
   }
 }
 
+/// Run the stepper interrupt
 
-/// Run the motherboard interrupt
-void Motherboard::doInterrupt() {
+void Motherboard::doStepperInterrupt() {
+	steppers::doInterrupt();
+}
+
+void Motherboard::doAdvanceInterrupt() {
+	steppers::doAdvanceInterrupt();
+}
+
+/// Run the interface interrupt
+
+void Motherboard::doInterfaceInterrupt() {
 	if (hasInterfaceBoard) {
                 interfaceBoard.doInterrupt();
 	}
-	micros += INTERVAL_IN_MICROSECONDS;
-	countupMicros += INTERVAL_IN_MICROSECONDS;
+	micros += (INTERVAL_IN_MICROSECONDS * 64);
+	countupMicros += (INTERVAL_IN_MICROSECONDS * 64);	//64 because we're using a 64 prescaler on timer 3
 	while (countupMicros > 1000000L) {
 		seconds += 1;
 		countupMicros -= 1000000L;
 	}
-
-	steppers::doInterrupt();
 }
 
 void Motherboard::runMotherboardSlice() {
@@ -233,7 +281,17 @@ MoodLightController Motherboard::getMoodLightController() {
 
 /// Timer one comparator match interrupt
 ISR(TIMER1_COMPA_vect) {
-	Motherboard::getBoard().doInterrupt();
+	Motherboard::getBoard().doStepperInterrupt();
+}
+
+/// Timer one comparator match interrupt
+ISR(TIMER3_COMPA_vect) {
+	Motherboard::getBoard().doInterfaceInterrupt();
+}
+
+/// Timer one comparator match interrupt
+ISR(TIMER4_COMPA_vect) {
+	Motherboard::getBoard().doAdvanceInterrupt();
 }
 
 /// Number of times to blink the debug LED on each cycle

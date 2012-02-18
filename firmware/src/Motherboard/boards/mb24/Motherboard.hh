@@ -95,6 +95,10 @@ private:
 	void serviceBuzzer();
 
 public:
+	//2 types of stepper timers depending on if we're using accelerated or not
+	void setupFixedStepperTimer();
+	void setupAccelStepperTimer();
+
 	/// Reset the motherboard to its initial state.
 	/// This only resets the board, and does not send a reset
 	/// to any attached toolheads.
@@ -110,6 +114,11 @@ public:
 		return stepper[n];
 	}
 
+        StepperInterface *getStepperAllInterfaces()
+	{
+		return stepper;
+	}
+
 	/// Get the number of microseconds that have passed since
 	/// the board was initialized.  This value will wrap after
 	/// 2**32 microseconds (ca. 70 minutes); callers should compensate for this.
@@ -122,8 +131,13 @@ public:
 	/// Get the current error being displayed.
 	uint8_t getCurrentError();
 
-	/// Perform the timer interrupt routine.
-	void doInterrupt();
+	/// Perform the stepper timer interrupt routine.
+	void doStepperInterrupt();
+
+	void doAdvanceInterrupt();
+
+	/// Perform the interface timer interrupt routine.
+	void doInterfaceInterrupt();
  
 	MoodLightController getMoodLightController();
 	void MoodLightSetRGBColor(uint8_t r, uint8_t g, uint8_t b, uint8_t fadeSpeed, uint8_t writeToEeprom);

@@ -107,7 +107,37 @@ const static uint16_t OVERRIDE_GCODE_TEMP	= 0x00C5;
 //4 Profiles = 0x00C6 + PROFILE_NEXT_OFFSET * 4 
 const static uint16_t PROFILE_BASE		= 0x00C6;
 
-//Next free location: 0x126
+//1 = Accelerated Stepper Driver, 0 = Regular stepper driver (default)
+//Bit 2 is planner enabled
+const static uint16_t STEPPER_DRIVER	= 0x0126;
+
+//uint32_t (4 bytes)
+const static uint16_t ACCEL_MAX_FEEDRATE_X	= 0x0127;
+const static uint16_t ACCEL_MAX_FEEDRATE_Y	= 0x012B;
+const static uint16_t ACCEL_MAX_FEEDRATE_Z	= 0x012F;
+const static uint16_t ACCEL_MAX_FEEDRATE_A	= 0x0133;
+const static uint16_t ACCEL_MAX_FEEDRATE_B	= 0x0137;
+
+//uint32_t (4 bytes)
+const static uint16_t ACCEL_MAX_ACCELERATION_X	= 0x013B;
+const static uint16_t ACCEL_MAX_ACCELERATION_Y	= 0x013F;
+const static uint16_t ACCEL_MAX_ACCELERATION_Z	= 0x0143;
+const static uint16_t ACCEL_MAX_ACCELERATION_A	= 0x0147;
+
+//uint32_t (4 bytes)
+const static uint16_t ACCEL_MAX_EXTRUDER_NORM	= 0x014B;
+const static uint16_t ACCEL_MAX_EXTRUDER_RETRACT= 0x014F;
+
+//uint32_t (4 bytes)
+const static uint16_t ACCEL_E_STEPS_PER_MM	= 0x0153;
+
+//uint32_t (4 bytes)
+const static uint16_t ACCEL_MIN_FEED_RATE	= 0x0157;
+const static uint16_t ACCEL_MIN_TRAVEL_FEED_RATE= 0x015B;
+const static uint16_t ACCEL_MAX_XY_JERK		= 0x015F;
+const static uint16_t ACCEL_MAX_Z_JERK		= 0x0163;
+const static uint16_t ACCEL_ADVANCE_K		= 0x0167;
+const static uint16_t ACCEL_FILAMENT_DIAMETER	= 0x016B;
 
 /// Reset all data in the EEPROM to a default.
 void setDefaults();

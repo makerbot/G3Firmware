@@ -43,6 +43,7 @@ void reset(bool hard_reset) {
 		Motherboard& board = Motherboard::getBoard();
 		sdcard::reset();
 		steppers::abort();
+		steppers::reset();
 		command::reset();
 		eeprom::init();
 		board.reset(hard_reset);

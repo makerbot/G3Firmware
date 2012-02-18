@@ -193,4 +193,7 @@
 #define HAS_ATX_POWER_GOOD	1
 #define ATX_POWER_GOOD		Pin(PortK,2)	//Pin ATX 8 connected to Analog 10
 
+//Stepper Acceleration
+#define HAS_STEPPER_ACCELERATION 	1
+
 #endif // BOARDS_RRMBV12_CONFIGURATION_HH_

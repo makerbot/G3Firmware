@@ -33,6 +33,9 @@ namespace steppers {
     /// \param[in] motherboard Motherboard to attach the steppers to.
     void init(Motherboard& motherboard);
 
+    //Reset the stepper subsystem
+    void reset();
+
     /// Check if the stepper subsystem is running
     /// \return True if the stepper subsystem is running or paused. False
     ///         otherwise.
@@ -84,9 +87,21 @@ namespace steppers {
     /// \param[in] position New system position
     void definePosition(const Point& position);
 
+    /// Switch to the regular driver
+    void switchToRegularDriver();
+
+    ///Switch to the accelerated driver
+    void switchToAcceleratedDriver();
+
+//Debugging
+void doLcd();
+
     /// Handle interrupt.
     /// \return True if the stepper subsystem is currently in motion.
     bool doInterrupt();
+
+    //Used for the ADVANCE algorithm in Marlin
+    bool doAdvanceInterrupt();
 
     /// Get the current system position
     /// \return The current machine position.

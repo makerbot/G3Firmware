@@ -688,11 +688,125 @@ protected:
 	void handleSelect(uint8_t index);
 };
 
+class StepperDriverAcceleratedMenu: public Menu {
+public:
+	StepperDriverAcceleratedMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class AcceleratedSettingsMode: public Screen {
+private:
+	enum accelerateSettingsState {
+		AS_NONE,
+		AS_MAX_FEEDRATE_X,
+		AS_MAX_FEEDRATE_Y,
+		AS_MAX_FEEDRATE_Z,
+		AS_MAX_FEEDRATE_A,
+		AS_MAX_ACCELERATION_X,
+		AS_MAX_ACCELERATION_Y,
+		AS_MAX_ACCELERATION_Z,
+		AS_MAX_ACCELERATION_A,
+		AS_MAX_EXTRUDER_NORM,
+		AS_MAX_EXTRUDER_RETRACT,
+		AS_MIN_FEED_RATE,
+		AS_MIN_TRAVEL_FEED_RATE,
+		AS_MAX_XY_JERK,
+		AS_MAX_Z_JERK,
+		AS_ADVANCE_K,
+		AS_FILAMENT_DIAMETER,
+	};
+
+	enum accelerateSettingsState accelerateSettingsState, lastAccelerateSettingsState;
+
+	uint32_t values[16];
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class EStepsPerMMLengthMode: public Screen {
+private:
+	uint32_t value;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+
+	int32_t steps;
+};
+
+class EStepsPerMMStepsMode: public Screen {
+private:
+	int32_t value;
+	ExtruderTooColdMenu extruderTooColdMenu;
+	EStepsPerMMLengthMode eStepsPerMMLengthMode;
+
+	void extrude(bool overrideTempCheck);
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class EStepsPerMMMode: public Screen {
+private:
+	uint32_t value;
+	EStepsPerMMStepsMode eStepsPerMMStepsMode;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class AccelerationMenu: public Menu {
+private:
+	StepperDriverAcceleratedMenu	stepperDriverAcceleratedMenu;
+	AcceleratedSettingsMode		acceleratedSettingsMode;
+	EStepsPerMMMode			eStepsPerMMMode;
+	
+	bool acceleration;
+public:
+	AccelerationMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
 class BuildSettingsMenu: public Menu {
 private:
 	PreheatDuringEstimateMenu	preheatDuringEstimateMenu;
 	OverrideGCodeTempMenu		overrideGCodeTempMenu;
 	ABPCopiesSetScreen		abpCopiesSetScreen;
+	AccelerationMenu		accelerationMenu;
 public:
 	BuildSettingsMenu();
 
