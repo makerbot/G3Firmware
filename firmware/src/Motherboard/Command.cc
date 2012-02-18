@@ -29,6 +29,10 @@
 #include "SDCard.hh"
 #include "ExtruderControl.hh"
 
+#ifdef HAS_STEPPER_ACCELERATION
+#include "StepperAccel.hh"
+#endif
+
 namespace command {
 
 #define COMMAND_BUFFER_SIZE 512
@@ -129,6 +133,7 @@ enum {
 Timeout delay_timeout;
 Timeout homing_timeout;
 Timeout tool_wait_timeout;
+bool acceleration;
 
 void reset() {
 	pauseAtZPos(0.0);
@@ -140,6 +145,10 @@ void reset() {
 	firstHeatTool0 = true;
 	firstHeatHbp = true;
 	mode = READY;
+
+ 	uint8_t accel = eeprom::getEeprom8(eeprom::STEPPER_DRIVER, 0);
+        if ( accel & 0x01 )	acceleration = true;
+	else			acceleration = false;
 }
 
 
@@ -373,6 +382,27 @@ void runCommandSlice() {
 			mode = READY;
 		}
 	}
+
+#ifdef HAS_STEPPER_ACCELERATION
+	//If we're running acceleration, we want to populate the pipeline buffer,
+	//but we also need to sync (wait for the pipeline buffer to clear) on certain
+	//commands, we do that here
+	if (( acceleration ) && ( mode == READY ) && ( ! estimating )) {
+		if (command_buffer.getLength() > 0) {
+			uint8_t command = command_buffer.peek();
+		
+			//If we're not pipeline'able command, then we sync here,
+			//by waiting for the pipeline buffer to empty before continuing
+			if ((command != HOST_CMD_QUEUE_POINT_ABS) &&
+			    (command != HOST_CMD_QUEUE_POINT_EXT) &&
+			    (command != HOST_CMD_QUEUE_POINT_NEW)) {
+				if ( ! st_empty() )	return;
+			}
+		}
+		else return;
+	}
+#endif
+
 	Point p;
 	if (mode == READY) {
 		// process next command on the queue.
@@ -496,7 +526,6 @@ void runCommandSlice() {
 					if ( ! estimating ) tool_wait_timeout.start(toolTimeout*1000000L);
 				}
 			} else if (command == HOST_CMD_WAIT_FOR_PLATFORM) {
-        // FIXME: Almost equivalent to WAIT_FOR_TOOL
 				if (command_buffer.getLength() >= 6) {
 					mode = WAIT_ON_PLATFORM;
 					command_buffer.pop();
@@ -506,7 +535,6 @@ void runCommandSlice() {
 					if ( ! estimating ) tool_wait_timeout.start(toolTimeout*1000000L);
 				}
 			} else if (command == HOST_CMD_STORE_HOME_POSITION) {
-
 				// check for completion
 				if (command_buffer.getLength() >= 2) {
 					command_buffer.pop();

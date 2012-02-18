@@ -74,6 +74,16 @@ public:
 		return popped_byte;
 	}
 
+	/// Peek at a byte at the head of the buffer
+	inline BufDataType peek() {
+		if (isEmpty()) {
+			underflow = true;
+			return BufDataType();
+		}
+		const BufDataType& popped_byte = operator[](0);
+		return popped_byte;
+	}
+
 	/// Pop a number of bytes off the head of the buffer.  If there
 	/// are not enough bytes to complete the pop, pop what we can and
 	/// set the underflow flag.

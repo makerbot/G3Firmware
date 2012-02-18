@@ -51,10 +51,39 @@ int64_t getEepromInt64(const uint16_t location, const int64_t default_value) {
 	return *ret;
 }
 
+uint32_t getEepromUInt32(const uint16_t location, const uint32_t default_value) {
+	uint32_t *ret;
+        uint8_t data[4];
+        eeprom_read_block(data,(const uint8_t*)location,4);
+        if (data[0] == 0xff && data[1] == 0xff && data[2] == 0xff && data[3] == 0xff)
+		 return default_value;
+	ret = (uint32_t *)&data[0];
+	return *ret;
+}
+
 void putEepromInt64(const uint16_t location, const int64_t value) {
         void *data;
 	data = (void *)&value;
         eeprom_write_block(data,(void*)location,8);
+}
+
+void putEepromUInt32(const uint16_t location, const uint32_t value) {
+        void *data;
+	data = (void *)&value;
+        eeprom_write_block(data,(void*)location,4);
+}
+
+int64_t getEepromStepsPerMM(const uint16_t location, const int64_t default_value) {
+        int64_t value = eeprom::getEepromInt64(location, default_value);
+
+        if (( value <= STEPS_PER_MM_LOWER_LIMIT ) || ( value >= STEPS_PER_MM_UPPER_LIMIT )) {
+                eeprom::putEepromInt64(location, default_value);
+
+                //Just to be on the safe side
+                value = eeprom::getEepromInt64(location, default_value);
+        }
+
+        return value;
 }
 
 } // namespace eeprom

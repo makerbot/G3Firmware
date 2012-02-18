@@ -51,6 +51,25 @@ void setDefaults() {
     eeprom_write_byte((uint8_t*)eeprom::ABP_COPIES,1);
     eeprom_write_byte((uint8_t*)eeprom::PREHEAT_DURING_ESTIMATE,0);
     eeprom_write_byte((uint8_t*)eeprom::OVERRIDE_GCODE_TEMP,0);
+    eeprom_write_byte((uint8_t*)eeprom::STEPPER_DRIVER,0);
+    putEepromUInt32(eeprom::ACCEL_MAX_FEEDRATE_X,160);
+    putEepromUInt32(eeprom::ACCEL_MAX_FEEDRATE_Y,160);
+    putEepromUInt32(eeprom::ACCEL_MAX_FEEDRATE_Z,10);
+    putEepromUInt32(eeprom::ACCEL_MAX_FEEDRATE_A,100);
+    putEepromUInt32(eeprom::ACCEL_MAX_FEEDRATE_B,100);
+    putEepromUInt32(eeprom::ACCEL_MAX_ACCELERATION_X,2000);
+    putEepromUInt32(eeprom::ACCEL_MAX_ACCELERATION_Y,2000);
+    putEepromUInt32(eeprom::ACCEL_MAX_ACCELERATION_Z,150);
+    putEepromUInt32(eeprom::ACCEL_MAX_ACCELERATION_A,60000);
+    putEepromUInt32(eeprom::ACCEL_MAX_EXTRUDER_NORM,5000);
+    putEepromUInt32(eeprom::ACCEL_MAX_EXTRUDER_RETRACT,3000);
+    putEepromUInt32(eeprom::ACCEL_E_STEPS_PER_MM,44);		//Multiplied by 10
+    putEepromUInt32(eeprom::ACCEL_MIN_FEED_RATE,0);		//Multiplied by 10
+    putEepromUInt32(eeprom::ACCEL_MIN_TRAVEL_FEED_RATE,0);	//Multiplied by 10
+    putEepromUInt32(eeprom::ACCEL_MAX_XY_JERK,2);		//30mm/s Multiplied by 10
+    putEepromUInt32(eeprom::ACCEL_MAX_Z_JERK,100);		//10mm/s Multiplied by 10
+    putEepromUInt32(eeprom::ACCEL_ADVANCE_K,50);		//0.00001 Multiplied by 100000
+    putEepromUInt32(eeprom::ACCEL_FILAMENT_DIAMETER,175);	//1.75 Multiplied by 100
 }
 
 }

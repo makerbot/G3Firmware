@@ -26,7 +26,7 @@
 #include "MoodLightController.hh"
 
 /// Maximum number of screens that can be active at once.
-#define SCREEN_STACK_DEPTH      5
+#define SCREEN_STACK_DEPTH      7
 
 /// Character LCD screen geometry
 ///
