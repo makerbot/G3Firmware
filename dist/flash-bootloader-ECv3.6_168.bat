@@ -4,11 +4,11 @@ echo Ready to load bootloader for Extruder v3.6.
 pause
 
 set port=usb
-set firmware=ECv3.6\ATmegaBOOT_168_atmega328.hex
+set firmware=ECv3.6\ATmegaBOOT_168_ec3x.hex
 set programmer=usbtiny
-set part=m328p
+set part=m168
 
-tools-win\avrdude -v -p%part% -P%port% -c%programmer% -e -Ulock:w:0x3F:m -Uefuse:w:0x05:m -Uhfuse:w:0xda:m -Ulfuse:w:0xff:m
+tools-win\avrdude -v -p%part% -P%port% -c%programmer% -e -Ulock:w:0x3F:m -Uefuse:w:0x00:m -Uhfuse:w:0xDD:m -Ulfuse:w:0xEE:m
 
 tools-win\avrdude -v -p%part% -P%port% -c%programmer% -e -Uflash:w:%firmware%:i
 
