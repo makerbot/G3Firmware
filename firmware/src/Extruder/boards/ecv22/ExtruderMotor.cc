@@ -22,7 +22,7 @@
 #include "ExtruderMotor.hh"
 #include "Eeprom.hh"
 #include "EepromMap.hh"
-#include "Pin.hh"
+#include "PinTmplt.hh"
 
 using namespace eeprom;
 
@@ -35,12 +35,14 @@ int16_t stepper_accumulator;
 uint8_t stepper_phase;
 
 bool swap_motor = false;
-Pin motor_enable_pin = HB1_ENABLE_PIN;
-Pin motor_dir_pin = HB1_DIR_PIN;
+#define motor1_enable_pin   HB1_ENABLE_PIN
+#define motor1_dir_pin      HB1_DIR_PIN
+#define motor2_enable_pin   HB2_ENABLE_PIN
+#define motor2_dir_pin      HB2_DIR_PIN
 
-Pin external_enable_pin = ES_ENABLE_PIN;
-Pin external_dir_pin = ES_DIR_PIN;
-Pin external_step_pin = ES_STEP_PIN;
+#define external_enable_pin ES_ENABLE_PIN
+#define external_dir_pin    ES_DIR_PIN
+#define external_step_pin   ES_STEP_PIN
 
 // FIXME: Hardcoded steps per revolution. Eventually, this needs to be configurable
 // Set to 200 for standard Makerbot Stepper Motor Driver V2.3
@@ -54,12 +56,12 @@ volatile int32_t ext_stepper_counter = 0;
 // TIMER0 is used to PWM motor driver A enable on OC0B.
 void initExtruderMotor() {
 	last_extruder_speed = 0;
-	HB1_ENABLE_PIN.setDirection(true);
-	HB1_ENABLE_PIN.setValue(false);
-	HB1_DIR_PIN.setDirection(true);
-	HB2_ENABLE_PIN.setDirection(true);
-	HB2_ENABLE_PIN.setValue(false);
-	HB2_DIR_PIN.setDirection(true);
+	HB1_ENABLE_PIN::setDirection(true);
+	HB1_ENABLE_PIN::setValue(false);
+	HB1_DIR_PIN::setDirection(true);
+	HB2_ENABLE_PIN::setDirection(true);
+	HB2_ENABLE_PIN::setValue(false);
+	HB2_DIR_PIN::setDirection(true);
 	stepper_motor_mode = false;
 	stepper_accumulator = 0;
 	stepper_phase = 1;
@@ -67,8 +69,6 @@ void initExtruderMotor() {
 	uint16_t ef = getEeprom16(EXTRA_FEATURES,EF_DEFAULT);
 	if ((ef & EF_SWAP_MOTOR_CONTROLLERS) != 0) {
 		swap_motor = true;
-		motor_enable_pin = HB2_ENABLE_PIN;
-		motor_dir_pin = HB2_DIR_PIN;
 	}
 }
 
@@ -82,14 +82,14 @@ void setStepperMode(bool mode, bool external/* = false*/) {
 		TIMSK0 = _BV(TOIE0);
 	} else if (external_stepper_motor_mode) {
 		// Setup pins
-		external_enable_pin.setDirection(true);
-		external_enable_pin.setValue(true); // true = disabled
+		external_enable_pin::setDirection(true);
+		external_enable_pin::setValue(true); // true = disabled
 
-		external_dir_pin.setDirection(true);
-		external_dir_pin.setValue(true); // true = forward
+		external_dir_pin::setDirection(true);
+		external_dir_pin::setValue(true); // true = forward
 
-		external_step_pin.setDirection(true);
-		external_step_pin.setValue(false);
+		external_step_pin::setDirection(true);
+		external_step_pin::setValue(false);
 
 		// CTC Mode
 		TCCR0A = _BV(WGM01);
@@ -116,25 +116,33 @@ void setExtruderMotor(int16_t speed) {
 			TIMSK0 = 0;
 			if (speed == 0) {
 				TCCR0A = _BV(WGM01) | _BV(WGM00);
-				motor_enable_pin.setValue(false);
+        		if ( swap_motor )
+				    motor2_enable_pin::setValue(false);
+                else
+				    motor1_enable_pin::setValue(false);
 			} else if (speed == 255) {
 				TCCR0A = _BV(WGM01) | _BV(WGM00);
-				motor_enable_pin.setValue(true);
+        		if ( swap_motor )
+				    motor2_enable_pin::setValue(true);
+                else
+				    motor1_enable_pin::setValue(true);
 			} else {
-				motor_enable_pin.setValue(true);
 				if (swap_motor) {
+				    motor2_enable_pin::setValue(true);
 					TCCR0A = _BV(COM0A1) | _BV(WGM01) | _BV(WGM00);
 				} else {
+				    motor1_enable_pin::setValue(true);
 					TCCR0A = _BV(COM0B1) | _BV(WGM01) | _BV(WGM00);
 				}
 			}
 			bool backwards = speed < 0;
 			if (backwards) { speed = -speed; }
 			if (speed > 255) { speed = 255; }
-			motor_dir_pin.setValue(!backwards);
 			if (swap_motor) {
+				motor2_dir_pin::setValue(!backwards);
 				OCR0A = speed;
 			} else {
+				motor1_dir_pin::setValue(!backwards);
 				OCR0B = speed;
 			}
 		}
@@ -157,16 +165,16 @@ void setExtruderMotorRPM(uint32_t micros, bool direction) {
       // This is now done in setExtruderMotorOn()
       // TIMSK0  = _BV(OCIE1A);
 
-			external_dir_pin.setValue(direction); // true = forward
-			external_enable_pin.setValue(false); // true = disabled
-			external_step_pin.setValue(false);
-			// DEBUG_LED.setValue(true);
+			external_dir_pin::setValue(direction); // true = forward
+			external_enable_pin::setValue(false); // true = disabled
+			external_step_pin::setValue(false);
+			// DEBUG_LED::setValue(true);
 		} else {
 			// Timer/Counter 0 Output Compare A Match Interrupt Off
 			TIMSK0  = 0;
-			external_enable_pin.setValue(true); // true = disabled
+			external_enable_pin::setValue(true); // true = disabled
 			ext_stepper_ticks_per_step = 0;
-			// DEBUG_LED.setValue(false);
+			// DEBUG_LED::setValue(false);
 		}
 	}
 
@@ -200,10 +208,10 @@ volatile uint8_t stepper_pwm = 0;
 inline void setStep() {
 	const bool enable = (last_extruder_speed != 0) && (((stepper_pwm++) & 0x01) == 0);
 	const uint8_t mask = 1 << stepper_phase;
-	HB1_DIR_PIN.setValue((hb1_dir_pattern & mask) != 0);
-	HB1_ENABLE_PIN.setValue( enable && ((hb1_en_pattern & mask) != 0) );
-	HB2_DIR_PIN.setValue((hb2_dir_pattern & mask) != 0);
-	HB2_ENABLE_PIN.setValue( enable && ((hb2_en_pattern & mask) != 0) );
+	HB1_DIR_PIN::setValue((hb1_dir_pattern & mask) != 0);
+	HB1_ENABLE_PIN::setValue( enable && ((hb1_en_pattern & mask) != 0) );
+	HB2_DIR_PIN::setValue((hb2_dir_pattern & mask) != 0);
+	HB2_ENABLE_PIN::setValue( enable && ((hb2_en_pattern & mask) != 0) );
 }
 
 ISR(TIMER0_OVF_vect) {
@@ -224,9 +232,9 @@ ISR(TIMER0_COMPA_vect) {
 	if (ext_stepper_ticks_per_step > 0) {
 		++ext_stepper_counter;
 		if (ext_stepper_counter >= ext_stepper_ticks_per_step) {
-			external_step_pin.setValue(true);
+			external_step_pin::setValue(true);
 			ext_stepper_counter -= ext_stepper_ticks_per_step;
-			external_step_pin.setValue(false);
+			external_step_pin::setValue(false);
 		}
 	}
 }

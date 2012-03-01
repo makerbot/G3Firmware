@@ -13,7 +13,7 @@
 
 #include <stdint.h>
 #include "Configuration.hh"
-#include "Pin.hh"
+#include "PinTmplt.hh"
 
 #ifdef __cplusplus
 extern "C"
@@ -115,11 +115,11 @@ extern "C"
     #error "no sd/mmc pin mapping available!"
 #endif
 
-#define configure_pin_available() SD_DETECT_PIN.setDirection(false)
-#define configure_pin_locked() SD_WRITE_PIN.setDirection(false)
+#define configure_pin_available() SD_DETECT_PIN::setDirection(false)
+#define configure_pin_locked() SD_WRITE_PIN::setDirection(false)
 
-#define get_pin_available() SD_DETECT_PIN.getValue()
-#define get_pin_locked() !SD_WRITE_PIN.getValue()
+#define get_pin_available() SD_DETECT_PIN::getValue()
+#define get_pin_locked() !SD_WRITE_PIN::getValue()
 
 #if SD_RAW_SDHC
     typedef uint64_t offset_t;

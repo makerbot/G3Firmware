@@ -1,8 +1,10 @@
 #ifndef STEPPERAXIS_HH
 #define STEPPERAXIS_HH
 
-#include "StepperInterface.hh"
 #include "Configuration.hh"
+
+#if STEPPER_COUNT > 0
+#include "StepperInterface.hh"
 
 /// The stepper axis module implements a driver for a single stepper axis. It is designed
 /// to be accessed via the Steppers namespace, and uses a StepperInterface to talk to the
@@ -10,17 +12,18 @@
 /// \ingroup SoftwareLibraries
 class StepperAxis
 {
+protected:
+        const StepperInterface* interface;    ///< Interface this axis is connected to
+
 public:
-        StepperInterface* interface;    ///< Interface this axis is connected to
+        bool direction;                 ///< True for positive, false for negative
+        int32_t delta;                  ///< Amount to increment counter per tick
         volatile int32_t position;      ///< Current position of this axis, in steps
-        int32_t minimum;                ///< Minimum position, in steps
-        int32_t maximum;                ///< Maximum position, in steps
-        volatile int32_t target;        ///< Target position, in steps
         volatile int32_t counter;       ///< Step counter; represents the proportion of
                                         ///< a step so far passed.  When the counter hits
                                         ///< zero, a step is taken.
-        volatile int32_t delta;         ///< Amount to increment counter per tick
-        volatile bool direction;        ///< True for positive, false for negative
+
+protected:
 #if defined(SINGLE_SWITCH_ENDSTOPS) && (SINGLE_SWITCH_ENDSTOPS == 1)
         volatile bool prev_direction;   ///< Record the previous direction for endstop detection
         volatile int32_t endstop_play;  ///< Amount to move while endstop triggered, to see which way to move
@@ -50,25 +53,22 @@ public:
         /// Construct a stepper axis, using the given stepper
         /// interface
         /// \param[in] Stepper interface to use
-        StepperAxis(StepperInterface& stepper_interface);
+        StepperAxis(const StepperInterface* stepper_interface);
 
         /// Set the target position for the axis to travel to.
         /// \param[in] target_in Postion to move to, in steps
         /// \param[in] relative If true, consider the target position
         ///                     to be relative to the current position.
-        void setTarget(const int32_t target_in, bool relative);
+        // Returns the amount of movement required
+        int32_t setTarget(const int32_t target_in, bool relative);
 
         /// Start a homing procedure
         /// \param[in] direction_in If true, home in the positive direction.
         void setHoming(const bool direction_in);
 
-        /// Reset the axis position to the given position.
-        /// \param[in] position_in New axis position
-        void definePosition(const int32_t position_in);
-
         /// Set whether the stepper motor driver on the given axis should be enabled
         /// \param[in] enable If true, enable the axis; otherwise, disable it.
-        void enableStepper(bool enable);
+        inline void enableStepper(bool enable) { interface->setEnabled(enable); }
 
         /// Reset to initial state
         void reset();
@@ -82,5 +82,5 @@ public:
         /// \return True if the axis is still homing.
         bool doHoming(const int32_t intervals);
 };
-
+#endif
 #endif // STEPPERAXIS_HH

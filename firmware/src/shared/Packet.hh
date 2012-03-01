@@ -19,6 +19,7 @@
 #define SHARED_PACKET_HH_
 
 #include <stdint.h>
+#include <util/atomic.h>
 
 #define START_BYTE 0xD5
 #define MAX_PACKET_PAYLOAD 32
@@ -66,18 +67,17 @@ protected:
 		PS_LEN,
 		PS_PAYLOAD,
 		PS_CRC,
+		PS_COMPUTE_CRC,
 		PS_LAST
 	} PacketState;
 
-        volatile uint8_t length; /// The current length of the payload (data[0] if raw packets)
-        volatile uint8_t crc; /// The CRC of the current contents of the payload (data[-1] of raw packets)
-        volatile uint8_t payload[MAX_PACKET_PAYLOAD]; /// Data payload (starts at data[2] of raw packet)
+    volatile uint8_t length; /// The current length of the payload (data[0] if raw packets)
+    volatile uint8_t crc; /// The CRC of the current contents of the payload (data[-1] of raw packets)
 	volatile uint8_t error_code; // Have any errors cropped up during processing?
 	volatile PacketState state;
+    uint8_t payload[MAX_PACKET_PAYLOAD]; /// Data payload (starts at data[2] of raw packet)
 
 
-	/// Append a byte and update the CRC
-	void appendByte(uint8_t data);
 	/// Reset this packet to an empty state
 	void reset();
 
@@ -86,42 +86,49 @@ protected:
 		error_code = error_code_in;
 	}
 public:
-	uint8_t getLength() const { return length; }
+	inline uint8_t getLength() const { return length; }
 
-	bool hasError() const {
+	inline bool hasError() const {
 		return error_code != PacketError::NO_ERROR;
 	}
 
-	uint8_t getErrorCode() const { return error_code; }
+	inline uint8_t getErrorCode() const { return error_code; }
 
 	// Reads an 8-bit byte from the specified index of the payload
-	uint8_t read8(uint8_t idx) const;
-	uint16_t read16(uint8_t idx) const;
-	uint32_t read32(uint8_t idx) const;
+    inline uint8_t read8(uint8_t idx) const { return payload[idx]; }
+    inline uint16_t read16(uint8_t idx) const { return *((uint16_t*)(payload+idx)); } //payload[index] | (payload[index + 1] << 8); }
+    inline uint32_t read32(uint8_t idx) const { return *((uint32_t*)(payload+idx)); }
 
 	uint8_t debugGetState() const { return state; }
 
-	const volatile uint8_t* getData() const { return payload; }
+	inline const uint8_t* getData() const { return payload; }
 };
 
 /// Input Packet.
 class InPacket: public Packet {
 private:
 	volatile uint8_t expected_length;
+
+	/// Append a byte and update the CRC in a separate step
+	void appendByte(uint8_t data);
+    void computeCRC();
+
 public:
-	InPacket();
+    InPacket() { Packet::reset(); }
 
 	/// Reset the entire packet reception.
-	void reset();
+    void reset() { ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { Packet::reset(); } }
+
 
 	//process a byte for our packet.
 	void processByte(uint8_t b);
 
-	bool isFinished() const {
+	inline bool isFinished() {
+        if ( state == PS_COMPUTE_CRC ) {computeCRC();}
 		return state == PS_LAST;
 	}
 
-	bool isStarted() const {
+	inline bool isStarted() const {
 		return state != PS_START;
 	}
 
@@ -137,17 +144,25 @@ public:
 class OutPacket: public Packet {
 private:
 	uint8_t send_payload_index;
+	/// Append a byte and update the CRC
+	void appendByte(uint8_t data);
+
 public:
-	OutPacket();
+    OutPacket() { Packet::reset(); send_payload_index = 0; }
 
 	/// Reset the entire packet transmission.
-	void reset();
+    void reset() {
+        ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+    	    Packet::reset();
+	        send_payload_index = 0;
+        }
+    }
 
-	bool isFinished() const {
+	inline bool isFinished() const {
 		return state == PS_LAST;
 	}
 
-	bool isSending() const {
+	inline bool isSending() const {
 		return state != PS_START && state != PS_LAST;
 	}
 
@@ -157,8 +172,8 @@ public:
 	void prepareForResend();
 
 	// Add an 8-bit byte to the end of the payload
-	void append8(uint8_t value);
-	void append16(uint16_t value);
+    inline void append8(uint8_t value) { appendByte(value); }
+    void append16(uint16_t value); 
 	void append32(uint32_t value);
 };
 

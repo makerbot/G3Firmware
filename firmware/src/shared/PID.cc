@@ -61,8 +61,8 @@ void PID::reset_state() {
 // which will give us a delta impulse for that one calculation round and then
 // the D term will immediately disappear.  By averaging the last N deltas, we
 // allow changes to be registered rather than get subsumed in the sampling noise.
-int PID::calculate(const int pv) {
-	int e = sp - pv;
+int16_t PID::calculate(const int16_t pv) {
+	int16_t e = sp - pv;
 	error_acc += e;
 	// Clamp the error accumulator at accepted values.
 	// This will help control overcorrection for accumulated error during the run-up
@@ -76,7 +76,7 @@ int PID::calculate(const int pv) {
 	}
 	float p_term = (float)e * p_gain;
 	float i_term = (float)error_acc * i_gain;
-	int delta = e - prev_error;
+	int16_t delta = e - prev_error;
 	// Add to delta history
 	delta_summation -= delta_history[delta_idx];
 	delta_history[delta_idx] = delta;
@@ -87,26 +87,15 @@ int PID::calculate(const int pv) {
 
 	prev_error = e;
 
-	last_output = ((int)(p_term + i_term + d_term))*OUTPUT_SCALE;
+	last_output = (int16_t)((p_term + i_term + d_term)*OUTPUT_SCALE);
 
 	return last_output;
 }
 
-void PID::setTarget(const int target) {
+void PID::setTarget(const int16_t target) {
 	if (sp != target) {
 		reset_state();
 		sp = target;
 	}
 }
 
-int PID::getErrorTerm() {
-	return error_acc;
-}
-
-int PID::getDeltaTerm() {
-	return (int)delta_summation;
-}
-
-int PID::getLastOutput() {
-	return (int)last_output;
-}

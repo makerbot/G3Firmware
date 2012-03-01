@@ -1,50 +1,65 @@
 #include "InterfaceBoard.hh"
-#include "Configuration.hh"
-#include "LiquidCrystal.hh"
+#if HAS_INTERFACE_BOARD > 0
 #include "Host.hh"
 
-#if defined HAS_INTERFACE_BOARD
+#if DISPLAY_TYPE == DISPLAY_TYPE_NONE
+#include "Display.hh"
+static Display globalDisplay;
 
-InterfaceBoard::InterfaceBoard(ButtonArray& buttons_in,
-                               LiquidCrystal& lcd_in,
-                               const Pin& foo_pin_in,
-                               const Pin& bar_pin_in,
-                               Screen* mainScreen_in,
+#elif DISPLAY_TYPE == DISPLAY_TYPE_LIQUIDCRYSTAL
+#include "LiquidCrystal.hh"
+static LiquidCrystal globalDisplay;
+
+#elif DISPLAY_TYPE == DISPLAY_TYPE_MODTRONIXLCD2S
+#include "ModtronixLCD2S.hh"
+static ModtronixLCD2S globalDisplay;
+
+#elif DISPLAY_TYPE == DISPLAY_TYPE_DUAL
+#include "DualDisplay.hh"
+static DualDisplay globalDisplay;
+#endif
+
+
+#define foo_pin INTERFACE_FOO_PIN
+#define bar_pin INTERFACE_BAR_PIN
+
+void InterfaceBoard::Debug(const char message[])
+{
+    static bool init = false;
+    if ( !init ) { globalDisplay.init(); init = true; }
+    static uint16_t row = 0;
+    globalDisplay.setCursor(0,row++%globalDisplay.height()); 
+    globalDisplay.writeInt(row,4);
+    globalDisplay.write(' ');
+    globalDisplay.writeString(message);
+}
+
+InterfaceBoard::InterfaceBoard(Screen* mainScreen_in,
                                Screen* buildScreen_in) :
-        lcd(lcd_in),
-        buttons(buttons_in),
-        foo_pin(foo_pin_in),
-        bar_pin(bar_pin_in)
+    display(globalDisplay)
 {
         buildScreen = buildScreen_in;
         mainScreen = mainScreen_in;
 }
 
+
 void InterfaceBoard::init() {
         buttons.init();
 
-        lcd.begin(LCD_SCREEN_WIDTH, LCD_SCREEN_HEIGHT);
-        lcd.clear();
-        lcd.home();
+        display.init();
 
-        foo_pin.setValue(false);
-        foo_pin.setDirection(true);
-        bar_pin.setValue(false);
-        bar_pin.setDirection(true);
+#if HAS_INTERFACE_BUTTONS > 0
+        foo_pin::setValue(false);
+        foo_pin::setDirection(true);
+        bar_pin::setValue(false);
+        bar_pin::setDirection(true);
+#endif HAS_INTERFACE_BUTTONS > 0
 
         building = false;
 
         screenIndex = -1;
 
         pushScreen(mainScreen);
-}
-
-void InterfaceBoard::doInterrupt() {
-	buttons.scanButtons();
-}
-
-micros_t InterfaceBoard::getUpdateRate() {
-	return screenStack[screenIndex]->getUpdateRate();
 }
 
 void InterfaceBoard::doUpdate() {
@@ -55,7 +70,7 @@ void InterfaceBoard::doUpdate() {
 	case host::HOST_STATE_BUILDING:
 	case host::HOST_STATE_BUILDING_FROM_SD:
 		if (!building) {
-                        pushScreen(buildScreen);
+            pushScreen(buildScreen);
 			building = true;
 		}
 		break;
@@ -68,14 +83,15 @@ void InterfaceBoard::doUpdate() {
 	}
 
 
-        static ButtonArray::ButtonName button;
+#if HAS_INTERFACE_BUTTONS > 0
+    static ButtonArray::ButtonName button;
 
 
 	if (buttons.getButton(button)) {
 		screenStack[screenIndex]->notifyButtonPressed(button);
 	}
-
-	screenStack[screenIndex]->update(lcd, false);
+#endif
+	screenStack[screenIndex]->update(display, false);
 }
 
 void InterfaceBoard::pushScreen(Screen* newScreen) {
@@ -84,7 +100,7 @@ void InterfaceBoard::pushScreen(Screen* newScreen) {
 		screenStack[screenIndex] = newScreen;
 	}
 	screenStack[screenIndex]->reset();
-	screenStack[screenIndex]->update(lcd, true);
+	screenStack[screenIndex]->update(display, true);
 }
 
 void InterfaceBoard::popScreen() {
@@ -93,7 +109,7 @@ void InterfaceBoard::popScreen() {
 		screenIndex--;
 	}
 
-	screenStack[screenIndex]->update(lcd, true);
+	screenStack[screenIndex]->update(display, true);
 }
 
-#endif
+#endif // HAS_INTERFACE_BOARD > 0

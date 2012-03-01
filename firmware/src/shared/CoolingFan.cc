@@ -40,18 +40,6 @@ void CoolingFan::reset() {
 	}
 }
 
-void CoolingFan::setSetpoint(int temperature) {
-	setPoint = temperature;
-}
-
-void CoolingFan::enable() {
-	enabled = true;
-}
-
-void CoolingFan::disable() {
-	enabled = false;
-	setFanRunning(false);
-}
 
 void CoolingFan::manageCoolingFan() {
 	// TODO: only change the state if necessary

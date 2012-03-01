@@ -24,10 +24,10 @@ namespace steppers {
 
 
 volatile bool is_running;
-int32_t intervals;
-volatile int32_t intervals_remaining;
-StepperAxis axes[STEPPER_COUNT];
 volatile bool is_homing;
+volatile int32_t intervals_remaining;
+int32_t intervals;
+StepperAxis axes[STEPPER_COUNT];
 
 bool holdZ = false;
 
@@ -39,29 +39,43 @@ bool isRunning() {
 void init(Motherboard& motherboard) {
 	is_running = false;
 	for (int i = 0; i < STEPPER_COUNT; i++) {
-                axes[i] = StepperAxis(motherboard.getStepperInterface(i));
+        axes[i] = StepperAxis(motherboard.getStepperInterface(i));
 	}
 }
 
 void abort() {
-	is_running = false;
-	is_homing = false;
+    ATOMIC_BLOCK(ATOMIC_FORCEON)
+    {
+	    is_running = false;
+	    is_homing = false;
+    }
 }
 
 /// Define current position as given point
 void definePosition(const Point& position) {
-	for (int i = 0; i < STEPPER_COUNT; i++) {
-		axes[i].definePosition(position[i]);
-	}
+    ATOMIC_BLOCK(ATOMIC_FORCEON) 
+    {
+        axes[0].position = position[0];
+        axes[1].position = position[1];
+        axes[2].position = position[2];
+#if STEPPER_COUNT > 3
+        axes[3].position = position[3];
+        axes[4].position = position[4];
+#endif
+    }
 }
 
-/// Get current position
-const Point getPosition() {
+const void getPosition(Point* pt) { 
+    ATOMIC_BLOCK(ATOMIC_FORCEON)
+    {
+	    (*pt)[0] = axes[0].position;
+	    (*pt)[1] = axes[1].position;
+	    (*pt)[2] = axes[2].position;
 #if STEPPER_COUNT > 3
-	return Point(axes[0].position,axes[1].position,axes[2].position,axes[3].position,axes[4].position);
-#else
-	return Point(axes[0].position,axes[1].position,axes[2].position);
+	    (*pt)[3] = axes[3].position;
+	    (*pt)[4] = axes[4].position;
 #endif
+    }
 }
 
 void setHoldZ(bool holdZ_in) {
@@ -69,68 +83,86 @@ void setHoldZ(bool holdZ_in) {
 }
 
 void setTarget(const Point& target, int32_t dda_interval) {
-	int32_t max_delta = 0;
-	for (int i = 0; i < AXIS_COUNT; i++) {
-		axes[i].setTarget(target[i], false);
-		const int32_t delta = axes[i].delta;
-		// Only shut z axis on inactivity
-		if (i == 2 && !holdZ) axes[i].enableStepper(delta != 0);
-		else if (delta != 0) axes[i].enableStepper(true);
-		if (delta > max_delta) {
-			max_delta = delta;
-		}
-	}
-	// compute number of intervals for this move
-	intervals = ((max_delta * dda_interval) / INTERVAL_IN_MICROSECONDS);
-	intervals_remaining = intervals;
-	const int32_t negative_half_interval = -intervals / 2;
-	for (int i = 0; i < AXIS_COUNT; i++) {
-		axes[i].counter = negative_half_interval;
-	}
-	is_running = true;
+	    int32_t max_delta = 0;
+	    for (int i = 0; i < STEPPER_COUNT; i++) {
+            StepperAxis& axis = axes[i];
+		    const int32_t delta = axis.setTarget(target[i], false);
+		    // Only shut z axis on inactivity
+		    if (i == 2 && !holdZ) {
+                axis.enableStepper(delta != 0);
+            }
+		    else if (delta != 0) {
+                axis.enableStepper(true);
+            }
+		    if (delta > max_delta) {
+			    max_delta = delta;
+		    }
+	    }
+    ATOMIC_BLOCK(ATOMIC_FORCEON){
+	    // compute number of intervals for this move
+	    intervals = ((max_delta * dda_interval) / INTERVAL_IN_MICROSECONDS);
+	    intervals_remaining = intervals;
+	    const int32_t negative_half_interval = -intervals / 2;
+        axes[0].counter = negative_half_interval;
+        axes[1].counter = negative_half_interval;
+        axes[2].counter = negative_half_interval;
+#if STEPPER_COUNT > 3
+        axes[3].counter = negative_half_interval;
+        axes[4].counter = negative_half_interval;
+#endif
+	    is_running = true;
+    }
 }
 
 void setTargetNew(const Point& target, int32_t us, uint8_t relative) {
-	for (int i = 0; i < AXIS_COUNT; i++) {
-		axes[i].setTarget(target[i], (relative & (1 << i)) != 0);
-		// Only shut z axis on inactivity
-		const int32_t delta = axes[i].delta;
-		if (i == 2 && !holdZ) {
-			axes[i].enableStepper(delta != 0);
-		} else if (delta != 0) {
-			axes[i].enableStepper(true);
-		}
-	}
-	// compute number of intervals for this move
-	intervals = us / INTERVAL_IN_MICROSECONDS;
-	intervals_remaining = intervals;
-	const int32_t negative_half_interval = -intervals / 2;
-	for (int i = 0; i < AXIS_COUNT; i++) {
-		axes[i].counter = negative_half_interval;
-	}
-	is_running = true;
+	    for (int i = 0; i < STEPPER_COUNT; i++) {
+            StepperAxis& axis = axes[i];
+		    const int32_t delta = axis.setTarget(target[i], (relative & (1 << i)) != 0);
+		    // Only shut z axis on inactivity
+		    if (i == 2 && !holdZ) {
+			    axes[i].enableStepper(delta != 0);
+		    } else if (delta != 0) {
+			    axes[i].enableStepper(true);
+		    }
+	    }
+    ATOMIC_BLOCK(ATOMIC_FORCEON){
+	    // compute number of intervals for this move
+	    intervals = us / INTERVAL_IN_MICROSECONDS;
+	    intervals_remaining = intervals;
+	    const int32_t negative_half_interval = -intervals / 2;
+        axes[0].counter = negative_half_interval;
+        axes[1].counter = negative_half_interval;
+        axes[2].counter = negative_half_interval;
+#if STEPPER_COUNT > 3
+        axes[3].counter = negative_half_interval;
+        axes[4].counter = negative_half_interval;
+#endif
+	    is_running = true;
+    }
 }
 
 /// Start homing
 void startHoming(const bool maximums, const uint8_t axes_enabled, const uint32_t us_per_step) {
-	intervals_remaining = INT32_MAX;
-	intervals = us_per_step / INTERVAL_IN_MICROSECONDS;
-	const int32_t negative_half_interval = -intervals / 2;
-	for (int i = 0; i < AXIS_COUNT; i++) {
-		axes[i].counter = negative_half_interval;
-		if ((axes_enabled & (1<<i)) != 0) {
-			axes[i].setHoming(maximums);
-		} else {
-			axes[i].delta = 0;
-		}
-	}
-	is_homing = true;
+    ATOMIC_BLOCK(ATOMIC_FORCEON){
+	    intervals_remaining = INT32_MAX;
+	    intervals = us_per_step / INTERVAL_IN_MICROSECONDS;
+	    const int32_t negative_half_interval = -intervals / 2;
+	    for (int i = 0; i < AXIS_COUNT; i++) {
+		    axes[i].counter = negative_half_interval;
+		    if ((axes_enabled & (1<<i)) != 0) {
+			    axes[i].setHoming(maximums);
+		    } else {
+			    axes[i].delta = 0;
+		    }
+	    }
+	    is_homing = true;
+    }
 }
 
 /// Enable/disable the given axis.
 void enableAxis(uint8_t index, bool enable) {
-        if (index < STEPPER_COUNT) {
-                axes[index].enableStepper(enable);
+    if (index < STEPPER_COUNT) {
+        axes[index].enableStepper(enable);
 	}
 }
 
@@ -139,17 +171,41 @@ bool doInterrupt() {
 		if (intervals_remaining-- == 0) {
 			is_running = false;
 		} else {
-			for (int i = 0; i < STEPPER_COUNT; i++) {
-				axes[i].doInterrupt(intervals);
-			}
+#if STEPPER_COUNT > 0
+		    axes[0].doInterrupt(intervals);
+#endif
+#if STEPPER_COUNT > 1
+		    axes[1].doInterrupt(intervals);
+#endif
+#if STEPPER_COUNT > 2
+		    axes[2].doInterrupt(intervals);
+#endif
+#if STEPPER_COUNT > 3
+		    axes[3].doInterrupt(intervals);
+#endif
+#if STEPPER_COUNT > 4
+		    axes[4].doInterrupt(intervals);
+#endif
 		}
 		return is_running;
 	} else if (is_homing) {
-		is_homing = false;
-		for (int i = 0; i < STEPPER_COUNT; i++) {
-			bool still_homing = axes[i].doHoming(intervals);
-			is_homing = still_homing || is_homing;
-		}
+		is_homing = 
+#if STEPPER_COUNT > 0
+            axes[0].doHoming(intervals) ||
+#endif
+#if STEPPER_COUNT > 1
+			axes[1].doHoming(intervals) ||
+#endif
+#if STEPPER_COUNT > 2
+			axes[2].doHoming(intervals) ||
+#endif
+#if STEPPER_COUNT > 3
+			axes[3].doHoming(intervals) ||
+#endif
+#if STEPPER_COUNT > 4
+			axes[4].doHoming(intervals) ||
+#endif
+            false;
 		return is_homing;
 	}
 	return false;

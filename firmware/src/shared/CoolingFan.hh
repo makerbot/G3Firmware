@@ -41,7 +41,7 @@ private:
         Heater& heater;  ///<  Heater module to read the current temperature from.
 
         bool enabled;   ///< If true, the control circuit actively controls the fan.
-        int setPoint;   ///< Setpoint temperature, in degrees Celcius.
+        int16_t setPoint;   ///< Setpoint temperature, in degrees Celcius.
 
         uint16_t eeprom_base;   ///< Base address to read EEPROM configuration from
 
@@ -55,26 +55,26 @@ public:
         /// Temporarily override the setpoint temperature with a new one.
         /// The saved valued will be restored when the fan is reset.
         /// \param[in] temperature Setpoint temperature, in degrees Celcius
-	void setSetpoint(int temperature);
+    inline void setSetpoint(int16_t temperature) { setPoint = temperature; }
 
         /// Enable the cooling fan module, The fan state will not be modified
         /// until the next call to #manageCoolingFan().
-	void enable();
+    inline void enable(){ enabled = true; }
 
         /// Disable the cooling fan module. The fan will be disabled
         /// immediately, and further calls to #manageCoolingFan() will have no
         /// effect.
-	void disable();
+    inline void disable() { enabled = false; setFanRunning(false); }
 
         /// Determine if the cooling fan module is enabled. Note that this just
         /// means that temperature regulation is enabled, and does not necesicarily
         /// mean that the fan is turned on.
         /// \return true if the cooling fan module is managing temperature.
-        bool isEnabled() { return enabled; }
+    inline bool isEnabled() { return enabled; }
 
         /// Get the setpoint temperature
         /// \return the current setpoint temperature, in degrees Celcius.
-	int getSetpoint() { return setPoint; }
+	inline int16_t getSetpoint() { return setPoint; }
 
         /// Reset the cooling fan module, reloading it's default state (tempertaure
         /// and enabled status) from the EEPROM.

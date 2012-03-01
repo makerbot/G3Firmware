@@ -71,9 +71,6 @@ private:
         /// Initialize the serial configuration. Must be called once at boot.
         void init_serial();
 
-        /// Send a byte of data over the serial line.
-        /// \param[in] data Data byte to send
-        inline void send_byte(char data);
 
         const communication_mode mode_;     ///< Communication mode we are speaking
         const uint8_t index_;               ///< Hardware UART index
@@ -88,7 +85,7 @@ public:
 
         /// Enable or disable the serial port.
         /// \param[in] true to enable the serial port, false to disable it.
-	void enable(bool enabled);
+	    void enable(bool enabled);
 
         /// Reset the UART to a listening state.  This is important for
         /// RS485-based comms.

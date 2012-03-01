@@ -28,39 +28,45 @@
 #include "SDCard.hh"
 #include "Eeprom.hh"
 #include "EepromMap.hh"
+#include <util/delay.h>
 
 void reset(bool hard_reset) {
+	Motherboard& board = Motherboard::getBoard();
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
-		Motherboard& board = Motherboard::getBoard();
 		sdcard::reset();
 		steppers::abort();
 		command::reset();
 		eeprom::init();
 		board.reset();
-		sei();
-		// If we've just come from a hard reset, wait for 2.5 seconds before
-		// trying to ping an extruder.  This gives the extruder time to boot
-		// before we send it a packet.
-		if (hard_reset) {
-			Timeout t;
-			t.start(1000L*2500L); // wait for 2500 ms
-			while (!t.hasElapsed());
-			tool::test(); // Run test
-		}
-		if (!tool::reset())
-		{
-			// Fail, but let it go; toggling the PSU is dangerous.
-		}
+    }
+
+    board.initInterfaceBoard();
+
+	// If we've just come from a hard reset, wait for 2.5 seconds before
+	// trying to ping an extruder.  This gives the extruder time to boot
+	// before we send it a packet.
+	if (hard_reset) {
+		Timeout t;
+		t.start(1000L*2500L); // wait for 2500 ms
+		while (!t.hasElapsed());
+		tool::test(); // Run test
 	}
+
+	if (!tool::reset())
+	{
+		// Fail, but let it go; toggling the PSU is dangerous.
+	}
+
 }
 
 int main() {
 
 	Motherboard& board = Motherboard::getBoard();
-	steppers::init(Motherboard::getBoard());
+	steppers::init(board);
 	reset(true);
-	sei();
+
 	while (1) {
+
 		// Toolhead interaction thread.
 		tool::runToolSlice();
 		// Host interaction thread.
@@ -69,6 +75,12 @@ int main() {
 		command::runCommandSlice();
 		// Motherboard slice
 		board.runMotherboardSlice();
+
+#ifdef TRACE_MAIN_LOOP_CYCLES
+        static bool debug = false;
+        debug = !debug;
+        DEBUG_PIN::setValue(debug);
+#endif
 	}
 	return 0;
 }

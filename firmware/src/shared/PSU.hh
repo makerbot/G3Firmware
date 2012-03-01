@@ -18,15 +18,13 @@
 #ifndef BOARDS_RRMBV12_PSU_HH_
 #define BOARDS_RRMBV12_PSU_HH_
 
-#include "Pin.hh"
+#if defined PSU_PIN
+#include "PinTmplt.hh"
 
 /// Simple wrapper class for encapsulating the PSU functionality
 /// \ingroup SoftwareLibraries
 class PSU {
-private:
-        Pin psu_pin;    ///< Power supply enable pin
 public:
-        PSU(const Pin& psu);
 
 	/// Initialize the PSU
 	void init();
@@ -35,5 +33,6 @@ public:
         /// \param[in] on True to turn the PSU on, False to turn it off.
 	void turnOn(bool on);
 };
+#endif
 
 #endif // BOARDS_RRMBV12_PSU_HH_

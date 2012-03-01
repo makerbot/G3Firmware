@@ -107,13 +107,13 @@ void ExtruderBoard::reset(uint8_t resetFlags) {
 	TIMSK2 = 0x00; // turn off channel A PWM by default
 	// TIMER2 is used to PWM mosfet channel B on OC2A, and channel A on
 	// PC1 (using the OC2B register).
-	DEBUG_LED.setDirection(true);
-	CHANNEL_A.setValue(false);
-	CHANNEL_A.setDirection(true); // set channel A as output
-	CHANNEL_B.setValue(false);
-	CHANNEL_B.setDirection(true); // set channel B as output
-	CHANNEL_C.setValue(false);
-	CHANNEL_C.setDirection(true); // set channel C as output
+	DEBUG_LED::setDirection(true);
+	CHANNEL_A::setValue(false);
+	CHANNEL_A::setDirection(true); // set channel A as output
+	CHANNEL_B::setValue(false);
+	CHANNEL_B::setDirection(true); // set channel B as output
+	CHANNEL_C::setValue(false);
+	CHANNEL_C::setDirection(true); // set channel C as output
 	TCCR2A = 0b10000011;
 	TCCR2B = 0b00000110; // prescaler 1/256
 	OCR2A = 0;
@@ -209,14 +209,6 @@ void ExtruderBoard::setMotorSpeedRPM(uint32_t speed, bool direction) {
 	setExtruderMotorRPM(speed, direction);
 }
 
-micros_t ExtruderBoard::getCurrentMicros() {
-	micros_t micros_snapshot;
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-		micros_snapshot = micros;
-	}
-	return micros_snapshot;
-}
-
 // ms between servo updates; conservative to avoid 7805 overheating
 #define SERVO_CYCLE_LENGTH 8
 volatile uint8_t servo_cycle = 0;
@@ -243,10 +235,10 @@ void setChannel(ChannelChoice c, uint8_t value, bool binary) {
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 			if (binary) {
 				pwmAOn(false);
-				CHANNEL_A.setValue(value != 0);
+				CHANNEL_A::setValue(value != 0);
 			} else if (value == 0 || value == 255) {
 				pwmAOn(false);
-				CHANNEL_A.setValue(value == 255);
+				CHANNEL_A::setValue(value == 255);
 			} else {
 				OCR2B = value;
 				pwmAOn(true);
@@ -256,10 +248,10 @@ void setChannel(ChannelChoice c, uint8_t value, bool binary) {
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 			if (binary) {
 				pwmBOn(false);
-				CHANNEL_B.setValue(value != 0);
+				CHANNEL_B::setValue(value != 0);
 			} else if (value == 0 || value == 255) {
 				pwmBOn(false);
-				CHANNEL_B.setValue(value == 255);
+				CHANNEL_B::setValue(value == 255);
 			} else {
 				OCR2A = value;
 				pwmBOn(true);
@@ -267,7 +259,7 @@ void setChannel(ChannelChoice c, uint8_t value, bool binary) {
 		}
 	} else {
 		// channel C -- no pwm
-		CHANNEL_C.setValue(value == 0?false:true);
+		CHANNEL_C::setValue(value == 0?false:true);
 	}
 }
 
@@ -288,7 +280,7 @@ void ExtruderBoard::setValve(bool on) {
 }
 
 void ExtruderBoard::indicateError(int errorCode) {
-	DEBUG_LED.setValue(errorCode != 0);
+	DEBUG_LED::setValue(errorCode != 0);
 }
 
 void ExtruderBoard::setUsingPlatform(bool is_using) {
@@ -322,12 +314,12 @@ void BuildPlatformHeatingElement::setHeatingElement(uint8_t value) {
 
 ISR(TIMER2_OVF_vect) {
 	if (OCR2B != 0) {
-		CHANNEL_A.setValue(true);
+		CHANNEL_A::setValue(true);
 	}
 }
 
 ISR(TIMER2_COMPB_vect) {
-	CHANNEL_A.setValue(false);
+	CHANNEL_A::setValue(false);
 }
 
 #ifdef DEFAULT_EXTERNAL_STEPPER

@@ -33,13 +33,11 @@ ExtruderBoard ExtruderBoard::extruder_board;
 
 ExtruderBoard::ExtruderBoard() :
 		micros(0L),
-		extruder_thermocouple(THERMOCOUPLE_CS,THERMOCOUPLE_SCK,THERMOCOUPLE_SO),
+		extruder_thermocouple(),
 		platform_thermistor(PLATFORM_PIN,1),
                 extruder_heater(extruder_thermocouple,extruder_element,SAMPLE_INTERVAL_MICROS_THERMOCOUPLE,eeprom::EXTRUDER_PID_BASE),
                 platform_heater(platform_thermistor,platform_element,SAMPLE_INTERVAL_MICROS_THERMISTOR,eeprom::HBP_PID_BASE),
 		using_platform(true),
-		servoA(SERVO0),
-		servoB(SERVO1),
 		coolingFan(extruder_heater, eeprom::COOLING_FAN_BASE)
 {
 }
@@ -87,12 +85,12 @@ void ExtruderBoard::reset(uint8_t resetFlags) {
 
 	// Set the output mode for the mosfets.  All three should default
 	// off.
-	CHANNEL_A.setValue(false);
-	CHANNEL_A.setDirection(true);
-	CHANNEL_B.setValue(false);
-	CHANNEL_B.setDirection(true);
-	CHANNEL_C.setValue(false);
-	CHANNEL_C.setDirection(true);
+	CHANNEL_A::setValue(false);
+	CHANNEL_A::setDirection(true);
+	CHANNEL_B::setValue(false);
+	CHANNEL_B::setDirection(true);
+	CHANNEL_C::setValue(false);
+	CHANNEL_C::setDirection(true);
 
 	// Timer 0:
 	//  Mode: Phase-correct PWM (WGM2:0 = 001), cycle freq= 976 Hz
@@ -141,6 +139,10 @@ void ExtruderBoard::reset(uint8_t resetFlags) {
 	getHostUART().enable(true);
 	getHostUART().in.reset();
 
+	MOTOR_DIR_PIN::setDirection(true);
+	MOTOR_DIR_PIN::setValue(true);
+	MOTOR_ENABLE_PIN::setDirection(true);
+
 	coolingFan.reset();
 
 	//        flashIndicatorLED();
@@ -151,27 +153,25 @@ void ExtruderBoard::reset(uint8_t resetFlags) {
 }
 
 void ExtruderBoard::runExtruderSlice() {
-        motor_controller.update();
+    motor_controller.update();
 
-        extruder_heater.manage_temperature();
-
-        if(isUsingPlatform()) {
-               platform_heater.manage_temperature();
-        }
-
-        coolingFan.manageCoolingFan();
+    static uint8_t manage = 0;
+    manage++;
+    switch(manage%3)
+    {
+        case 0:         
+            extruder_heater.manage_temperature();
+            break;
+        case 1:
+            if(isUsingPlatform()) {
+                platform_heater.manage_temperature();
+            }
+            break;
+        case 2:
+            coolingFan.manageCoolingFan();
+            break;
+    }
 }
-
-int ExtruderBoard::get_current_temperature()
-{
-    return extruder_heater.get_current_temperature();
-}
-
-void ExtruderBoard::set_target_temperature(int temp )
-{
-    return extruder_heater.set_target_temperature(temp);
-}
-
 
 void ExtruderBoard::setMotorSpeed(int16_t speed) {
 	// Since the motor and regulated cooling fan share an output, only one can be enabled at a time.
@@ -182,34 +182,28 @@ void ExtruderBoard::setMotorSpeed(int16_t speed) {
 }
 
 void ExtruderBoard::setServo(uint8_t index, int value) {
-	SoftwareServo* servo;
 	if (index == 0) {
-		servo = &servoA;
+	    if (value == -1) {
+		    servoA.disable();
+	    }
+	    else {
+		    if (!(servoA.isEnabled())) {
+			    servoA.enable();
+		    }
+		    servoA.setPosition(value);
+	    }
 	}
 	else if (index == 1) {
-		servo = &servoB;
+	    if (value == -1) {
+		    servoB.disable();
+	    }
+	    else {
+		    if (!(servoB.isEnabled())) {
+			    servoB.enable();
+		    }
+		    servoB.setPosition(value);
+	    }
 	}
-	else {
-		return;
-	}
-
-	if (value == -1) {
-		servo->disable();
-	}
-	else {
-		if (!(servo->isEnabled())) {
-			servo->enable();
-		}
-		servo->setPosition(value);
-	}
-}
-
-micros_t ExtruderBoard::getCurrentMicros() {
-	micros_t micros_snapshot;
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-		micros_snapshot = micros;
-	}
-	return micros_snapshot;
 }
 
 /// Run the extruder board interrupt
@@ -226,41 +220,29 @@ void ExtruderBoard::doInterrupt() {
 		servo_counter = 0;
 
 		if (servoA.isEnabled()) {
-			servoA.pin.setValue(true);
+			servoA.setValue(true);
 		}
 		if (servoB.isEnabled()) {
-			servoB.pin.setValue(true);
+			servoB.setValue(true);
 		}
 	}
 
 	if ((servoA.isEnabled()) && (servo_counter > servoA.getCounts())) {
-		servoA.pin.setValue(false);
+		servoA.setValue(false);
 	}
 	if ((servoB.isEnabled()) && (servo_counter > servoB.getCounts())) {
-		servoB.pin.setValue(false);
+		servoB.setValue(false);
 	}
 }
 
-//runs the AutoBuildPlatform (connected to 'Extra' screw terms on ECv3.x )
-void ExtruderBoard::setAutomatedBuildPlatformRunning(bool state)
-{
-	CHANNEL_A.setValue(state);
-}
 
 //runs the Extruder Cooling Fan (connected to 'A1/B1' screw term on ECv3.x)
-void ExtruderBoard::setFanRunning(bool state) {
-	//CHANNEL_A.setValue(on);
-	MOTOR_DIR_PIN.setDirection(true);
-	MOTOR_DIR_PIN.setValue(true);
-	MOTOR_ENABLE_PIN.setDirection(true);
-	MOTOR_ENABLE_PIN.setValue(state);
-}
 
 void ExtruderBoard::setValve(bool on) {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		setUsingPlatform(false);
 		pwmBOn(false);
-		CHANNEL_B.setValue(on);
+		CHANNEL_B::setValue(on);
 	}
 }
 
@@ -269,13 +251,6 @@ void ExtruderBoard::indicateError(int errorCode) {
 	//DEBUG_LED.setValue(errorCode != 0);
 }
 
-void ExtruderBoard::lightIndicatorLED() {
-    MOTOR_DIR_PIN.setValue(true);
-}
-
-void ExtruderBoard::setUsingPlatform(bool is_using) {
-	using_platform = is_using;
-}
 
 /// Timer two comparator A match interrupt
 ISR(TIMER2_COMPA_vect) {
@@ -288,7 +263,7 @@ void ExtruderHeatingElement::setHeatingElement(uint8_t value) {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (value == 0 || value == 255) {
 			pwmCOn(false);
-			CHANNEL_C.setValue(value == 255);
+			CHANNEL_C::setValue(value == 255);
 		} else {
 			OCR0A = value;
 			pwmCOn(true);
@@ -302,6 +277,6 @@ void BuildPlatformHeatingElement::setHeatingElement(uint8_t value) {
 	// It works relatively well.
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		pwmBOn(false);
-		CHANNEL_B.setValue(value != 0);
+		CHANNEL_B::setValue(value != 0);
 	}
 }

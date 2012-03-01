@@ -1,0 +1,158 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Extruder", "Extruder", "{B8BCEC9D-EBA2-47E3-A7DF-2D668B3AC267}"
+	ProjectSection(SolutionItems) = preProject
+		firmware\src\Extruder\DebugPacketProcessor.cc = firmware\src\Extruder\DebugPacketProcessor.cc
+		firmware\src\Extruder\DebugPacketProcessor.hh = firmware\src\Extruder\DebugPacketProcessor.hh
+		firmware\src\Extruder\EepromMap.cc = firmware\src\Extruder\EepromMap.cc
+		firmware\src\Extruder\EepromMap.hh = firmware\src\Extruder\EepromMap.hh
+		firmware\src\Extruder\Host.cc = firmware\src\Extruder\Host.cc
+		firmware\src\Extruder\Host.hh = firmware\src\Extruder\Host.hh
+		firmware\src\Extruder\Main.cc = firmware\src\Extruder\Main.cc
+		firmware\src\Extruder\Main.hh = firmware\src\Extruder\Main.hh
+		firmware\src\Extruder\MotorController.cc = firmware\src\Extruder\MotorController.cc
+		firmware\src\Extruder\MotorController.hh = firmware\src\Extruder\MotorController.hh
+		firmware\src\Extruder\Version.hh = firmware\src\Extruder\Version.hh
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "shared", "shared", "{AE577DDE-9F1C-404B-9AF4-5A9C8D8BF39B}"
+	ProjectSection(SolutionItems) = preProject
+		firmware\src\shared\AnalogPin.cc = firmware\src\shared\AnalogPin.cc
+		firmware\src\shared\AnalogPin.hh = firmware\src\shared\AnalogPin.hh
+		firmware\src\shared\ButtonArray.hh = firmware\src\shared\ButtonArray.hh
+		firmware\src\shared\CircularBuffer.hh = firmware\src\shared\CircularBuffer.hh
+		firmware\src\shared\Commands.hh = firmware\src\shared\Commands.hh
+		firmware\src\shared\CoolingFan.cc = firmware\src\shared\CoolingFan.cc
+		firmware\src\shared\CoolingFan.hh = firmware\src\shared\CoolingFan.hh
+		firmware\src\shared\Display.hh = firmware\src\shared\Display.hh
+		firmware\src\shared\Eeprom.cc = firmware\src\shared\Eeprom.cc
+		firmware\src\shared\Eeprom.hh = firmware\src\shared\Eeprom.hh
+		firmware\src\shared\Heater.cc = firmware\src\shared\Heater.cc
+		firmware\src\shared\Heater.hh = firmware\src\shared\Heater.hh
+		firmware\src\shared\HeatingElement.hh = firmware\src\shared\HeatingElement.hh
+		firmware\src\shared\Interface.cc = firmware\src\shared\Interface.cc
+		firmware\src\shared\Interface.hh = firmware\src\shared\Interface.hh
+		firmware\src\shared\InterfaceBoard.cc = firmware\src\shared\InterfaceBoard.cc
+		firmware\src\shared\InterfaceBoard.hh = firmware\src\shared\InterfaceBoard.hh
+		firmware\src\shared\LiquidCrystal.cc = firmware\src\shared\LiquidCrystal.cc
+		firmware\src\shared\LiquidCrystal.hh = firmware\src\shared\LiquidCrystal.hh
+		firmware\src\shared\Menu.cc = firmware\src\shared\Menu.cc
+		firmware\src\shared\Menu.hh = firmware\src\shared\Menu.hh
+		firmware\src\shared\Packet.cc = firmware\src\shared\Packet.cc
+		firmware\src\shared\Packet.hh = firmware\src\shared\Packet.hh
+		firmware\src\shared\PID.cc = firmware\src\shared\PID.cc
+		firmware\src\shared\PID.hh = firmware\src\shared\PID.hh
+		firmware\src\shared\PinTmplt.hh = firmware\src\shared\PinTmplt.hh
+		firmware\src\shared\ProtocolDocumentation.hh = firmware\src\shared\ProtocolDocumentation.hh
+		firmware\src\shared\PSU.cc = firmware\src\shared\PSU.cc
+		firmware\src\shared\PSU.hh = firmware\src\shared\PSU.hh
+		firmware\src\shared\StepperAxis.cc = firmware\src\shared\StepperAxis.cc
+		firmware\src\shared\StepperAxis.hh = firmware\src\shared\StepperAxis.hh
+		firmware\src\shared\StepperInterface.hh = firmware\src\shared\StepperInterface.hh
+		firmware\src\shared\TemperatureSensor.hh = firmware\src\shared\TemperatureSensor.hh
+		firmware\src\shared\Thermistor.cc = firmware\src\shared\Thermistor.cc
+		firmware\src\shared\Thermistor.hh = firmware\src\shared\Thermistor.hh
+		firmware\src\shared\ThermistorTable.cc = firmware\src\shared\ThermistorTable.cc
+		firmware\src\shared\ThermistorTable.hh = firmware\src\shared\ThermistorTable.hh
+		firmware\src\shared\Thermocouple.cc = firmware\src\shared\Thermocouple.cc
+		firmware\src\shared\Thermocouple.hh = firmware\src\shared\Thermocouple.hh
+		firmware\src\shared\Timeout.cc = firmware\src\shared\Timeout.cc
+		firmware\src\shared\Timeout.hh = firmware\src\shared\Timeout.hh
+		firmware\src\shared\Types.hh = firmware\src\shared\Types.hh
+		firmware\src\shared\UART.cc = firmware\src\shared\UART.cc
+		firmware\src\shared\UART.hh = firmware\src\shared\UART.hh
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Motherboard", "Motherboard", "{C51D0777-6F43-435A-B194-9FB6DE71E516}"
+	ProjectSection(SolutionItems) = preProject
+		firmware\src\Motherboard\Command.cc = firmware\src\Motherboard\Command.cc
+		firmware\src\Motherboard\Command.hh = firmware\src\Motherboard\Command.hh
+		firmware\src\Motherboard\DebugPacketProcessor.cc = firmware\src\Motherboard\DebugPacketProcessor.cc
+		firmware\src\Motherboard\DebugPacketProcessor.hh = firmware\src\Motherboard\DebugPacketProcessor.hh
+		firmware\src\Motherboard\EepromMap.cc = firmware\src\Motherboard\EepromMap.cc
+		firmware\src\Motherboard\EepromMap.hh = firmware\src\Motherboard\EepromMap.hh
+		firmware\src\Motherboard\Errors.hh = firmware\src\Motherboard\Errors.hh
+		firmware\src\Motherboard\Host.cc = firmware\src\Motherboard\Host.cc
+		firmware\src\Motherboard\Host.hh = firmware\src\Motherboard\Host.hh
+		firmware\src\Motherboard\Main.cc = firmware\src\Motherboard\Main.cc
+		firmware\src\Motherboard\Main.hh = firmware\src\Motherboard\Main.hh
+		firmware\src\Motherboard\Point.hh = firmware\src\Motherboard\Point.hh
+		firmware\src\Motherboard\SDCard.cc = firmware\src\Motherboard\SDCard.cc
+		firmware\src\Motherboard\SDCard.hh = firmware\src\Motherboard\SDCard.hh
+		firmware\src\Motherboard\Steppers.cc = firmware\src\Motherboard\Steppers.cc
+		firmware\src\Motherboard\Steppers.hh = firmware\src\Motherboard\Steppers.hh
+		firmware\src\Motherboard\Tool.cc = firmware\src\Motherboard\Tool.cc
+		firmware\src\Motherboard\Tool.hh = firmware\src\Motherboard\Tool.hh
+		firmware\src\Motherboard\Version.hh = firmware\src\Motherboard\Version.hh
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "mb24", "mb24", "{C338C176-CD4F-4133-8B44-BA1B2EFD66B8}"
+	ProjectSection(SolutionItems) = preProject
+		firmware\src\Motherboard\boards\mb24\ButtonArray.cc = firmware\src\Motherboard\boards\mb24\ButtonArray.cc
+		firmware\src\Motherboard\boards\mb24\Configuration.hh = firmware\src\Motherboard\boards\mb24\Configuration.hh
+		firmware\src\Motherboard\boards\mb24\Motherboard.cc = firmware\src\Motherboard\boards\mb24\Motherboard.cc
+		firmware\src\Motherboard\boards\mb24\Motherboard.hh = firmware\src\Motherboard\boards\mb24\Motherboard.hh
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "rrmbv12", "rrmbv12", "{5B20E4BA-3A26-4273-8495-099508DE2D96}"
+	ProjectSection(SolutionItems) = preProject
+		firmware\src\Motherboard\boards\rrmbv12\Configuration.hh = firmware\src\Motherboard\boards\rrmbv12\Configuration.hh
+		firmware\src\Motherboard\boards\rrmbv12\Motherboard.cc = firmware\src\Motherboard\boards\rrmbv12\Motherboard.cc
+		firmware\src\Motherboard\boards\rrmbv12\Motherboard.hh = firmware\src\Motherboard\boards\rrmbv12\Motherboard.hh
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "lib_sd", "lib_sd", "{656CB7F3-AB12-4881-9A8F-22644216D524}"
+	ProjectSection(SolutionItems) = preProject
+		firmware\src\Motherboard\lib_sd\byteordering.c = firmware\src\Motherboard\lib_sd\byteordering.c
+		firmware\src\Motherboard\lib_sd\byteordering.h = firmware\src\Motherboard\lib_sd\byteordering.h
+		firmware\src\Motherboard\lib_sd\ChangeLog = firmware\src\Motherboard\lib_sd\ChangeLog
+		firmware\src\Motherboard\lib_sd\fat.c = firmware\src\Motherboard\lib_sd\fat.c
+		firmware\src\Motherboard\lib_sd\fat.h = firmware\src\Motherboard\lib_sd\fat.h
+		firmware\src\Motherboard\lib_sd\fat_config.h = firmware\src\Motherboard\lib_sd\fat_config.h
+		firmware\src\Motherboard\lib_sd\partition.c = firmware\src\Motherboard\lib_sd\partition.c
+		firmware\src\Motherboard\lib_sd\partition.h = firmware\src\Motherboard\lib_sd\partition.h
+		firmware\src\Motherboard\lib_sd\partition_config.h = firmware\src\Motherboard\lib_sd\partition_config.h
+		firmware\src\Motherboard\lib_sd\README.txt = firmware\src\Motherboard\lib_sd\README.txt
+		firmware\src\Motherboard\lib_sd\sd-reader_config.h = firmware\src\Motherboard\lib_sd\sd-reader_config.h
+		firmware\src\Motherboard\lib_sd\sd_raw.c = firmware\src\Motherboard\lib_sd\sd_raw.c
+		firmware\src\Motherboard\lib_sd\sd_raw.h = firmware\src\Motherboard\lib_sd\sd_raw.h
+		firmware\src\Motherboard\lib_sd\sd_raw_config.h = firmware\src\Motherboard\lib_sd\sd_raw_config.h
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "boards", "boards", "{2BF72BB7-EC26-4DFE-AE91-AA5F8996EF2A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ecv22", "ecv22", "{717E20D4-3D03-4098-BC43-782400939F44}"
+	ProjectSection(SolutionItems) = preProject
+		firmware\src\Extruder\boards\ecv22\Configuration.hh = firmware\src\Extruder\boards\ecv22\Configuration.hh
+		firmware\src\Extruder\boards\ecv22\ExtruderBoard.cc = firmware\src\Extruder\boards\ecv22\ExtruderBoard.cc
+		firmware\src\Extruder\boards\ecv22\ExtruderBoard.hh = firmware\src\Extruder\boards\ecv22\ExtruderBoard.hh
+		firmware\src\Extruder\boards\ecv22\ExtruderMotor.cc = firmware\src\Extruder\boards\ecv22\ExtruderMotor.cc
+		firmware\src\Extruder\boards\ecv22\ExtruderMotor.hh = firmware\src\Extruder\boards\ecv22\ExtruderMotor.hh
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ecv34", "ecv34", "{489403D6-ED19-4806-9E94-093A2570008C}"
+	ProjectSection(SolutionItems) = preProject
+		firmware\src\Extruder\boards\ecv34\.UART.cc.swp = firmware\src\Extruder\boards\ecv34\.UART.cc.swp
+		firmware\src\Extruder\boards\ecv34\Configuration.cc = firmware\src\Extruder\boards\ecv34\Configuration.cc
+		firmware\src\Extruder\boards\ecv34\Configuration.hh = firmware\src\Extruder\boards\ecv34\Configuration.hh
+		firmware\src\Extruder\boards\ecv34\ExtruderBoard.cc = firmware\src\Extruder\boards\ecv34\ExtruderBoard.cc
+		firmware\src\Extruder\boards\ecv34\ExtruderBoard.hh = firmware\src\Extruder\boards\ecv34\ExtruderBoard.hh
+		firmware\src\Extruder\boards\ecv34\ExtruderMotor.cc = firmware\src\Extruder\boards\ecv34\ExtruderMotor.cc
+		firmware\src\Extruder\boards\ecv34\ExtruderMotor.hh = firmware\src\Extruder\boards\ecv34\ExtruderMotor.hh
+		firmware\src\Extruder\boards\ecv34\SoftwareServo.hh = firmware\src\Extruder\boards\ecv34\SoftwareServo.hh
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{2BF72BB7-EC26-4DFE-AE91-AA5F8996EF2A} = {B8BCEC9D-EBA2-47E3-A7DF-2D668B3AC267}
+		{C338C176-CD4F-4133-8B44-BA1B2EFD66B8} = {C51D0777-6F43-435A-B194-9FB6DE71E516}
+		{5B20E4BA-3A26-4273-8495-099508DE2D96} = {C51D0777-6F43-435A-B194-9FB6DE71E516}
+		{656CB7F3-AB12-4881-9A8F-22644216D524} = {C51D0777-6F43-435A-B194-9FB6DE71E516}
+		{717E20D4-3D03-4098-BC43-782400939F44} = {2BF72BB7-EC26-4DFE-AE91-AA5F8996EF2A}
+		{489403D6-ED19-4806-9E94-093A2570008C} = {2BF72BB7-EC26-4DFE-AE91-AA5F8996EF2A}
+	EndGlobalSection
+EndGlobal

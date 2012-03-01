@@ -18,6 +18,8 @@
 #ifndef BOARDS_ECV22_CONFIGURATION_HH_
 #define BOARDS_ECV22_CONFIGURATION_HH_
 
+#include "PinTmplt.hh"
+
 // Board configuration files define pin configurations
 // for different motherboards, as well as available
 // features.

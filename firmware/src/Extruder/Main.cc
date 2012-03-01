@@ -28,16 +28,16 @@
 #include "MotorController.hh"
 
 void reset() {
-	cli();
+	ATOMIC_BLOCK(ATOMIC_FORCEON) {
 
-	uint8_t resetFlags = MCUSR & 0x0f;
-	MCUSR = 0x0;
+	    uint8_t resetFlags = MCUSR & 0x0f;
+	    MCUSR = 0x0;
 
-	// Intialize various modules
-	initThermistorTables();
-	eeprom::init();
-	ExtruderBoard::getBoard().reset(resetFlags);
-	sei();
+	    // Intialize various modules
+	    initThermistorTables();
+	    eeprom::init();
+	    ExtruderBoard::getBoard().reset(resetFlags);
+    }
 }
 
 int main() {

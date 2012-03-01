@@ -18,7 +18,7 @@
 #ifndef SOFTWARE_SERVO_HH_
 #define SOFTWARE_SERVO_HH_
 
-#include "Pin.hh"
+#include "PinTmplt.hh"
 
 /// Software implementation of a hobby servo driver. Though module is implemented
 /// purely in software, it does require periodic servicing from a microsecond
@@ -31,24 +31,46 @@
 /// src\Extruder\boards\ecv34\ExtruderBoard.cc. This will have to be replicated
 /// (or perhaps somehow refactored) before use in another board.
 /// \ingroup SoftwareLibraries
-class SoftwareServo {
+template <class pin> class SoftwareServo {
 public:
         /// Create a new sofware serial instance.
         /// \param [in] pin Digital output #Pin that this servo should be attached to.
-	SoftwareServo(Pin pin);
+	SoftwareServo() : enabled(false)
+    {
+	    pin::setDirection(true);
+	    pin::setValue(false);
+    }
 
         /// Set the servo position
         /// \param[in] position Servo position in degrees, from 0 - 180
-	void setPosition(uint8_t position);
+	void setPosition(uint8_t position){
+	    // Program the timer match value so that we generate a pulse width per:
+	    //  http://www.servocity.com/html/hs-311_standard.html
+	    //  600us + (value * 10)
+	    //  so 0deg = 600us, 90deg = 1500us, 180deg = 2400us
+	    if (position > 180) {
+		    position = 180;
+	    }
 
+	    counts = 600 + 10*position;
+    }
         /// Enable the software servo module. The servo output will not be modified
         /// automatically; it is dependant on the code in:
         /// src\Extruder\boards\ecv34\ExtruderBoard.cc
-	void enable();
+    inline void enable() { enabled = true; }
 
         /// Disable the software servo module. The servo output will be turned off
         /// immediately (which may cause a glitch if the output was already on).
-	void disable();
+	inline void disable()
+    { 
+        enabled = false; 
+        pin::setValue(false); 
+    }
+
+    inline void setValue(bool val) 
+    { 
+        pin::setValue(val); 
+    }
 
         /// Determine if this software servo module is enabled.
         /// \return true if the software servo module is enabled.
@@ -59,7 +81,6 @@ public:
         /// \return Pulse width of the servo control signal, in microseconds.
         uint16_t getCounts() { return counts; }
 
-        Pin pin;            ///< #Pin this servo is attached to.
 private:
         bool enabled;       ///< True if the servo is enabled.
         uint16_t counts;    ///< Length of servo on-time, in microseconds.

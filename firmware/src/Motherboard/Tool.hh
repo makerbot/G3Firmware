@@ -57,6 +57,10 @@ void startTransaction();
 /// \return True if the transaction is complete.
 bool isTransactionDone();
 
+/// Wait for a transaction to completed.
+void waitForTransaction();
+
+
 /// Get the output packet
 /// \return Reference to the output packet, which the host should fill with a query
 ///         to send to the tool.
