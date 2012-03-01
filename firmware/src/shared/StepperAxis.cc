@@ -17,6 +17,7 @@ void StepperAxis::setTarget(const int32_t target_in,
         } else {
                 delta = target - position;
         }
+	absoluteTarget = position + delta;
         direction = true;
         if (delta != 0) {
                 interface->setEnabled(true);
@@ -41,11 +42,16 @@ void StepperAxis::enableStepper(bool enable) {
         interface->setEnabled(enable);
 }
 
+bool StepperAxis::isEnabledStepper() {
+        return interface->getEnabled();
+}
+
 void StepperAxis::reset() {
         position = 0;
         minimum = 0;
         maximum = 0;
         target = 0;
+	absoluteTarget = 0;
         counter = 0;
         delta = 0;
 #if defined(SINGLE_SWITCH_ENDSTOPS) && (SINGLE_SWITCH_ENDSTOPS == 1)
@@ -137,4 +143,29 @@ bool StepperAxis::doHoming(const int32_t intervals) {
                 interface->step(false);
         }
         return true;
+}
+
+
+bool StepperAxis::isAtMaximum() {
+	return interface->isAtMaximum();
+}
+
+
+bool StepperAxis::isAtMinimum() {
+	return interface->isAtMinimum();
+}
+
+
+void StepperAxis::step() {
+	interface->setDirection(direction);
+	bool hit_endstop = checkEndstop(false);
+	if (!hit_endstop) interface->step(true);
+	if (direction)	position++;
+	else		position--;
+	interface->step(false);
+}
+
+
+void StepperAxis::setDirection(bool dir) {
+        direction = dir;
 }

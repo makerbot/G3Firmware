@@ -43,7 +43,7 @@ public:
 /// automatically.
 class Menu: public Screen {
 public:
-	micros_t getUpdateRate() {return 500L * 1000L;}
+	virtual micros_t getUpdateRate() {return 500L * 1000L;}
 
 	void update(LiquidCrystal& lcd, bool forceRedraw);
 
@@ -89,16 +89,32 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+class UserViewMenu: public Menu {
+public:
+	UserViewMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
 
 class JogMode: public Screen {
 private:
 	enum distance_t {
-	  DISTANCE_SHORT,
-	  DISTANCE_LONG,
+	  DISTANCE_0_1MM = 0,
+	  DISTANCE_1MM,
+	  DISTANCE_CONT,
 	};
+
+	UserViewMenu userViewMenu;
 
 	distance_t jogDistance;
 	bool distanceChanged;
+	bool userViewMode;
+	bool userViewModeChanged;
+	ButtonArray::ButtonName lastDirectionButtonPressed;
 
         void jog(ButtonArray::ButtonName direction);
 
@@ -156,12 +172,32 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+class UnableToOpenFileMenu: public Menu {
+public:
+	UnableToOpenFileMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
 
 class SDMenu: public Menu {
+private:
+	uint8_t updatePhase;
+	uint8_t lastItemIndex;
+	bool	drawItemLockout;
+	UnableToOpenFileMenu unableToOpenFileMenu;
 public:
 	SDMenu();
 
 	void resetState();
+
+	micros_t getUpdateRate() {return 500L * 1000L;}
+	void notifyButtonPressed(ButtonArray::ButtonName button);
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
 protected:
 	uint8_t countFiles();
 
@@ -175,23 +211,94 @@ protected:
 };
 
 
+class PauseMode: public Screen {
+private:
+	ButtonArray::ButtonName lastDirectionButtonPressed;
+
+        void jog(ButtonArray::ButtonName direction);
+
+	uint8_t pauseState;
+
+public:
+	bool autoPause;
+
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+
+class PauseAtZPosScreen: public Screen {
+private:
+	float pauseAtZPos;
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+
 class CancelBuildMenu: public Menu {
 public:
 	CancelBuildMenu();
 
 	void resetState();
+
 protected:
 	void drawItem(uint8_t index, LiquidCrystal& lcd);
 
 	void handleSelect(uint8_t index);
+private:
+	PauseMode		pauseMode;
+	bool			pauseDisabled;
+	PauseAtZPosScreen	pauseAtZPosScreen;
+	bool			printAnotherEnabled;
 };
-
 
 class MonitorMode: public Screen {
 private:
 	CancelBuildMenu cancelBuildMenu;
 
-	uint8_t updatePhase;
+	enum UpdatePhase {
+		UPDATE_PHASE_FIRST = 0,
+		UPDATE_PHASE_TOOL_TEMP = UPDATE_PHASE_FIRST,
+		UPDATE_PHASE_TOOL_TEMP_SET_POINT,
+		UPDATE_PHASE_PLATFORM_TEMP,
+		UPDATE_PHASE_PLATFORM_SET_POINT,
+		UPDATE_PHASE_BUILD_PHASE_SCROLLER,
+		UPDATE_PHASE_LAST	//Not counted, just an end marker
+	};
+
+	enum BuildTimePhase {
+		BUILD_TIME_PHASE_FIRST = 0,
+		BUILD_TIME_PHASE_COMPLETED_PERCENT = BUILD_TIME_PHASE_FIRST,
+		BUILD_TIME_PHASE_ELAPSED_TIME,
+		BUILD_TIME_PHASE_TIME_LEFT,
+		BUILD_TIME_PHASE_ZPOS,
+		BUILD_TIME_PHASE_FILAMENT,
+		BUILD_TIME_PHASE_COPIES_PRINTED,
+		BUILD_TIME_PHASE_LAST	//Not counted, just an end marker
+	};
+
+	enum UpdatePhase updatePhase;
+	enum BuildTimePhase buildTimePhase, lastBuildTimePhase;
+	float   lastElapsedSeconds;
+	PauseMode pauseMode;
+	bool	pausePushLockout;
+	bool buildCompleteBuzzPlayed;
+	int32_t buildDuration;
+	bool	overrideForceRedraw;
+	uint8_t	copiesPrinted;
+	bool	timeLeftDisplayed;
 
 public:
 	micros_t getUpdateRate() {return 500L * 1000L;}
@@ -203,6 +310,589 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+
+class VersionMode: public Screen {
+private:
+
+public:
+	micros_t getUpdateRate() {return 500L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+
+class Tool0TempSetScreen: public Screen {
+private:
+	uint8_t value;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+
+class PlatformTempSetScreen: public Screen {
+private:
+	uint8_t value;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+
+class PreheatMenu: public Menu {
+public:
+	PreheatMenu();
+
+	void fetchTargetTemps();
+
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+
+private:
+	uint16_t tool0Temp;
+	uint16_t platformTemp;
+
+        /// Static instances of our menus
+        Tool0TempSetScreen tool0TempSetScreen;
+        PlatformTempSetScreen platTempSetScreen;
+};
+
+class ExtruderTooColdMenu: public Menu {
+public:
+	ExtruderTooColdMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class ExtruderSetRpmScreen: public Screen {
+private:
+	uint8_t rpm;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class ExtruderMode: public Screen {
+private:
+	enum extrudeSeconds {
+		EXTRUDE_SECS_CANCEL = 0,
+		EXTRUDE_SECS_1S     = 1,
+		EXTRUDE_SECS_2S     = 2,
+		EXTRUDE_SECS_5S     = 5,
+		EXTRUDE_SECS_10S    = 10,
+		EXTRUDE_SECS_30S    = 30,
+		EXTRUDE_SECS_60S    = 60,
+		EXTRUDE_SECS_90S    = 90,
+		EXTRUDE_SECS_120S   = 120,
+		EXTRUDE_SECS_240S   = 240,
+	};
+
+	enum extrudeSeconds extrudeSeconds;
+	bool timeChanged;
+	int16_t lastDirection;
+	ExtruderTooColdMenu extruderTooColdMenu;
+        ExtruderSetRpmScreen extruderSetRpmScreen;
+
+	uint8_t updatePhase;
+
+	void extrude(seconds_t steps, bool overrideTempCheck);
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+	void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class MoodLightSetRGBScreen: public Screen {
+private:
+	uint8_t red;
+	uint8_t green;
+	uint8_t blue;
+
+	int inputMode;	//0 = red, 1 = green, 2 = blue
+	bool redrawScreen;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+
+class MoodLightMode: public Screen {
+private:
+	uint8_t updatePhase;
+
+	uint8_t scriptId;
+
+        MoodLightSetRGBScreen   moodLightSetRGBScreen;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+	void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class HomeAxisMode: public Screen {
+private:
+        void home(ButtonArray::ButtonName direction);
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class SteppersMenu: public Menu {
+public:
+	SteppersMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class TestEndStopsMode: public Screen {
+private:
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class AdvanceABPMode: public Screen {
+private:
+	bool abpForwarding;
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class CalibrateMode: public Screen {
+private:
+	enum calibrateState {
+		CS_NONE,
+		CS_START1,	//Disable steppers
+		CS_START2,	//Disable steppers
+		CS_PROMPT_MOVE,	//Prompt user to move build platform
+		CS_HOME_Z,
+		CS_HOME_Z_WAIT,
+		CS_HOME_Y,
+		CS_HOME_Y_WAIT,
+		CS_HOME_X,
+		CS_HOME_X_WAIT,
+		CS_PROMPT_CALIBRATED
+	};
+
+	enum calibrateState calibrationState, lastCalibrationState;
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class HomeOffsetsMode: public Screen {
+private:
+	enum homeOffState {
+		HOS_NONE,
+		HOS_OFFSET_X,
+		HOS_OFFSET_Y,
+		HOS_OFFSET_Z,
+	};
+
+	enum homeOffState homeOffsetState, lastHomeOffsetState;
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class BuzzerSetRepeatsMode: public Screen {
+private:
+	uint8_t repeats;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class ExtruderFanMenu: public Menu {
+public:
+	ExtruderFanMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class StepsPerMMMode: public Screen {
+private:
+	enum StepsPerMMState {
+		SPM_NONE,
+		SPM_SET_X,
+		SPM_SET_Y,
+		SPM_SET_Z,
+		SPM_SET_A
+	};
+
+	enum StepsPerMMState stepsPerMMState, lastStepsPerMMState;
+
+	uint8_t	cursorLocation;
+
+	int64_t originalStepsPerMM;
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class FilamentUsedResetMenu: public Menu {
+public:
+	FilamentUsedResetMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class FilamentUsedMode: public Screen {
+private:
+	FilamentUsedResetMenu filamentUsedResetMenu;
+
+	bool overrideForceRedraw;
+	bool lifetimeDisplay;
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class ABPCopiesSetScreen: public Screen {
+private:
+	uint8_t value;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class PreheatDuringEstimateMenu: public Menu {
+public:
+	PreheatDuringEstimateMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class OverrideGCodeTempMenu: public Menu {
+public:
+	OverrideGCodeTempMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class StepperDriverAcceleratedMenu: public Menu {
+public:
+	StepperDriverAcceleratedMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class AcceleratedSettingsMode: public Screen {
+private:
+	enum accelerateSettingsState {
+		AS_NONE,
+		AS_MAX_FEEDRATE_X,
+		AS_MAX_FEEDRATE_Y,
+		AS_MAX_FEEDRATE_Z,
+		AS_MAX_FEEDRATE_A,
+		AS_MAX_ACCELERATION_X,
+		AS_MAX_ACCELERATION_Y,
+		AS_MAX_ACCELERATION_Z,
+		AS_MAX_ACCELERATION_A,
+		AS_MAX_EXTRUDER_NORM,
+		AS_MAX_EXTRUDER_RETRACT,
+		AS_MIN_FEED_RATE,
+		AS_MIN_TRAVEL_FEED_RATE,
+		AS_MAX_XY_JERK,
+		AS_MAX_Z_JERK,
+		AS_ADVANCE_K,
+		AS_FILAMENT_DIAMETER,
+	};
+
+	enum accelerateSettingsState accelerateSettingsState, lastAccelerateSettingsState;
+
+	uint32_t values[16];
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class EStepsPerMMLengthMode: public Screen {
+private:
+	uint32_t value;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+
+	int32_t steps;
+};
+
+class EStepsPerMMStepsMode: public Screen {
+private:
+	int32_t value;
+	ExtruderTooColdMenu extruderTooColdMenu;
+	EStepsPerMMLengthMode eStepsPerMMLengthMode;
+
+	void extrude(bool overrideTempCheck);
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class EStepsPerMMMode: public Screen {
+private:
+	uint32_t value;
+	EStepsPerMMStepsMode eStepsPerMMStepsMode;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+class AccelerationMenu: public Menu {
+private:
+	StepperDriverAcceleratedMenu	stepperDriverAcceleratedMenu;
+	AcceleratedSettingsMode		acceleratedSettingsMode;
+	EStepsPerMMMode			eStepsPerMMMode;
+	
+	bool acceleration;
+public:
+	AccelerationMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class BuildSettingsMenu: public Menu {
+private:
+	PreheatDuringEstimateMenu	preheatDuringEstimateMenu;
+	OverrideGCodeTempMenu		overrideGCodeTempMenu;
+	ABPCopiesSetScreen		abpCopiesSetScreen;
+	AccelerationMenu		accelerationMenu;
+public:
+	BuildSettingsMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class ProfileChangeNameMode: public Screen {
+private:
+	uint8_t	cursorLocation;
+	uint8_t profileName[8+1];
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+
+	uint8_t profileIndex;
+};
+
+class ProfileDisplaySettingsMenu: public Menu {
+private:
+	uint8_t profileName[8+1];
+	int32_t homeX, homeY, homeZ;
+	uint8_t hbpTemp, tool0Temp, tool1Temp, extruderRpm;
+public:
+	ProfileDisplaySettingsMenu();
+
+	void resetState();
+
+	uint8_t profileIndex;
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class ProfileSubMenu: public Menu {
+private:
+	ProfileChangeNameMode	   profileChangeNameMode;
+	ProfileDisplaySettingsMenu profileDisplaySettingsMenu;
+
+public:
+	ProfileSubMenu();
+
+	void resetState();
+
+	uint8_t profileIndex;
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class ProfilesMenu: public Menu {
+private:
+	ProfileSubMenu profileSubMenu;
+public:
+	ProfilesMenu();
+
+	void resetState();
+protected:
+	void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+	void handleSelect(uint8_t index);
+};
+
+class CurrentPositionMode: public Screen {
+private:
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
 
 class MainMenu: public Menu {
 public:
@@ -218,7 +908,26 @@ private:
         MonitorMode monitorMode;
         SDMenu sdMenu;
         JogMode jogger;
+	PreheatMenu preheatMenu;
+	ExtruderMode extruderMenu;
+	HomeAxisMode homeAxisMode;
+	SteppersMenu steppersMenu;
+	AdvanceABPMode advanceABPMode;
+	BuzzerSetRepeatsMode buzzerSetRepeats;
+	BuildSettingsMenu buildSettingsMenu;
+	ProfilesMenu profilesMenu;
+	ExtruderFanMenu extruderFanMenu;
+	CalibrateMode calibrateMode;
+	HomeOffsetsMode homeOffsetsMode;
+	StepsPerMMMode stepsPerMMMode;
+	FilamentUsedMode filamentUsedMode;
+	CurrentPositionMode currentPositionMode;
+	TestEndStopsMode testEndStopsMode;
+        VersionMode versionMode;
+	MoodLightMode	moodLightMode;
         SnakeMode snake;
+
+	int64_t checkAndGetEepromDefault(const uint16_t location, const int64_t default_value);
 };
 
 #endif

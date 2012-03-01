@@ -23,9 +23,10 @@
 #include "Pin.hh"
 #include "ButtonArray.hh"
 #include "Menu.hh"
+#include "MoodLightController.hh"
 
 /// Maximum number of screens that can be active at once.
-#define SCREEN_STACK_DEPTH      5
+#define SCREEN_STACK_DEPTH      7
 
 /// Character LCD screen geometry
 ///
@@ -41,6 +42,7 @@
 class InterfaceBoard {
 public:
         LiquidCrystal& lcd;              ///< LCD to write to
+        MoodLightController& moodLight;     ///< Mood Light to write to
 private:
         ButtonArray& buttons;            ///< Button array to read from
 
@@ -75,7 +77,8 @@ public:
                        const Pin& foo_pin_in,
                        const Pin& bar_pin_in,
                        Screen* mainScreen_in,
-                       Screen* buildScreen_in);
+                       Screen* buildScreen_in,
+		       MoodLightController& moodLight_in);
 
         /// Initialze the interface board. This needs to be called once
         /// at system startup (or reset).
@@ -84,6 +87,10 @@ public:
         /// This should be called periodically by a high-speed interrupt to
         /// service the button input pad.
 	void doInterrupt();
+
+	/// This is called for a specific button and returns true if the
+	/// button is currently depressed
+	bool isButtonPressed(ButtonArray::ButtonName button);
 
         /// Add a new screen to the stack. This automatically calls reset()
         /// and then update() on the screen, to ensure that it displays

@@ -87,6 +87,9 @@ namespace sdcard {
     SdErrorCode startPlayback(char* filename);
 
 
+    /// Return the percentage of the file printed.
+    float getPercentPlayed();
+
     /// See if there is more data available in the playback file.
     /// \return True if there is more data in the file
     bool playbackHasNext();
@@ -95,6 +98,9 @@ namespace sdcard {
     /// Return the next byte from the currently open file.
     /// \return The next byre in the file.
     uint8_t playbackNext();
+
+    /// Rewinds a play back to the beginning
+    void playbackRestart();
 
 
     /// Rewind the given number of bytes in the input stream.

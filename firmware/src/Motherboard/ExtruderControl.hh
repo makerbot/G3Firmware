@@ -1,5 +1,7 @@
-/*
- * Copyright 2010 by Adam Mayer	 <adam@makerbot.com>
+/* 
+ * Extruder Control Routine
+ *
+ * Copyright Dec, 2011 by Jetty840
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,13 +17,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-#ifndef TYPES_HH_
-#define TYPES_HH_
+#ifndef EXTRUDERCONTROL_HH_
+#define EXTRUDERCONTROL_HH_
 
-#include <stdint.h>
+#include "Types.hh"
+#include "Tool.hh"
+#include "Timeout.hh"
 
-/// Type used to store measurements of microseconds.
-typedef uint32_t micros_t;
-typedef uint32_t seconds_t;
 
-#endif // TYPES_HH_
+enum extruderCommandType {
+	EXTDR_CMD_GET,
+	EXTDR_CMD_SET,	//16 bit
+	EXTDR_CMD_SET8	//8 bit
+};
+
+
+bool extruderControl(uint8_t command, enum extruderCommandType cmdType,
+		     OutPacket& responsePacket, uint16_t val);
+
+#endif // EXTRUDERCONTROL_HH_

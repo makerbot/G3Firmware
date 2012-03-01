@@ -33,10 +33,16 @@ namespace steppers {
     /// \param[in] motherboard Motherboard to attach the steppers to.
     void init(Motherboard& motherboard);
 
+    //Reset the stepper subsystem
+    void reset();
+
     /// Check if the stepper subsystem is running
     /// \return True if the stepper subsystem is running or paused. False
     ///         otherwise.
     bool isRunning();
+
+    /// Returns true if the stepper subsystem is homing
+    bool isHoming();
 
     /// Abort the current motion and set the stepper subsystem to
     /// the not-running state.
@@ -47,6 +53,10 @@ namespace steppers {
     /// \param[in] enable If true, enable the axis. If false, disable.
     void enableAxis(uint8_t index, bool enable);
 
+    /// Reports if the axis is enabled or not
+    /// \param[in] index Index of the axis to enable or disable
+    bool isEnabledAxis(uint8_t index);
+
     /// Instruct the stepper subsystem to move the machine to the
     /// given position.
     /// \param[in] target Position to move to
@@ -56,12 +66,12 @@ namespace steppers {
     /// Instruct the stepper subsystem to move the machine to the
     /// given position.
     /// \param[in] target Position to move to
-    /// \param[in] ms Duration of the move, in milliseconds
+    /// \param[in] us Duration of the move, in microseconds
     /// \param[in] relative Bitfield specifying whether each axis should
     ///                     interpret the new position as absolute or
     ///                     relative.
     void setTargetNew(const Point& target,
-                      int32_t ms,
+                      int32_t us,
                       uint8_t relative =0);
 
     /// Home one or more axes
@@ -77,9 +87,21 @@ namespace steppers {
     /// \param[in] position New system position
     void definePosition(const Point& position);
 
+    /// Switch to the regular driver
+    void switchToRegularDriver();
+
+    ///Switch to the accelerated driver
+    void switchToAcceleratedDriver();
+
+//Debugging
+void doLcd();
+
     /// Handle interrupt.
     /// \return True if the stepper subsystem is currently in motion.
     bool doInterrupt();
+
+    //Used for the ADVANCE algorithm in Marlin
+    bool doAdvanceInterrupt();
 
     /// Get the current system position
     /// \return The current machine position.
@@ -92,6 +114,12 @@ namespace steppers {
     ///                  through the entire build. If false, it will be
     ///                  disabled when not moving.
     void setHoldZ(bool holdZ);
+
+    //Returns true if the end stop is current depressed
+    bool isAtMaximum(uint8_t index);
+
+    //Returns true if the end stop is current depressed
+    bool isAtMinimum(uint8_t index);
 };
 
 #endif // STEPPERS_HH_

@@ -79,7 +79,7 @@ Motherboard::Motherboard(const Pin& psu_pin) :
 /// Reset the motherboard to its initial state.
 /// This only resets the board, and does not send a reset
 /// to any attached toolheads.
-void Motherboard::reset() {
+void Motherboard::reset(bool hard_reset) {
 	indicateError(0); // turn off blinker
 
 	// Init and turn on power supply
@@ -144,6 +144,11 @@ micros_t Motherboard::getCurrentMicros() {
 }
 
 void Motherboard::runMotherboardSlice() {
+}
+
+/// Do nothing, need this to stop compile error as it called from SDCard
+/// for firmware mb24
+void Motherboard::resetCurrentSeconds() {
 }
 
 /// Run the motherboard interrupt

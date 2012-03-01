@@ -73,6 +73,10 @@
 #define HAS_ESTOP               1
 // The pin connected to the emergency stop
 #define ESTOP_PIN               Pin(PortE,4)
+// Macros for enabling interrupts on the the pin. In this case, INT4.
+#define ESTOP_ENABLE_RISING_INT { EICRB = 0x03; EIMSK |= 0x10; }
+#define ESTOP_ENABLE_FALLING_INT { EICRB = 0x02; EIMSK |= 0x10; }
+#define ESTOP_vect INT4_vect
 
 
 // --- Axis configuration ---
@@ -177,5 +181,19 @@
 #define INTERFACE_FOO_PIN       Pin(PortC,0)
 #define INTERFACE_BAR_PIN       Pin(PortL,0)
 #define INTERFACE_DEBUG_PIN     Pin(PortB,7)
+
+//Pin mapping for Software I2C communication using analog pins
+//as digital pins.
+//This is primrarily for BlinkM MaxM, may not work for other I2C.
+#define HAS_MOOD_LIGHT		1
+#define SOFTWARE_I2C_SDA_PIN	Pin(PortK,0)	//Pin d on the BlinkM
+#define SOFTWARE_I2C_SCL_PIN	Pin(PortK,1)	//Pin c on the BlinkM
+
+//ATX Power Good
+#define HAS_ATX_POWER_GOOD	1
+#define ATX_POWER_GOOD		Pin(PortK,2)	//Pin ATX 8 connected to Analog 10
+
+//Stepper Acceleration
+#define HAS_STEPPER_ACCELERATION 	1
 
 #endif // BOARDS_RRMBV12_CONFIGURATION_HH_

@@ -74,3 +74,21 @@ bool ButtonArray::getButton(ButtonName& button) {
 
         return buttonValid;
 }
+
+
+bool ButtonArray::isButtonPressed(ButtonArray::ButtonName button) {
+        uint8_t newL = PINL;// & 0xFE;
+        uint8_t newC = PINC;// & 0x06;
+
+	uint8_t keys = newL;
+	uint8_t i = button;
+	if ( button >= 10 ) {
+		keys = newC;
+		i    = i - 10;
+	}
+
+	//Keys are active low, invert
+	keys = ~ keys;
+
+	return (keys & (1 << i)) == (1 << i);
+}

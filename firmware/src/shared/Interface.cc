@@ -52,6 +52,10 @@ void popScreen() {
         board->popScreen();
 }
 
+bool isButtonPressed(ButtonArray::ButtonName button) {
+	return board->isButtonPressed(button);
+}
+
 void doInterrupt() {
         board->doInterrupt();
 }
@@ -62,6 +66,10 @@ micros_t getUpdateRate() {
 
 void doUpdate() {
         board->doUpdate();
+}
+
+MoodLightController moodLightController() {
+	return board->moodLight;
 }
 
 

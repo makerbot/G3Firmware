@@ -42,6 +42,9 @@ public:
         void scanButtons();
 
         bool getButton(ButtonName& button);
+
+	//Returns true if button is depressed
+        bool isButtonPressed(ButtonArray::ButtonName button);
 };
 
 

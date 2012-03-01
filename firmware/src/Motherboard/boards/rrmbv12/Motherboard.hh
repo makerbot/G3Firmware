@@ -47,7 +47,7 @@ public:
 	/// Reset the motherboard to its initial state.
 	/// This only resets the board, and does not send a reset
 	/// to any attached toolheads.
-	void reset();
+	void reset(bool hard_reset);
 
 	void runMotherboardSlice();
 
@@ -64,6 +64,7 @@ public:
 	/// the board was initialized.  This value will wrap after
 	/// 2**16 microseconds; callers should compensate for this.
 	micros_t getCurrentMicros();
+	void resetCurrentSeconds();
 
 	/// Write an error code to the debug pin.
 	void indicateError(int errorCode);

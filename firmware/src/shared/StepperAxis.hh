@@ -15,7 +15,8 @@ public:
         volatile int32_t position;      ///< Current position of this axis, in steps
         int32_t minimum;                ///< Minimum position, in steps
         int32_t maximum;                ///< Maximum position, in steps
-        volatile int32_t target;        ///< Target position, in steps
+        volatile int32_t target;        ///< Target position, in steps (relative or absolute position, depending on how called)
+        volatile int32_t absoluteTarget;///< Absolute Target position, in steps (absolute position)
         volatile int32_t counter;       ///< Step counter; represents the proportion of
                                         ///< a step so far passed.  When the counter hits
                                         ///< zero, a step is taken.
@@ -70,6 +71,10 @@ public:
         /// \param[in] enable If true, enable the axis; otherwise, disable it.
         void enableStepper(bool enable);
 
+        /// Reports if the stepper motor driver on the given axis is enabled
+        /// \param[in] returns true if enabled, otherwise false
+	bool isEnabledStepper();
+
         /// Reset to initial state
         void reset();
 
@@ -81,6 +86,22 @@ public:
         /// \param[in] intervals Intervals that have passed since the previous interrupt
         /// \return True if the axis is still homing.
         bool doHoming(const int32_t intervals);
+
+        /// Check if the maximum endstop has been triggered for this axis.
+        /// \return True if the axis has triggered its maximum endstop
+        bool isAtMaximum();
+
+        /// Check if the minimum endstop has been triggered for this axis.
+        /// \return True if the axis has triggered its minimum endstop
+        bool isAtMinimum();
+
+	//Methods for accelerated stepping
+
+	//Move one step
+	void step();
+
+	//Set the direction for the steps
+	void setDirection(bool dir);
 };
 
 #endif // STEPPERAXIS_HH
