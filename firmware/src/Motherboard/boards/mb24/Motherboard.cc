@@ -133,7 +133,8 @@ void Motherboard::reset() {
 	DEBUG_PIN.setDirection(true);
 
 	// Check if the interface board is attached
-        hasInterfaceBoard = interface::isConnected();
+        //hasInterfaceBoard = interface::isConnected();
+		hasInterfaceBoard = true;
 
 	if (hasInterfaceBoard) {
 		// Make sure our interface board is initialized
@@ -165,6 +166,7 @@ micros_t Motherboard::getCurrentMicros() {
 
 /// Run the motherboard interrupt
 void Motherboard::doInterrupt() {
+
 	if (hasInterfaceBoard) {
                 interfaceBoard.doInterrupt();
 	}
@@ -183,10 +185,16 @@ void Motherboard::runMotherboardSlice() {
 	}
 }
 
-
 /// Timer one comparator match interrupt
 ISR(TIMER1_COMPA_vect) {
+#ifdef OVERRIDE_DEBUG_LED
+	DEBUG_PIN.setValue(true);
+#endif
 	Motherboard::getBoard().doInterrupt();
+#ifdef OVERRIDE_DEBUG_LED
+	DEBUG_PIN.setValue(false);
+#endif
+
 }
 
 /// Number of times to blink the debug LED on each cycle
@@ -231,6 +239,7 @@ int blinked_so_far = 0;
 
 /// Timer 2 overflow interrupt
 ISR(TIMER2_OVF_vect) {
+#ifdef OVERRIDE_DEBUG_LED
 	if (blink_ovfs_remaining > 0) {
 		blink_ovfs_remaining--;
 	} else {
@@ -255,4 +264,5 @@ ISR(TIMER2_OVF_vect) {
 			DEBUG_PIN.setValue(true);
 		}
 	}
+#endif OVERRIDE_DEBUG_LED
 }

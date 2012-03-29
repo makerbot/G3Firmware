@@ -14,7 +14,7 @@ set part=atmega328p
 
 echo Attempting to connect to port %port% 
 
-tools-win\avrdude2 -c%programmer% -b%baud% -D -v -V -F -p%part% -P%port% -Uflash:w:%firmware%:i 
+tools-win\avrdude -c%programmer% -b%baud% -D -v -V -F -p%part% -P%port% -Uflash:w:%firmware%:i 
 
 if errorlevel 1 (
 echo *** FAILURE *** Failed to verify program.  Try again.

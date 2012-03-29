@@ -26,7 +26,7 @@
 /// possible time between steps; in practical terms, your time between steps should
 /// be at least eight times this large.  Reducing the interval can cause resource
 /// starvation; leave this at 64uS or greater unless you know what you're doing.
-#define INTERVAL_IN_MICROSECONDS 128
+#define INTERVAL_IN_MICROSECONDS 64
 
 // --- Secure Digital Card configuration ---
 // NOTE: If SD support is enabled, it is implicitly assumed that the
