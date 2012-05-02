@@ -11,21 +11,23 @@
 class StepperAxis
 {
 public:
-        StepperInterface* interface;    ///< Interface this axis is connected to
-        volatile int32_t position;      ///< Current position of this axis, in steps
-        int32_t minimum;                ///< Minimum position, in steps
-        int32_t maximum;                ///< Maximum position, in steps
-        volatile int32_t target;        ///< Target position, in steps
-        volatile int32_t counter;       ///< Step counter; represents the proportion of
-                                        ///< a step so far passed.  When the counter hits
-                                        ///< zero, a step is taken.
-        volatile int32_t delta;         ///< Amount to increment counter per tick
-        volatile bool direction;        ///< True for positive, false for negative
+        StepperInterface* interface;         ///< Interface this axis is connected to
+        volatile int32_t position;           ///< Current position of this axis, in steps
+        int32_t minimum;                     ///< Minimum position, in steps
+        int32_t maximum;                     ///< Maximum position, in steps
+        volatile int32_t target;             ///< Target position, in steps
+        volatile int32_t counter;            ///< Step counter; represents the proportion of
+                                             ///< a step so far passed.  When the counter hits
+                                             ///< zero, a step is taken.
+        volatile int32_t delta;              ///< Amount to increment counter per tick
+        volatile bool direction;             ///< True for positive, false for negative
+        volatile int8_t  step_multiplier;    ///< Used to simulate dynamic microstep switching, must be > 0 and 2^N
+        volatile int8_t  step_change;        ///< Uses internally. step_change = direction ? step_multiplier : -step_multiplier;
 #if defined(SINGLE_SWITCH_ENDSTOPS) && (SINGLE_SWITCH_ENDSTOPS == 1)
-        volatile bool prev_direction;   ///< Record the previous direction for endstop detection
-        volatile int32_t endstop_play;  ///< Amount to move while endstop triggered, to see which way to move
-        
-        enum endstop_status_t {         ///< State of the endstop
+        volatile bool prev_direction;        ///< Record the previous direction for endstop detection
+        volatile int32_t endstop_play;       ///< Amount to move while endstop triggered, to see which way to move
+                                          
+        enum endstop_status_t {              ///< State of the endstop
             ESS_UNKNOWN,
             ESS_TRAVELING,
             ESS_AT_MAXIMUM,
@@ -57,6 +59,10 @@ public:
         /// \param[in] relative If true, consider the target position
         ///                     to be relative to the current position.
         void setTarget(const int32_t target_in, bool relative);
+
+        /// Set the step multiplier
+        /// \param[in] new_multiplier
+        void setStepMultiplier(const int8_t new_multiplier);
 
         /// Start a homing procedure
         /// \param[in] direction_in If true, home in the positive direction.

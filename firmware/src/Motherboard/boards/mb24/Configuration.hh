@@ -28,6 +28,9 @@
 /// starvation; leave this at 64uS or greater unless you know what you're doing.
 #define INTERVAL_IN_MICROSECONDS 64
 
+#define TICKS_PER_ACCELERATION   5  // lower is better
+#define ACCELERATION_TICKS_PER_SECOND (1000000/(INTERVAL_IN_MICROSECONDS*TICKS_PER_ACCELERATION))
+
 // --- Secure Digital Card configuration ---
 // NOTE: If SD support is enabled, it is implicitly assumed that the
 // following pins are connected:
@@ -146,6 +149,16 @@
 // Define as 1 if debugging packets are honored; 0 if not.
 #define HONOR_DEBUG_PACKETS     1
 
+// The number of movements we can plan ahead at a time
+// THIS MUst BE A POWER OF 2! 4, 8, 16, 32, you get the idea...
+#define BLOCK_BUFFER_SIZE 16
+
+#define DEFAULT_ACCELERATION 3000.0 /* mm/s/s */
+#define DEFAULT_MAX_XY_JERK 20.0
+#define DEFAULT_MAX_Z_JERK 0.2
+#define DEFAULT_MAX_A_JERK 0.2
+#define DEFAULT_MAX_B_JERK 0.2
+
 #define HAS_INTERFACE_BOARD     1
 
 
@@ -177,5 +190,32 @@
 #define INTERFACE_FOO_PIN       Pin(PortC,0)
 #define INTERFACE_BAR_PIN       Pin(PortL,0)
 #define INTERFACE_DEBUG_PIN     Pin(PortB,7)
+
+
+// The number of movements we can plan ahead at a time
+// THIS MUST BE A POWER OF 2! 4, 8, 16, 32, you get the idea...
+#define BLOCK_BUFFER_SIZE 16
+
+#define DEFAULT_ACCELERATION 2000.0 // mm/s/s
+#define DEFAULT_X_ACCELERATION 2000.0 // mm/s/s
+#define DEFAULT_Y_ACCELERATION 2000.0 // mm/s/s
+#define DEFAULT_Z_ACCELERATION 10.0 // mm/s/s
+#define DEFAULT_A_ACCELERATION 200.0 // mm/s/s
+#define DEFAULT_B_ACCELERATION 200.0 // mm/s/s
+
+#define DEFAULT_MAX_XY_JERK 8.0 // ms/s <-- unused if CENTREPEDAL is defined below
+#define DEFAULT_MAX_Z_JERK 8.0 // mm/s
+#define DEFAULT_MAX_A_JERK 10.0 // mm/s
+#define DEFAULT_MAX_B_JERK 10.0 // mm/s
+
+// Minimum planner junction speed. Sets the default minimum speed the planner plans for at the end
+// of the buffer and all stops. This should not be much greater than zero and should only be changed
+// if unwanted behavior is observed on a user's machine when running at very slow speeds.
+#define DEFAULT_MINIMUM_PLANNER_SPEED 4.0 // (mm/sec)
+
+//  define CENTREPEDAL to use centrepedal calucations -- so far I can't get there to work -Rob
+#undef CENTREPEDAL
+#define DEFAULT_JUNCTION_DEVIATION 0.05 // mm
+
 
 #endif // BOARDS_RRMBV12_CONFIGURATION_HH_

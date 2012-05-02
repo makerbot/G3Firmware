@@ -39,8 +39,8 @@ private:
 	/// Microseconds since board initialization
 	volatile micros_t micros;
 
-        /// Private constructor; use the singleton
-        Motherboard(const Pin& psu_pin);
+	/// Private constructor; use the singleton
+	Motherboard(const Pin& psu_pin);
 
 	static Motherboard motherboard;
 public:

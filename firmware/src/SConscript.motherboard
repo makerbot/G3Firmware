@@ -62,8 +62,11 @@ vstr = File('#/current_version.txt').get_contents().strip()
 vstr = ARGUMENTS.get('version',vstr)
 
 version = parse_version(vstr)
+subplatform = ""
+if (fived == 'true'):
+	subplatform = "-5d"
 
-target_name = "MB-"+platform+"-v"+str(version//100)+"."+str(version%100)
+target_name = "MB-"+platform+subplatform+"-v"+str(version//100)+"."+str(version%100)
 
 if (platform == 'rrmbv12'):
 	default_baud = '38400'
@@ -103,6 +106,7 @@ include_paths = ['shared', 'Motherboard','Motherboard/boards/%s' % platform, '.'
 flags=[
 	'-DF_CPU='+str(f_cpu),
 	'-DVERSION='+str(version),
+	'-D__PROG_TYPES_COMPAT__', # see http://www.nongnu.org/avr-libc//changes-1.8.html
 	'-mmcu='+mcu,
 	'-g',
 	'-Os',

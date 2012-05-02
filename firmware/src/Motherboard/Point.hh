@@ -5,7 +5,11 @@
 #include <stdint.h>
 
 
-#define AXIS_COUNT STEPPER_COUNT
+#if STEPPER_COUNT > 3
+#define AXIS_COUNT 5
+#else
+#define AXIS_COUNT 3
+#endif
 
 /// Class that represents an N-dimensional point, where N is the number of
 /// stepper axes present in the system. Can support 3 or 5 axes.
@@ -15,6 +19,9 @@ private:
 public:
         /// Default point constructor
         Point();
+
+		/// Copy Point constructor
+		// Point(const Point &other);
 
         /// Construct a point with the given cooridnates. Coordinates are in
         /// stepper steps.
@@ -48,6 +55,15 @@ public:
         /// \return Reference to the variable containing the axis' position.
         int32_t& operator[](unsigned int index);
 
+        /// Subtraction operator, for fast deltas
+        friend Point operator- (const Point &a, const Point &b);
+		// Point & operator= (const Point &other);
+		
+		// friend const Point &operator-(const Point &a, const Point &b);
+        
+
+        /// Absolute value -- convert all point to positive
+        Point abs();
 } __attribute__ ((__packed__));
 
 

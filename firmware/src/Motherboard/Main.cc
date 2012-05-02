@@ -24,6 +24,7 @@
 #include <util/atomic.h>
 #include "Timeout.hh"
 #include "Steppers.hh"
+#include "Planner.hh"
 #include "Motherboard.hh"
 #include "SDCard.hh"
 #include "Eeprom.hh"
@@ -33,10 +34,10 @@ void reset(bool hard_reset) {
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
 		Motherboard& board = Motherboard::getBoard();
 		sdcard::reset();
-		steppers::abort();
 		command::reset();
 		eeprom::init();
-		board.reset();
+		board.reset(); // sets up the steps/mm and such for the planner...
+		planner::abort(); // calls steppers::abort()
 		sei();
 		// If we've just come from a hard reset, wait for 2.5 seconds before
 		// trying to ping an extruder.  This gives the extruder time to boot
@@ -58,6 +59,7 @@ int main() {
 
 	Motherboard& board = Motherboard::getBoard();
 	steppers::init(Motherboard::getBoard());
+	planner::init();
 	reset(true);
 	sei();
 	while (1) {
