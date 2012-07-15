@@ -12,8 +12,9 @@
 # To default to stepper rather than DC drive, add "stepper=true".
 # To default to PWM heater rather than relays, add "relays=false".
 #
-# To upload the firmware, specify the "upload" target.  By default, this will use
-# /dev/ttyUSB0 as the serial connection.
+# To upload the firmware, specify the "upload" target.  By default, this will use the bash command
+# /dev/$(ls /dev/ | grep -i "tty.*usb")
+# to find the upload port.
 # $ scons upload
 #
 # If you want to select a port manually, specify it as a parameter:
@@ -87,7 +88,7 @@ relays = ARGUMENTS.get('relays',relays_default)
 
 target_name = "EC-"+platform+"-v"+str(version//100)+"."+str(version%100)
 
-upload_port = ARGUMENTS.get('port','/dev/ttyUSB1')
+upload_port = ARGUMENTS.get('port','/dev/$(ls /dev/ | grep -i "tty.*usb")')
 upload_baud = ARGUMENTS.get('baud',default_baud)
 upload_prog = ARGUMENTS.get('programmer','stk500v1')
 
