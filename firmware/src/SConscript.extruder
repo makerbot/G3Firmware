@@ -80,6 +80,7 @@ else:
 	print "Platform "+platform+" is not currently supported. Supported platforms are:"
 	print "ecv22: Gen 3 extruder controller" 
 	print "ecv34: Gen 4 extruder controller"
+	print "ecv34_328p: Gen 4 extruder controller w/ atmel328p processor (shipped w/ later gen Thingomatics)"
 	exit()
 
 relays = ARGUMENTS.get('relays',relays_default)

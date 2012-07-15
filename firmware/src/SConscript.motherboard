@@ -23,6 +23,7 @@
 #
 # To build for another platform, pass an explicit platform parameter.  For example,
 # $ scons platform=rrmbv12
+# $ scons platform=rrmbv12 fived=true
 # $ scons platform=mb24
 # $ scons platform=mb24-2560
 #
@@ -90,6 +91,7 @@ elif (platform == 'mb24-2560'):
 else:
 	print "Platform "+platform+" is not currently supported. Supported platforms are:"
 	print "rrmbv12: Gen 3 motherboard"
+	print "rrmbv12 fived=true: Gen 3 motherboard w/ 5D adapter board"
 	print "mb24: Gen4 motherboard"
 	print "mb24-2560: Gen4 motherboard with Mega 2560"
 	exit()
