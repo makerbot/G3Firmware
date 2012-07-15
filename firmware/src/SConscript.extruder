@@ -21,6 +21,8 @@
 
 import os
 import re
+import fnmatch
+
 from os.path import dirname
 # Parameters
 platform = ARGUMENTS.get('platform','ecv22')
@@ -83,6 +85,28 @@ upload_prog = ARGUMENTS.get('programmer','stk500v1')
 
 srcs = Glob('*.cc') + Glob('Extruder/*.cc') + Glob('Extruder/boards/%s/*.cc' % platform) + Glob('shared/*.cc')
 
+# Don't compile these sources
+ignoredSrcs=[
+	'shared/LiquidCrystal.cc',
+	'shared/InterfaceBoard.cc',
+	'shared/Interface.cc',
+	'shared/Menu.cc']
+
+#Remove all the ignored sources from the source list
+revisedSrcs = []
+for file in srcs:
+	if str(file) not in ignoredSrcs:
+		#print "OK: " + str(file)
+		revisedSrcs.append(file)
+	#else:
+		#print "MATCH!!! " + str(file)
+srcs = revisedSrcs
+
+#Debugging
+#for file in srcs:
+#	print "Final: " + str(file)
+
+
 include_paths = ['shared', 'Extruder', 'Extruder/boards/%s' % platform, '.']
 
 flags=[
@@ -107,6 +131,7 @@ if (extstepper == 'true'):
 
 if (relays == 'true'):
    flags.append('-DDEFAULT_RELAYS=1')
+   
 
 if (os.environ.has_key('AVR_TOOLS_PATH')):
 	avr_tools_path = os.environ['AVR_TOOLS_PATH']

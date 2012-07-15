@@ -71,12 +71,14 @@ if (platform == 'rrmbv12'):
 	mcu='atmega644p'
 	has_queue = 1
 	has_psu = 1
+	has_interface = 0
 elif (platform == 'mb24'):
 	default_baud = '57600'
 	default_programmer = 'stk500v1'
 	mcu='atmega1280'
 	has_queue = 1
 	has_psu = 0
+	has_interface = 1
 elif (platform == 'mb24-2560'):
 	platform = 'mb24'
 	default_baud = '115200'
@@ -84,6 +86,7 @@ elif (platform == 'mb24-2560'):
 	mcu='atmega2560'
 	has_queue = 1
 	has_psu = 0
+	has_interface = 1
 else:
 	print "Platform "+platform+" is not currently supported. Supported platforms are:"
 	print "rrmbv12: Gen 3 motherboard"
@@ -97,6 +100,30 @@ upload_baud = ARGUMENTS.get('baud',default_baud)
 upload_prog = ARGUMENTS.get('programmer',default_programmer)
 
 srcs = Glob('*.cc') + Glob('Motherboard/*.cc') + Glob('Motherboard/lib_sd/*.c') + Glob('Motherboard/boards/%s/*.cc' % platform) + Glob('shared/*.cc')
+
+# Check if the board has interface capabilities
+if has_interface == 0:
+
+	# Don't compile these sources
+	ignoredSrcs=[
+		'shared/LiquidCrystal.cc',
+		'shared/InterfaceBoard.cc',
+		'shared/Interface.cc',
+		'shared/Menu.cc']
+	
+	#Remove all the ignored sources from the source list
+	revisedSrcs = []
+	for file in srcs:
+		if str(file) not in ignoredSrcs:
+			#print "OK: " + str(file)
+			revisedSrcs.append(file)
+		#else:
+			#print "MATCH!!! " + str(file)
+	srcs = revisedSrcs
+	
+	#Debugging
+	#for file in srcs:
+	#	print "Final: " + str(file)
 
 include_paths = ['shared', 'Motherboard','Motherboard/boards/%s' % platform, '.']
 
