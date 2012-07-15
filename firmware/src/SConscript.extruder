@@ -7,6 +7,7 @@
 # To build for another platform, pass an explicit platform parameter.  For example,
 # $ scons platform=ecv22
 # $ scons platform=ecv34
+# $ scons platform=ecv34_328p
 #
 # To default to stepper rather than DC drive, add "stepper=true".
 # To default to PWM heater rather than relays, add "relays=false".
@@ -69,6 +70,12 @@ elif (platform == 'ecv34'):
 	has_queue = 0
 	has_psu = 0
 	relays_default = 'false'
+elif (platform == 'ecv34_328p'):
+	default_baud = '57600'
+	mcu='atmega328p'
+	has_queue = 0
+	has_psu = 0
+	relays_default = 'false'
 else:
 	print "Platform "+platform+" is not currently supported. Supported platforms are:"
 	print "ecv22: Gen 3 extruder controller" 
@@ -96,15 +103,13 @@ ignoredSrcs=[
 revisedSrcs = []
 for file in srcs:
 	if str(file) not in ignoredSrcs:
-		#print "OK: " + str(file)
 		revisedSrcs.append(file)
-	#else:
-		#print "MATCH!!! " + str(file)
+
 srcs = revisedSrcs
 
-#Debugging
+#Debugging combed sources
 #for file in srcs:
-#	print "Final: " + str(file)
+#	print "Final src list: " + str(file)
 
 
 include_paths = ['shared', 'Extruder', 'Extruder/boards/%s' % platform, '.']
