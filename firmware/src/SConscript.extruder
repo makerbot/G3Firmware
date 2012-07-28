@@ -13,7 +13,7 @@
 # To default to PWM heater rather than relays, add "relays=false".
 #
 # To upload the firmware, specify the "upload" target.  By default, this will use the bash command
-# /dev/$(ls /dev/ | grep -i "tty.*usb")
+# /dev/$(ls /dev/ | grep -i "tty\.usb")
 # to find the upload port.
 # $ scons upload
 #
@@ -88,7 +88,7 @@ relays = ARGUMENTS.get('relays',relays_default)
 
 target_name = "EC-"+platform+"-v"+str(version//100)+"."+str(version%100)
 
-upload_port = ARGUMENTS.get('port','/dev/$(ls /dev/ | grep -i "tty.*usb")')
+upload_port = ARGUMENTS.get('port',"""/dev/$$(ls /dev/ | grep -i 'tty\.usb')""")
 upload_baud = ARGUMENTS.get('baud',default_baud)
 upload_prog = ARGUMENTS.get('programmer','stk500v1')
 
@@ -166,7 +166,7 @@ env.Elf(elf_name, objs)
 env.Hex(hex_name, elf_name)
 
 avrdude = avr_tools_path+"/avrdude"
-avrdude_flags = "-V -p"+mcu # +mcu.replace("atmega","m")
+avrdude_flags = " -V -p"+mcu # +mcu.replace("atmega","m")
 avrdude_flags = avrdude_flags + " -P "+upload_port
 avrdude_flags = avrdude_flags + " -c "+upload_prog
 avrdude_flags = avrdude_flags + " -b "+upload_baud
