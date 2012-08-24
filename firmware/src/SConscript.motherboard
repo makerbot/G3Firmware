@@ -42,7 +42,8 @@ platform = ARGUMENTS.get('platform','mb24')
 # fived only applicable for rrmbv12
 fived = ARGUMENTS.get('fived','false')
 f_cpu='16000000L'
-
+# Profiling flag
+profiling = ARGUMENTS.get('profiling','0')
 
 def parse_version(v):
     if not v:
@@ -112,6 +113,11 @@ flags=[
 
 if (os.environ.has_key('BUILD_NAME')):
    flags.append('-DBUILD_NAME=' + os.environ['BUILD_NAME'])
+
+if (profiling == '1'):
+   flags.append('-DOVERRIDE_DEBUG_LED=1')
+   
+profiling = ARGUMENTS.get('profiling','0')
 
 if (os.environ.has_key('AVR_TOOLS_PATH')):
 	avr_tools_path = os.environ['AVR_TOOLS_PATH']
