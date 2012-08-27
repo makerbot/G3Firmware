@@ -3,7 +3,6 @@
 #include "LiquidCrystal.hh"
 #include "Host.hh"
 
-#if defined HAS_INTERFACE_BOARD
 
 InterfaceBoard::InterfaceBoard(ButtonArray& buttons_in,
                                LiquidCrystal& lcd_in,
@@ -95,5 +94,3 @@ void InterfaceBoard::popScreen() {
 
 	screenStack[screenIndex]->update(lcd, true);
 }
-
-#endif

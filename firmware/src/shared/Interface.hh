@@ -15,11 +15,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-
-
 #ifndef INTERFACE_HH_
 #define INTERFACE_HH_
 
+#include "Configuration.hh"
 #include "Menu.hh"
 #include "InterfaceBoard.hh"
 #include "LiquidCrystal.hh"
@@ -65,4 +64,4 @@ micros_t getUpdateRate();
 
 }
 
-#endif
+#endif // INTERFACE_HH_

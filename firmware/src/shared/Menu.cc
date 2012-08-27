@@ -1,8 +1,6 @@
 #include "Menu.hh"
 #include "Configuration.hh"
 
-// TODO: Kill this, should be hanlded by build system.
-#ifdef HAS_INTERFACE_BOARD
 
 #include "Steppers.hh"
 #include "Commands.hh"
@@ -722,4 +720,3 @@ void SDMenu::handleSelect(uint8_t index) {
 	}
 }
 
-#endif

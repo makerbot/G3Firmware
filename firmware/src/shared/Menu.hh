@@ -220,5 +220,4 @@ private:
         JogMode jogger;
         SnakeMode snake;
 };
-
 #endif

@@ -1,10 +1,6 @@
-
 #include "Interface.hh"
 #include "InterfaceBoard.hh"
 
-
-// TODO: Make this a proper module.
-#if defined HAS_INTERFACE_BOARD
 
 namespace interface {
 
@@ -66,5 +62,3 @@ void doUpdate() {
 
 
 }
-
-#endif

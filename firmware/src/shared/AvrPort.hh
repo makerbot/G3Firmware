@@ -21,7 +21,7 @@
 #include <stdint.h>
 
 #if defined (__AVR_ATmega168__) \
-    || defined (__AVR_ATmega328__) \
+    || defined (__AVR_ATmega328P__) \
     || defined (__AVR_ATmega644P__)
 
     typedef uint8_t port_base_t;
@@ -34,6 +34,30 @@
 
 #endif
 
+#include <avr/io.h>
+
+// The AVR port and pin mapping is based on a convention that has held true for all ATMega chips
+// released so far: that the ports begin in sequence from register 0x00 from A onwards, and are
+// arranged:
+// 0 PINx
+// 1 DDRx
+// 2 PORTx
+// This is verified true for the 168/328/644p/1280/2560.
+
+// We support three platforms: Atmega168 (1 UART), Atmega644, and Atmega1280/2560
+#if defined (__AVR_ATmega168__)     \
+    || defined (__AVR_ATmega328P__)  \
+    || defined (__AVR_ATmega644P__) \
+    || defined (__AVR_ATmega1280__) \
+    || defined (__AVR_ATmega2560__)
+#else
+    #error UART not implemented on this processor type!
+#endif
+
+
+#define PINx _SFR_MEM8(port_base+0)
+#define DDRx _SFR_MEM8(port_base+1)
+#define PORTx _SFR_MEM8(port_base+2)
 
 /// The port module represents an eight bit, digital IO port on the
 /// AVR microcontroller. This library creates static
