@@ -15,7 +15,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-
 #ifndef INTERFACE_BOARD_HH_
 #define INTERFACE_BOARD_HH_
 

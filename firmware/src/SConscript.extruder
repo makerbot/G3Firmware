@@ -7,12 +7,14 @@
 # To build for another platform, pass an explicit platform parameter.  For example,
 # $ scons platform=ecv22
 # $ scons platform=ecv34
+# $ scons platform=ecv34_328p
 #
 # To default to stepper rather than DC drive, add "stepper=true".
 # To default to PWM heater rather than relays, add "relays=false".
 #
-# To upload the firmware, specify the "upload" target.  By default, this will use
-# /dev/ttyUSB0 as the serial connection.
+# To upload the firmware, specify the "upload" target.  By default, this will use the bash command
+# /dev/$(ls /dev/ | grep -i "tty\.usb")
+# to find the upload port.
 # $ scons upload
 #
 # If you want to select a port manually, specify it as a parameter:
@@ -21,6 +23,8 @@
 
 import os
 import re
+import fnmatch
+
 from os.path import dirname
 # Parameters
 platform = ARGUMENTS.get('platform','ecv22')
@@ -67,21 +71,48 @@ elif (platform == 'ecv34'):
 	has_queue = 0
 	has_psu = 0
 	relays_default = 'false'
+elif (platform == 'ecv34_328p'):
+	default_baud = '57600'
+	mcu='atmega328p'
+	has_queue = 0
+	has_psu = 0
+	relays_default = 'false'
 else:
 	print "Platform "+platform+" is not currently supported. Supported platforms are:"
 	print "ecv22: Gen 3 extruder controller" 
 	print "ecv34: Gen 4 extruder controller"
+	print "ecv34_328p: Gen 4 extruder controller w/ atmel328p processor (shipped w/ later gen Thingomatics)"
 	exit()
 
 relays = ARGUMENTS.get('relays',relays_default)
 
 target_name = "EC-"+platform+"-v"+str(version//100)+"."+str(version%100)
 
-upload_port = ARGUMENTS.get('port','/dev/ttyUSB1')
+upload_port = ARGUMENTS.get('port',"""/dev/$$(ls /dev/ | grep -i 'tty\.usb')""")
 upload_baud = ARGUMENTS.get('baud',default_baud)
 upload_prog = ARGUMENTS.get('programmer','stk500v1')
 
 srcs = Glob('*.cc') + Glob('Extruder/*.cc') + Glob('Extruder/boards/%s/*.cc' % platform) + Glob('shared/*.cc')
+
+# Don't compile these sources
+ignoredSrcs=[
+	'shared/LiquidCrystal.cc',
+	'shared/InterfaceBoard.cc',
+	'shared/Interface.cc',
+	'shared/Menu.cc']
+
+#Remove all the ignored sources from the source list
+revisedSrcs = []
+for file in srcs:
+	if str(file) not in ignoredSrcs:
+		revisedSrcs.append(file)
+
+srcs = revisedSrcs
+
+#Debugging combed sources
+#for file in srcs:
+#	print "Final src list: " + str(file)
+
 
 include_paths = ['shared', 'Extruder', 'Extruder/boards/%s' % platform, '.']
 
@@ -107,6 +138,7 @@ if (extstepper == 'true'):
 
 if (relays == 'true'):
    flags.append('-DDEFAULT_RELAYS=1')
+   
 
 if (os.environ.has_key('AVR_TOOLS_PATH')):
 	avr_tools_path = os.environ['AVR_TOOLS_PATH']
@@ -134,7 +166,7 @@ env.Elf(elf_name, objs)
 env.Hex(hex_name, elf_name)
 
 avrdude = avr_tools_path+"/avrdude"
-avrdude_flags = "-V -p"+mcu # +mcu.replace("atmega","m")
+avrdude_flags = " -V -p"+mcu # +mcu.replace("atmega","m")
 avrdude_flags = avrdude_flags + " -P "+upload_port
 avrdude_flags = avrdude_flags + " -c "+upload_prog
 avrdude_flags = avrdude_flags + " -b "+upload_baud

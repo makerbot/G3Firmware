@@ -1,7 +1,11 @@
 platform = ARGUMENTS.get('platform','mb24')
+fived = ARGUMENTS.get('fived','false')
 
 if (platform == 'rrmbv12' or platform == 'mb24' or platform == 'mb24-2560'):
+	if (fived == 'true'):
+		platform = platform+'-5d'
+	
 	SConscript(['src/SConscript.motherboard'], variant_dir='build/'+platform)
 
-elif (platform == 'ecv22' or platform == 'ecv34'):
+elif (platform == 'ecv22' or platform == 'ecv34' or platform == 'ecv34_328p'):
 	SConscript(['src/SConscript.extruder'], variant_dir='build/'+platform)
