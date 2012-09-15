@@ -22,6 +22,7 @@
 #include "Configuration.hh"
 #include "EepromMap.hh"
 #include "Eeprom.hh"
+#include "EepromDefaults.hh"
 #include <util/delay.h>
 
 
@@ -49,7 +50,7 @@ bool MoodLightController::start() {
 	blinkM.stopScript();
 	
 #ifdef HAS_MOOD_LIGHT
-	playScript(eeprom::getEeprom8(eeprom::MOOD_LIGHT_SCRIPT, 0));
+	playScript(eeprom::getEeprom8(eeprom::MOOD_LIGHT_SCRIPT, EEPROM_DEFAULT_MOOD_LIGHT_SCRIPT));
 #endif
 
 	return blinkM.blinkMIsPresent;
@@ -236,9 +237,9 @@ void MoodLightController::playScript(uint8_t scriptId) {
 	}
 	else if ( scriptId == 1 ) {						//Custom RGB (User Defined)
 #ifdef HAS_MOOD_LIGHT
-		blinkM.fadeToRGB(eeprom::getEeprom8(eeprom::MOOD_LIGHT_CUSTOM_RED, 255),
-				 eeprom::getEeprom8(eeprom::MOOD_LIGHT_CUSTOM_GREEN,255),
-				 eeprom::getEeprom8(eeprom::MOOD_LIGHT_CUSTOM_BLUE, 255));
+		blinkM.fadeToRGB(eeprom::getEeprom8(eeprom::MOOD_LIGHT_CUSTOM_RED,	EEPROM_DEFAULT_MOOD_LIGHT_CUSTOM_RED),
+				 eeprom::getEeprom8(eeprom::MOOD_LIGHT_CUSTOM_GREEN,	EEPROM_DEFAULT_MOOD_LIGHT_CUSTOM_GREEN),
+				 eeprom::getEeprom8(eeprom::MOOD_LIGHT_CUSTOM_BLUE,	EEPROM_DEFAULT_MOOD_LIGHT_CUSTOM_BLUE));
 #endif
 	} else if (( scriptId >= 2 ) && ( scriptId < (2 + kDefinedColors ))) {	//Regular solid colors
 		uint8_t r, g, b;
@@ -262,7 +263,7 @@ void MoodLightController::playScript(uint8_t scriptId) {
 
 void MoodLightController::debugLightSetValue(bool value) {
 #ifdef HAS_MOOD_LIGHT
-	if ( eeprom::getEeprom8(eeprom::MOOD_LIGHT_SCRIPT, 0) == (uint8_t) 0 ) {
+	if ( eeprom::getEeprom8(eeprom::MOOD_LIGHT_SCRIPT, EEPROM_DEFAULT_MOOD_LIGHT_SCRIPT) == (uint8_t) 0 ) {
 		eStopTriggered = true;
 		if ( value )	blinkM.setRGB(255, 0, 0);
 		else		blinkM.setRGB(0, 0, 0);

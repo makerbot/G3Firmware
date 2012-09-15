@@ -15,17 +15,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
+#include "Configuration.hh"
 #include "Command.hh"
 #include "Steppers.hh"
 #include "Commands.hh"
+#include "Host.hh"
 #include "Tool.hh"
-#include "Configuration.hh"
 #include "Timeout.hh"
 #include "CircularBuffer.hh"
 #include <util/atomic.h>
 #include <avr/eeprom.h>
 #include "EepromMap.hh"
 #include "Eeprom.hh"
+#include "EepromDefaults.hh"
 #include "SDCard.hh"
 #include "ExtruderControl.hh"
 
@@ -35,7 +37,11 @@
 
 namespace command {
 
-#define COMMAND_BUFFER_SIZE 512
+#ifdef SMALL_4K_RAM
+	#define COMMAND_BUFFER_SIZE 256
+#else
+	#define COMMAND_BUFFER_SIZE 512
+#endif
 uint8_t buffer_data[COMMAND_BUFFER_SIZE];
 CircularBuffer command_buffer(COMMAND_BUFFER_SIZE, buffer_data);
 
@@ -46,16 +52,25 @@ bool paused = false;
 uint16_t statusDivisor = 0;
 volatile uint32_t recentCommandClock = 0;
 volatile uint32_t recentCommandTime = 0;
+
+#ifdef PAUSEATZPOS
 volatile int32_t  pauseZPos = 0;
+#endif
 
 bool estimating = false;
+
+#ifdef HAS_BUILD_ESTIMATION
 int64_t estimateTimeUs = 0; 
+#endif
+
+#ifdef HAS_FILAMENT_COUNTER
 volatile int64_t filamentLength = 0;		//This maybe pos or neg, but ABS it and all is good (in steps)
 volatile int64_t lastFilamentLength = 0;
 volatile bool firstHeatTool0;
 volatile bool firstHeatHbp;
+#endif
 
-Point lastPosition;
+static Point lastPosition;
 
 uint16_t getRemainingCapacity() {
 	uint16_t sz;
@@ -73,6 +88,8 @@ bool isPaused() {
 	return paused;
 }
 
+#ifdef PAUSEATZPOS
+
 void pauseAtZPos(int32_t zpos) {
 	pauseZPos = zpos;
 }
@@ -80,6 +97,8 @@ void pauseAtZPos(int32_t zpos) {
 int32_t getPauseAtZPos() {
 	return pauseZPos;
 }
+
+#endif
 
 bool isEmpty() {
 	return command_buffer.isEmpty();
@@ -136,21 +155,34 @@ Timeout tool_wait_timeout;
 bool acceleration;
 
 void reset() {
+#ifdef PAUSEATZPOS
 	pauseAtZPos(0.0);
-	lastPosition = Point(0,0,0,0,0);
+#endif
+	lastPosition[0] = 0;
+	lastPosition[1] = 0;
+	lastPosition[2] = 0;
+	lastPosition[3] = 0;
+	lastPosition[4] = 0;
 	command_buffer.reset();
+#ifdef HAS_BUILD_ESTIMATION
 	estimateTimeUs = 0; 
+#endif
+
+#ifdef HAS_FILAMENT_COUNTER
 	filamentLength = 0;
 	lastFilamentLength = 0;
 	firstHeatTool0 = true;
 	firstHeatHbp = true;
+#endif
 	mode = READY;
 
- 	uint8_t accel = eeprom::getEeprom8(eeprom::STEPPER_DRIVER, 0);
+ 	uint8_t accel = eeprom::getEeprom8(eeprom::STEPPER_DRIVER, EEPROM_DEFAULT_STEPPER_DRIVER);
         if ( accel & 0x01 )	acceleration = true;
 	else			acceleration = false;
 }
 
+
+#ifdef HAS_FILAMENT_COUNTER
 
 //Adds the filament used during this build
 
@@ -159,17 +191,17 @@ void addFilamentUsed() {
 	int64_t fl = getFilamentLength();
 
 	if ( fl > 0 ) {
-		cli();
-		int64_t filamentUsed = eeprom::getEepromInt64(eeprom::FILAMENT_USED, 0);
+		int64_t filamentUsed = eeprom::getEepromInt64(eeprom::FILAMENT_USED, EEPROM_DEFAULT_FILAMENT_USED);
 		filamentUsed += fl;
 		eeprom::putEepromInt64(eeprom::FILAMENT_USED, filamentUsed);
-		sei();
 
 		//We've used it up, so reset it
 		lastFilamentLength = filamentLength;
 		filamentLength = 0;
 	}
 }
+
+#endif
 
 
 //Executes a slave command
@@ -223,6 +255,8 @@ bool isPlatformReady() {
 	return false;
 }
 
+#ifdef HAS_FILAMENT_COUNTER
+
 int64_t getFilamentLength() {
 	if ( filamentLength < 0 )	return -filamentLength;
 	return filamentLength;
@@ -231,7 +265,12 @@ int64_t getFilamentLength() {
 int64_t getLastFilamentLength() {
 	if ( lastFilamentLength < 0 )	return -lastFilamentLength;
 	return lastFilamentLength;
+
 }
+
+#endif
+
+#ifdef HAS_BUILD_ESTIMATION
 
 int32_t estimateSeconds() {
 	return estimateTimeUs / 1000000;
@@ -249,24 +288,36 @@ void setEstimation(bool on) {
 	}
 	
 	estimateTimeUs = 0;
+#ifdef HAS_FILAMENT_COUNTER
 	filamentLength = 0;
+#endif
 	estimating = on;
 }
 
+#endif
+
 void buildAnotherCopy() {
+#ifdef HAS_BUILD_ESTIMATION
 	if ( estimating ) setEstimation(false);
+#endif
 
 	recentCommandClock = 0;
 	recentCommandTime  = 0;
 	command_buffer.reset();
 	sdcard::playbackRestart();
+#ifdef HAS_BUILD_ESTIMATION
 	estimateTimeUs = 0;
 	firstHeatTool0 = true;
 	firstHeatHbp = true;
+#endif
 
+#ifdef HAS_FILAMENT_COUNTER
 	addFilamentUsed();
 	lastFilamentLength = 0;
+#endif
 }
+
+#ifdef HAS_BUILD_ESTIMATION
 
 void estimateDelay(uint32_t microseconds) {
 	estimateTimeUs += (int64_t)microseconds;
@@ -295,10 +346,12 @@ void estimateMoveTo(Point p, int32_t dda) {
 
 	estimateTimeUs += (int64_t)max * (int64_t)dda;
 
+#ifdef HAS_FILAMENT_COUNTER
 	if ( ! estimating ) {
 		filamentLength += (int64_t)(p[3] - lastPosition[3]);
 		filamentLength += (int64_t)(p[4] - lastPosition[4]);
 	}
+#endif
 
 	//Setup lastPosition as the current target
 	for ( uint8_t i = 0; i < AXIS_COUNT; i ++ )	lastPosition[i] = p[i];
@@ -312,15 +365,21 @@ void estimateMoveToNew(Point p, int32_t us, uint8_t relative) {
 
 		if ( relative & (1 << i)) {
 			if (( ! estimating ) && (( i == 3 ) || ( i == 4 )))
+#ifdef HAS_FILAMENT_COUNTER
 				filamentLength += (int64_t)p[i];
+#endif
 			lastPosition[i] += p[i];
 		} else {
 			if (( ! estimating ) && (( i == 3 ) || ( i == 4 )))
+#ifdef HAS_FILAMENT_COUNTER
 				filamentLength += (int64_t)(p[i] - lastPosition[i]);
+#endif
 			lastPosition[i]  = p[i];
 		}
 	}
 }
+
+#endif
 
 // A fast slice for processing commands and refilling the stepper queue, etc.
 void runCommandSlice() {
@@ -337,11 +396,14 @@ void runCommandSlice() {
 	}
 	if ((paused) && ( ! estimating ))  { return; }
 
+#ifdef PAUSEATZPOS
 	//If we've reached Pause @ ZPos, then pause
 	if ((( pauseZPos != 0) && ( ! isPaused() ) &&
 	    ( steppers::getPosition()[2]) >= pauseZPos ) && ( ! estimating )) 
 		pause(true);
+#endif
 
+#ifdef HAS_BUILD_ESTIMATION
 	//If we're estimating, we don't need to wait for anything
 	if (( estimating ) &&
 	    (( mode == HOMING )       ||
@@ -350,6 +412,7 @@ void runCommandSlice() {
 	     ( mode == WAIT_ON_TOOL ) ||
 	     ( mode == WAIT_ON_PLATFORM )))
 		mode = READY;
+#endif
 
 	if (mode == HOMING) {
 		if (!steppers::isRunning()) {
@@ -395,7 +458,15 @@ void runCommandSlice() {
 			//by waiting for the pipeline buffer to empty before continuing
 			if ((command != HOST_CMD_QUEUE_POINT_ABS) &&
 			    (command != HOST_CMD_QUEUE_POINT_EXT) &&
-			    (command != HOST_CMD_QUEUE_POINT_NEW)) {
+			    (command != HOST_CMD_QUEUE_POINT_NEW) &&
+#ifndef CMD_SET_POSITION_CAUSES_DRAIN
+			    (command != HOST_CMD_SET_POSITION) &&
+			    (command != HOST_CMD_SET_POSITION_EXT) &&
+#endif
+			    ((command != HOST_CMD_TOOL_COMMAND) ||
+			     (command_buffer.getLength() < 5 ) ||
+			     ((command_buffer[2] != SLAVE_CMD_TOGGLE_VALVE) &&
+			      (command_buffer[2] != SLAVE_CMD_TOGGLE_MOTOR_1)))) {
 				if ( ! st_empty() )	return;
 			}
 		}
@@ -418,7 +489,9 @@ void runCommandSlice() {
 					int32_t y = pop32();
 					int32_t z = pop32();
 					int32_t dda = pop32();
+#ifdef HAS_BUILD_ESTIMATION
 					estimateMoveTo(Point(x,y,z),dda);
+#endif
 					if ( ! estimating )	steppers::setTarget(Point(x,y,z),dda);
 				}
 			} else if (command == HOST_CMD_QUEUE_POINT_EXT) {
@@ -433,7 +506,9 @@ void runCommandSlice() {
 					int32_t a = pop32();
 					int32_t b = pop32();
 					int32_t dda = pop32();
+#ifdef HAS_BUILD_ESTIMATION
 					estimateMoveTo(Point(x,y,z,a,b),dda);
+#endif
 					if ( ! estimating )	steppers::setTarget(Point(x,y,z,a,b),dda);
 				}
 			} else if (command == HOST_CMD_QUEUE_POINT_NEW) {
@@ -449,7 +524,9 @@ void runCommandSlice() {
 					int32_t b = pop32();
 					int32_t us = pop32();
 					uint8_t relative = pop8();
+#ifdef HAS_BUILD_ESTIMATION
 					estimateMoveToNew(Point(x,y,z,a,b),us,relative);
+#endif
 					if ( ! estimating )	steppers::setTargetNew(Point(x,y,z,a,b),us,relative);
 				}
 			} else if (command == HOST_CMD_CHANGE_TOOL) {
@@ -477,7 +554,9 @@ void runCommandSlice() {
 					int32_t x = pop32();
 					int32_t y = pop32();
 					int32_t z = pop32();
+#ifdef HAS_BUILD_ESTIMATION
 					estimateDefinePosition(Point(x,y,z));
+#endif
 					if ( ! estimating )	steppers::definePosition(Point(x,y,z));
 				}
 			} else if (command == HOST_CMD_SET_POSITION_EXT) {
@@ -489,7 +568,9 @@ void runCommandSlice() {
 					int32_t z = pop32();
 					int32_t a = pop32();
 					int32_t b = pop32();
+#ifdef HAS_BUILD_ESTIMATION
 					estimateDefinePosition(Point(x,y,z,a,b));
+#endif
 					if ( ! estimating )	steppers::definePosition(Point(x,y,z,a,b));
 				}
 			} else if (command == HOST_CMD_DELAY) {
@@ -498,7 +579,9 @@ void runCommandSlice() {
 					command_buffer.pop(); // remove the command code
 					// parameter is in milliseconds; timeouts need microseconds
 					uint32_t microseconds = pop32() * 1000;
+#ifdef HAS_BUILD_ESTIMATION
 					estimateDelay(microseconds);
+#endif
 					if ( ! estimating )	delay_timeout.start(microseconds);
 				}
 			} else if (command == HOST_CMD_FIND_AXES_MINIMUM ||
@@ -573,7 +656,9 @@ void runCommandSlice() {
 						}
 					}
 
+#ifdef HAS_BUILD_ESTIMATION
 					estimateDefinePosition(newPoint);
+#endif
 					if ( ! estimating )	steppers::definePosition(newPoint);
 				}
 
@@ -595,6 +680,7 @@ void runCommandSlice() {
 								command_buffer.pop(); // remove the command code
 								out.append8(command_buffer.pop()); // copy tool index
 								uint8_t commandCode = command_buffer.pop();
+
 								out.append8(commandCode); // copy command code
 
 								int len = pop8(); // get payload length
@@ -603,29 +689,32 @@ void runCommandSlice() {
 								for (int i = 0; (i < len) && ( i < 4); i ++)
 									buf[i] = command_buffer.pop();
 
-								if (( commandCode == SLAVE_CMD_SET_TEMP ) && ( ! estimating ) &&
-								    ( ! sdcard::isPlaying()) ) {
+#ifdef HAS_FILAMENT_COUNTER
+								if (( commandCode == SLAVE_CMD_SET_TEMP ) && ( ! sdcard::isPlaying()) ) {
 									uint16_t *temp = (uint16_t *)&buf[0];
 									if ( *temp == 0 ) addFilamentUsed();
 								}
+#endif
 
+#ifdef HAS_BUILD_ESTIMATION
 								uint8_t overrideTemp = 0;
 								if ( commandCode == SLAVE_CMD_SET_TEMP ) {
 									uint16_t *temp = (uint16_t *)&buf[0];
-               								if (( *temp != 0 ) && ( firstHeatTool0 ) && ( eeprom::getEeprom8(eeprom::OVERRIDE_GCODE_TEMP, 0) )) {
+               								if (( *temp != 0 ) && ( firstHeatTool0 ) && ( eeprom::getEeprom8(eeprom::OVERRIDE_GCODE_TEMP, EEPROM_DEFAULT_OVERRIDE_GCODE_TEMP) )) {
 										firstHeatTool0 = false;
-										overrideTemp = eeprom::getEeprom8(eeprom::TOOL0_TEMP, 220);
+										overrideTemp = eeprom::getEeprom8(eeprom::TOOL0_TEMP, EEPROM_DEFAULT_TOOL0_TEMP);
 										*temp = overrideTemp;
 									}
 								}
 								if ( commandCode == SLAVE_CMD_SET_PLATFORM_TEMP ) {
 									uint16_t *temp = (uint16_t *)&buf[0];
-               								if (( *temp != 0 ) && ( firstHeatHbp ) && ( eeprom::getEeprom8(eeprom::OVERRIDE_GCODE_TEMP, 0) )) {
+               								if (( *temp != 0 ) && ( firstHeatHbp ) && ( eeprom::getEeprom8(eeprom::OVERRIDE_GCODE_TEMP, EEPROM_DEFAULT_OVERRIDE_GCODE_TEMP) )) {
 										firstHeatHbp = false;
-										overrideTemp = eeprom::getEeprom8(eeprom::PLATFORM_TEMP, 110);
+										overrideTemp = eeprom::getEeprom8(eeprom::PLATFORM_TEMP, EEPROM_DEFAULT_PLATFORM_TEMP);
 										*temp = overrideTemp;
 									}
 								}
+#endif
 
 								for (int i = 0; (i < len) && ( i < 4); i ++)
 									out.append8(buf[i]);
@@ -633,13 +722,113 @@ void runCommandSlice() {
 								for (int i = 4; i < len; i ++ )
 									out.append8(command_buffer.pop());
 
+								if (commandCode == SLAVE_CMD_TOGGLE_VALVE) {
+								     uint8_t valveState = (len > 0) ? *((uint8_t *)&buf[0]) : 1;
+								     steppers::setSegmentAccelState(valveState != 0);
+								}
+								else tool::startTransaction();
+
 								// we don't care about the response, so we can release
 								// the lock after we initiate the transfer
-								tool::startTransaction();
 								tool::releaseLock();
 							}
 						}
 					}
+				}
+			} else if ( command == HOST_CMD_SET_MAX_ACCEL ) {
+				if (command_buffer.getLength() >= 17) {
+					command_buffer.pop(); // remove the command code
+					int32_t x = pop32();
+					int32_t y = pop32();
+					int32_t z = pop32();
+					int32_t a = pop32();
+					eeprom::putEepromUInt32(eeprom::ACCEL_MAX_ACCELERATION_X,(uint32_t)x);
+					eeprom::putEepromUInt32(eeprom::ACCEL_MAX_ACCELERATION_Y,(uint32_t)y);
+					eeprom::putEepromUInt32(eeprom::ACCEL_MAX_ACCELERATION_Z,(uint32_t)z);
+					eeprom::putEepromUInt32(eeprom::ACCEL_MAX_ACCELERATION_A,(uint32_t)a);
+				}
+			} else if ( command == HOST_CMD_SET_MAX_FEEDRATE ) {
+				if (command_buffer.getLength() >= 17) {
+					command_buffer.pop(); // remove the command code
+					int32_t x = pop32();
+					int32_t y = pop32();
+					int32_t z = pop32();
+					int32_t a = pop32();
+					eeprom::putEepromUInt32(eeprom::ACCEL_MAX_FEEDRATE_X,(uint32_t)x);
+					eeprom::putEepromUInt32(eeprom::ACCEL_MAX_FEEDRATE_Y,(uint32_t)y);
+					eeprom::putEepromUInt32(eeprom::ACCEL_MAX_FEEDRATE_Z,(uint32_t)z);
+					eeprom::putEepromUInt32(eeprom::ACCEL_MAX_FEEDRATE_A,(uint32_t)a);
+				}
+			} else if ( command == HOST_CMD_SET_DEFAULT_ACCEL ) {
+				if (command_buffer.getLength() >= 9) {
+					command_buffer.pop(); // remove the command code
+					int32_t s = pop32();
+					int32_t t = pop32();
+					eeprom::putEepromUInt32(eeprom::ACCEL_MAX_EXTRUDER_NORM,(uint32_t)s);
+					eeprom::putEepromUInt32(eeprom::ACCEL_MAX_EXTRUDER_RETRACT,(uint32_t)t);
+				}
+			} else if ( command == HOST_CMD_SET_ADVANCED_ACCEL ) {
+				if (command_buffer.getLength() >= 13) {
+					command_buffer.pop(); // remove the command code
+					int32_t s = pop32();
+					int32_t t = pop32();
+					int32_t z = pop32();
+					eeprom::putEepromUInt32(eeprom::ACCEL_MIN_FEED_RATE,(uint32_t)s);
+					eeprom::putEepromUInt32(eeprom::ACCEL_MIN_TRAVEL_FEED_RATE,(uint32_t)t);
+					eeprom::putEepromUInt32(eeprom::ACCEL_MIN_PLANNER_SPEED,(uint32_t)z);
+				}
+			} else if ( command == HOST_CMD_SET_ADVANCED_ACCEL2 ) {
+				uint16_t len = command_buffer.getLength();
+				if (len >= 5) {
+					command_buffer.pop(); // remove the command code
+					int32_t s = pop32();
+    					eeprom::putEepromUInt32(eeprom::ACCEL_NOODLE_DIAMETER,(uint32_t)s);
+
+					if (len >= 17) {
+						int32_t a = pop32();
+						int32_t k = pop32();
+						int32_t x = pop32();
+						int32_t y = pop32();
+						eeprom::putEepromUInt32(eeprom::ACCEL_REV_MAX_FEED_RATE,(uint32_t)a);
+						eeprom::putEepromUInt32(eeprom::ACCEL_EXTRUDER_DEPRIME,(uint32_t)k);
+						eeprom::putEepromUInt32(eeprom::ACCEL_SLOWDOWN_LIMIT,(uint32_t)x);
+						eeprom::putEepromUInt32(eeprom::ACCEL_CLOCKWISE_EXTRUDER,(uint32_t)y);
+					}
+				}
+			} else if ( command == HOST_CMD_SET_ADVANCE_K ) {
+				if (command_buffer.getLength() >= 13) {
+					command_buffer.pop(); // remove the command code
+					int32_t s = pop32();
+					int32_t a = pop32();
+					int32_t k = pop32();
+					eeprom::putEepromUInt32(eeprom::ACCEL_ADVANCE_K,(uint32_t)s);
+					eeprom::putEepromUInt32(eeprom::ACCEL_ADVANCE_K2,(uint32_t)a);
+					eeprom::putEepromUInt32(eeprom::ACCEL_MIN_SEGMENT_TIME,(uint32_t)k);
+				}
+			} else if ( command == HOST_CMD_SET_EXTRUDER_STEPSMM ) {
+				if (command_buffer.getLength() >= 5) {
+					command_buffer.pop(); // remove the command code
+					int32_t a = pop32();
+    					eeprom::putEepromUInt32(eeprom::ACCEL_E_STEPS_PER_MM,(uint32_t)a);
+				}
+			} else if ( command == HOST_CMD_SET_ACCELERATION ) {
+				if (command_buffer.getLength() >= 2) {
+					command_buffer.pop(); // remove the command code
+					uint8_t s = pop8();
+					eeprom_write_byte((uint8_t*)eeprom::STEPPER_DRIVER,s);
+					eeprom_write_byte((uint8_t*)eeprom::OVERRIDE_GCODE_TEMP,0);
+				}
+			} else if ( command == HOST_CMD_SET_MAX_SPEED_CHANGE ) {
+				if (command_buffer.getLength() >= 17) {
+					command_buffer.pop(); // remove the command code
+					int32_t x = pop32();
+					int32_t y = pop32();
+					int32_t z = pop32();
+					int32_t a = pop32();
+					eeprom::putEepromUInt32(eeprom::ACCEL_MAX_SPEED_CHANGE_X,(uint32_t)x);
+					eeprom::putEepromUInt32(eeprom::ACCEL_MAX_SPEED_CHANGE_Y,(uint32_t)y);
+					eeprom::putEepromUInt32(eeprom::ACCEL_MAX_SPEED_CHANGE_Z,(uint32_t)z);
+					eeprom::putEepromUInt32(eeprom::ACCEL_MAX_SPEED_CHANGE_A,(uint32_t)a);
 				}
 			} else if (command == HOST_CMD_MOOD_LIGHT_SET_RGB ) {
 				// check for completion
@@ -681,15 +870,16 @@ void runCommandSlice() {
 				// check for completion
 				if (command_buffer.getLength() >= 2) {
 					command_buffer.pop(); // remove the command code
+					uint8_t repeats = pop8();
 					if ( ! estimating ) {
 						cli();
-        					eeprom_write_byte((uint8_t*)eeprom::BUZZER_REPEATS, pop8());
+        					eeprom_write_byte((uint8_t*)eeprom::BUZZER_REPEATS, repeats);
 						sei();
 					}
 				}
 			} else if (command == HOST_CMD_BUZZER_BUZZ ) {
 				// check for completion
-				if (command_buffer.getLength() >= 7) {
+				if (command_buffer.getLength() >= 4) {
 					command_buffer.pop(); // remove the command code
 					uint8_t buzzes   = pop8();
 					uint8_t duration = pop8();
@@ -701,6 +891,26 @@ void runCommandSlice() {
 					}
 #endif
 				}
+			} else if ( command == HOST_CMD_SET_AXIS_STEPS_MM) {
+				if (command_buffer.getLength() >= 17) {
+					command_buffer.pop(); // remove the command code
+					int64_t x = (int64_t)pop32() * 10000;
+					int64_t y = (int64_t)pop32() * 10000;
+					int64_t z = (int64_t)pop32() * 10000;
+					int64_t a = (int64_t)pop32() * 10000;
+					cli();
+					eeprom_write_block(&x,(void *)eeprom::STEPS_PER_MM_X,8);
+					eeprom_write_block(&y,(void *)eeprom::STEPS_PER_MM_Y,8);
+					eeprom_write_block(&z,(void *)eeprom::STEPS_PER_MM_Z,8);
+					eeprom_write_block(&a,(void *)eeprom::STEPS_PER_MM_A,8);
+					sei();
+				}
+			} else if (command == HOST_CMD_RESET_TO_FACTORY) {
+				pop16(); // remove the command and following reserved byte
+				cli();
+				eeprom::setDefaults(true);
+				sei();
+				host::prepReset();
 			} else {
 			}
 		}

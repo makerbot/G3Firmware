@@ -28,11 +28,17 @@
 
 
 #include "StepperAccel.hh"
+
+#ifdef LOOKUP_TABLE_TIMER
 #include "StepperAccelSpeedTable.hh"
+#endif
+
 #include "StepperInterface.hh"
 #include "Motherboard.hh"
 
-#include  <avr/interrupt.h>
+#include <avr/interrupt.h>
+#include <string.h>
+#include <math.h>
 
 
 
@@ -41,7 +47,8 @@
 //=============================public variables  ============================
 //===========================================================================
 block_t *current_block;  // A pointer to the block currently being traced
-
+int32_t extruder_deprime_steps;	//Positive or negative depending on clockwise_extruder, when it's true, this is positive
+bool clockwise_extruder;	//True if the extruder extrudes when rotating positive when viewed from the spindle end
 
 //===========================================================================
 //=============================private variables ============================
@@ -50,27 +57,72 @@ block_t *current_block;  // A pointer to the block currently being traced
 
 // Variables used by The Stepper Driver Interrupt
 static unsigned char out_bits;        // The next stepping-bits to be output
-static int32_t counter_x,       // Counter variables for the bresenham line tracer
-            counter_y, 
-            counter_z,       
-            counter_e;
 volatile static uint32_t step_events_completed; // The number of step events executed in the current block
-#ifdef ADVANCE
-  static int32_t advance_rate = 0, advance, final_advance = 0;
-  static int32_t old_advance = 0;
+#ifdef JKN_ADVANCE
+  enum AdvanceState {
+	ADVANCE_STATE_ACCEL = 0,
+	ADVANCE_STATE_PLATEAU,
+	ADVANCE_STATE_DECEL
+  };
+  static enum AdvanceState advance_state;
+  static int32_t advance_pressure_relax_accumulator;
+  static int32_t lastAdvanceDeprime;
+
+  #define ADVANCE_INTERRUPT_FREQUENCY 10000	//10KHz
+
+  static uint32_t st_advance_interrupt_rate = 0;
+  static uint8_t advance_interrupt_steps_per_call = 0;
+  static uint32_t st_advance_interrupt_rate_counter[EXTRUDERS];
+  volatile int32_t starting_e_position = 0;
 #endif
-volatile static int32_t e_steps[3];
-volatile static unsigned char busy = false; // TRUE when SIG_OUTPUT_COMPARE1A is being serviced. Used to avoid retriggering that handler.
+volatile static int32_t e_steps[EXTRUDERS];
 static int32_t acceleration_time, deceleration_time;
 //static uint32_t accelerate_until, decelerate_after, acceleration_rate, initial_rate, final_rate, nominal_rate;
-static unsigned short acc_step_rate; // needed for deccelaration start point
-static char step_loops;
-static unsigned short OCR1A_nominal;
+static uint16_t acc_step_rate, step_rate;
+static char step_loops, step_loops_nominal;
+static uint16_t OCR1A_nominal;
 
 volatile int32_t count_position[NUM_AXIS] = { 0, 0, 0, 0};
-volatile char count_direction[NUM_AXIS] = { 1, 1, 1, 1};
 
 static StepperInterface *stepperInterface;
+
+static bool deprimed = true;
+static unsigned char deprimeIndex = 0;
+
+//STEP_TRUE, runs stepperInterface[axis].step(true)
+//If CHECK_ENDSTOPS_ENABLED is defined, it checks the ends stops haven't been hit before moving
+//and doesn't move if they have
+
+#ifdef CHECK_ENDSTOPS_ENABLED
+	#define STEP_TRUE(axis, direction)	if (( (direction) && (! stepperInterface[axis].isAtMaximum())) || \
+						    ( (! (direction)) && (! stepperInterface[axis].isAtMinimum()))) \
+								stepperInterface[axis].step(true)
+#else
+	#define STEP_TRUE(axis, direction)	stepperInterface[axis].step(true)
+#endif
+
+#if  defined(DEBUG_TIMER) && defined(TCNT3)
+uint16_t debugTimer;
+#endif
+
+#ifdef OVERSAMPLED_DDA
+    uint8_t oversampledCount = 0;
+#endif
+
+struct dda {
+	bool	master;			//True if this is the master steps axis
+	int32_t master_steps;		//The number of steps for the master axis	
+	bool	eAxis;			//True if this is the e axis
+	char	direction;		//Direction of the dda, 1 = forward, -1 = backwards
+	bool	stepperInterfaceDir;	//The direction the stepper interface gets sent in
+
+	int32_t	counter;		//Used for the dda counter
+	int32_t steps_completed;	//Number of steps completed
+	int32_t steps;			//Number of steps we need to execute for this axis
+};
+
+struct dda ddas[NUM_AXIS];
+
 
 //===========================================================================
 //=============================functions         ============================
@@ -168,14 +220,8 @@ asm volatile ( \
 //  step_events_completed reaches block->decelerate_after after which it decelerates until the trapezoid generator is reset.
 //  The slope of acceleration is calculated with the leib ramp alghorithm.
 
-void st_wake_up() {
-  //  TCNT1 = 0;
-  if(busy == false) 
-  ENABLE_STEPPER_DRIVER_INTERRUPT();  
-}
-
-FORCE_INLINE unsigned short calc_timer(unsigned short step_rate) {
-  unsigned short timer;
+FORCE_INLINE uint16_t calc_timer(uint16_t step_rate) {
+  uint16_t timer;
   if(step_rate > MAX_STEP_FREQUENCY) step_rate = MAX_STEP_FREQUENCY;
   
   if(step_rate > 20000) { // If steprate > 20kHz >> step 4 times
@@ -189,180 +235,267 @@ FORCE_INLINE unsigned short calc_timer(unsigned short step_rate) {
   else {
     step_loops = 1;
   } 
-  
+
   if(step_rate < 32) step_rate = 32;
+
+#ifdef LOOKUP_TABLE_TIMER
   step_rate -= 32; // Correct for minimal speed
   if(step_rate >= (8*256)){ // higher step rate 
-    unsigned short table_address = (unsigned short)&speed_lookuptable_fast[(unsigned char)(step_rate>>8)][0];
+    uint16_t table_address = (uint16_t)&speed_lookuptable_fast[(unsigned char)(step_rate>>8)][0];
     unsigned char tmp_step_rate = (step_rate & 0x00ff);
-    unsigned short gain = (unsigned short)pgm_read_word_near(table_address+2);
+    uint16_t gain = (uint16_t)pgm_read_word_near(table_address+2);
     MultiU16X8toH16(timer, tmp_step_rate, gain);
-    timer = (unsigned short)pgm_read_word_near(table_address) - timer;
+    timer = (uint16_t)pgm_read_word_near(table_address) - timer;
   }
   else { // lower step rates
-    unsigned short table_address = (unsigned short)&speed_lookuptable_slow[0][0];
+    uint16_t table_address = (uint16_t)&speed_lookuptable_slow[0][0];
     table_address += ((step_rate)>>1) & 0xfffc;
-    timer = (unsigned short)pgm_read_word_near(table_address);
-    timer -= (((unsigned short)pgm_read_word_near(table_address+2) * (unsigned char)(step_rate & 0x0007))>>3);
+    timer = (uint16_t)pgm_read_word_near(table_address);
+    timer -= (((uint16_t)pgm_read_word_near(table_address+2) * (unsigned char)(step_rate & 0x0007))>>3);
   }
   //if(timer < 100) { timer = 100; MSerial.print("Steprate to high : "); MSerial.println(step_rate); }//(20kHz this should never happen)
  
-  //TEMPORARY WORKAROUND FOR ZIT BUG
-  if ( timer > 2000 )	timer = 2000;
-
   return timer;
+#else
+  return (uint16_t)((uint32_t)2000000 / (uint32_t)step_rate);
+#endif
 }
 
 
-//DEBUGGING
-float zadvance;
+#ifdef DEBUG_ZADVANCE
+	volatile float zadvance = 0.0, zadvance2 = 0.0;
+#endif
 
-// Initializes the trapezoid generator from the current block. Called whenever a new 
-// block begins.
-FORCE_INLINE void trapezoid_generator_reset() {
-  #ifdef ADVANCE
-    advance = current_block->initial_advance;
-    final_advance = current_block->final_advance;
-    // Do E steps + advance steps
-    e_steps[current_block->active_extruder] += ((advance >>8) - old_advance);
-    old_advance = advance >>8;  
-    zadvance = advance;
+
+FORCE_INLINE void dda_create(uint8_t ind, bool eAxis)
+{
+	ddas[ind].eAxis			= eAxis;
+	ddas[ind].counter		= 0;	
+	ddas[ind].direction		= 1;
+	ddas[ind].stepperInterfaceDir	= false;
+}
+
+FORCE_INLINE void dda_reset(uint8_t ind, bool master, int32_t master_steps, bool direction, int32_t steps, bool keepPhase)
+{
+	if ( keepPhase )	
+	{
+		//Calculate the phase of the new move, keeping the phase of the last move
+		ddas[ind].counter += ddas[ind].master_steps >> 1;
+		ddas[ind].counter = (ddas[ind].counter * master_steps) / (ddas[ind].master_steps << 1);
+	}
+	else	ddas[ind].counter  = master_steps >> 1;
+
+#ifdef OVERSAMPLED_DDA
+	ddas[ind].counter  = - (ddas[ind].counter << OVERSAMPLED_DDA);
+#else
+	ddas[ind].counter  = - ddas[ind].counter;
+#endif
+
+	ddas[ind].master		= master;
+#ifdef OVERSAMPLED_DDA
+	ddas[ind].master_steps		= master_steps << OVERSAMPLED_DDA;
+#else
+	ddas[ind].master_steps		= master_steps;
+#endif
+	ddas[ind].steps			= steps;
+	ddas[ind].direction		= (direction) ? -1 : 1;
+	ddas[ind].stepperInterfaceDir	= (direction) ? false : true;
+
+	ddas[ind].steps_completed = 0;
+}
+
+FORCE_INLINE void dda_shift_phase(uint8_t ind, int32_t phase)
+{
+#ifdef OVERSAMPLED_DDA
+	ddas[ind].counter += phase << OVERSAMPLED_DDA;
+#else
+	ddas[ind].counter += phase;
+#endif
+}
+
+FORCE_INLINE void dda_step(uint8_t ind)
+{
+	ddas[ind].counter += ddas[ind].steps;
+	if (( ddas[ind].counter > 0 ) && ( ddas[ind].steps_completed < ddas[ind].steps ))
+	{
+        	ddas[ind].counter -= ddas[ind].master_steps;
+
+#ifdef JKN_ADVANCE
+		if ( ddas[ind].eAxis )
+          		e_steps[current_block->active_extruder] += ddas[ind].direction;
+		else
+		{
+#endif
+        		stepperInterface[ind].setDirection( ddas[ind].stepperInterfaceDir );
+			STEP_TRUE(ind, ddas[ind].stepperInterfaceDir);
+			stepperInterface[ind].step(false);
+       		 	count_position[ind] += ddas[ind].direction;
+#ifdef JKN_ADVANCE
+		}
+#endif
+
+		ddas[ind].steps_completed ++;		
+	}
+}
+
+// Sets up the next block from the buffer
+
+FORCE_INLINE void setup_next_block() {
+#ifndef CMD_SET_POSITION_CAUSES_DRAIN
+  memcpy((void *)count_position, current_block->starting_position, sizeof(count_position)); // count_position[] = current_block->starting_position[]
+#endif
+
+  #ifdef JKN_ADVANCE
+  	starting_e_position = count_position[E_AXIS];
+
+	//Something in the buffer, prime if we previously deprimed
+	if (( deprimed ) && ( current_block->steps[E_AXIS] != 0 )) {
+		deprimeIndex = current_block->active_extruder;
+		if ( clockwise_extruder ) {
+			e_steps[deprimeIndex] -= (int32_t)extruder_deprime_steps;
+#ifdef JKN_ADVANCE_LEAD_DE_PRIME
+			e_steps[deprimeIndex] -= current_block->advance_lead_prime;
+#endif
+		} else {
+			e_steps[deprimeIndex] += (int32_t)extruder_deprime_steps;
+#ifdef JKN_ADVANCE_LEAD_DE_PRIME
+			e_steps[deprimeIndex] += current_block->advance_lead_prime;
+#endif
+		}
+		deprimed = false;
+	}
   #endif
+
   deceleration_time = 0;
+
+  OCR1A_nominal = calc_timer(current_block->nominal_rate);
+  step_loops_nominal = step_loops;
+  
   // step_rate to timer interval
   acc_step_rate = current_block->initial_rate;
   acceleration_time = calc_timer(acc_step_rate);
+#ifdef OVERSAMPLED_DDA
+  OCR1A = acceleration_time >> OVERSAMPLED_DDA;
+#else
   OCR1A = acceleration_time;
-  OCR1A_nominal = calc_timer(current_block->nominal_rate);
-  #ifdef Z_LATE_ENABLE
-    if(current_block->steps_z > 0) stepperInterface[Z_AXIS].setEnabled(true);
+#endif
+  #ifdef ACCELERATION_Z_HOLD_ENABLED
+    stepperInterface[Z_AXIS].setEnabled(acceleration_zhold || (current_block->steps[Z_AXIS] > 0));
+  #endif
+
+  //Setup the next dda's
+  out_bits = current_block->direction_bits;
+  for ( uint8_t i = 0; i < NUM_AXIS; i ++ )
+      	dda_reset(i, (current_block->dda_master_axis_index == i), current_block->step_event_count, (out_bits & (1<<i)), current_block->steps[i], DDA_KEEP_PHASE);
+
+  #ifdef JKN_ADVANCE
+      advance_state = ADVANCE_STATE_ACCEL;
+  #endif
+      step_events_completed = 0;
+
+  #ifdef DEBUG_BLOCK_BY_MOVE_INDEX
+      if ( current_block->move_index == 4 ) {
+	zadvance = (float)current_block->initial_rate;
+	zadvance2 = (float)current_block->final_rate;
+      }
   #endif
 }
 
+
 // "The Stepper Driver Interrupt" - This timer interrupt is the workhorse.  
-// It pops blocks from the block_buffer and executes them by pulsing the stepper pins appropriately. 
-void st_interrupt()
+// It pops blocks from the block_buffer and executes them by pulsing the stepper pins appropriately.
+// Returns true if we deleted an item in the pipeline buffer 
+bool st_interrupt()
 {    
+  bool block_deleted = false;
+
+#ifdef OVERSAMPLED_DDA
+  if ( current_block != NULL )
+  {
+      oversampledCount ++;
+      if ( oversampledCount < (1 << OVERSAMPLED_DDA) )
+      {
+      	//Step the dda for each axis
+     	for (uint8_t i = 0; i < NUM_AXIS; i ++ )
+      		dda_step(i);
+        return block_deleted;
+      }
+  }
+#endif
+
+//	DEBUG_TIMER_START;
   // If there is no current block, attempt to pop one from the buffer
   if (current_block == NULL) {
     // Anything in the buffer?
     current_block = plan_get_current_block();
     if (current_block != NULL) {
-      trapezoid_generator_reset();
-      counter_x = -(current_block->step_event_count >> 1);
-      counter_y = counter_x;
-      counter_z = counter_x;
-      counter_e = counter_x;
-      step_events_completed = 0;
-//      #ifdef ADVANCE
-//      e_steps[current_block->active_extruder] = 0;
-//      #endif
-    } 
-    else {
+	setup_next_block();
+    } else {
         OCR1A=2000; // 1kHz.
-    }    
+
+#ifndef CMD_SET_POSITION_CAUSES_DRAIN
+	//Buffer is empty, as the position may have since changed due to 
+	//plan_set_position, we update our position here
+  	memcpy((void *)count_position, position, sizeof(count_position)); // count_position[] = position
+#endif
+    }
   } 
 
+#ifdef JKN_ADVANCE
+  //Nothing in the buffer or we have no e steps, deprime
+  if ((( current_block == NULL ) || ( current_block->steps[E_AXIS] == 0 )) && ( ! deprimed )) {
+	if ( clockwise_extruder ) {
+		e_steps[deprimeIndex] += (int32_t)extruder_deprime_steps;
+#ifdef JKN_ADVANCE_LEAD_DE_PRIME
+		e_steps[deprimeIndex] += lastAdvanceDeprime;
+#endif
+	} else {
+		e_steps[deprimeIndex] -= (int32_t)extruder_deprime_steps;
+#ifdef JKN_ADVANCE_LEAD_DE_PRIME
+		e_steps[deprimeIndex] -= lastAdvanceDeprime;
+#endif
+	}
+	deprimed = true;
+  }    
+#endif
+
   if (current_block != NULL) {
-    // Set directions TO DO This should be done once during init of trapezoid. Endstops -> interrupt
-    out_bits = current_block->direction_bits;
 
-    // Set direction en check limit switches
-    if ((out_bits & (1<<X_AXIS)) != 0) {   // -direction
-      stepperInterface[X_AXIS].setDirection(false);
-      count_direction[X_AXIS]=-1;
-    }
-    else { // +direction 
-      stepperInterface[X_AXIS].setDirection(true);
-      count_direction[X_AXIS]=1;
-    }
-
-    if ((out_bits & (1<<Y_AXIS)) != 0) {   // -direction
-      stepperInterface[Y_AXIS].setDirection(false);
-      count_direction[Y_AXIS]=-1;
-    }
-    else { // +direction
-      stepperInterface[Y_AXIS].setDirection(true);
-      count_direction[Y_AXIS]=1;
-    }
-
-    if ((out_bits & (1<<Z_AXIS)) != 0) {   // -direction
-      stepperInterface[Z_AXIS].setDirection(false);
-      count_direction[Z_AXIS]=-1;
-    }
-    else { // +direction
-      stepperInterface[Z_AXIS].setDirection(true);
-      count_direction[Z_AXIS]=1;
-    }
-
-    #ifndef ADVANCE
-      if ((out_bits & (1<<E_AXIS)) != 0) {  // -direction
-	stepperInterface[E_AXIS].setDirection(false);
-        count_direction[E_AXIS]=-1;
-      }
-      else { // +direction
-	stepperInterface[E_AXIS].setDirection(true);
-        count_direction[E_AXIS]=-1;
-      }
-    #endif //!ADVANCE
-    
-
-    
     for(int8_t i=0; i < step_loops; i++) { // Take multiple steps per interrupt (For high speed moves) 
-      #ifdef ADVANCE
-      counter_e += current_block->steps_e;
-      if (counter_e > 0) {
-        counter_e -= current_block->step_event_count;
-        if ((out_bits & (1<<E_AXIS)) != 0) { // - direction
-          e_steps[current_block->active_extruder]--;
-        }
-        else {
-          e_steps[current_block->active_extruder]++;
-        }
-      }    
-      #endif //ADVANCE
+#ifdef JKN_ADVANCE
+     if ( advance_state == ADVANCE_STATE_ACCEL ) {
+	dda_shift_phase(E_AXIS, current_block->advance_lead_entry);
+     }
+     if ( advance_state == ADVANCE_STATE_DECEL ) {
+	dda_shift_phase(E_AXIS, - current_block->advance_lead_exit);
+	dda_shift_phase(E_AXIS, - advance_pressure_relax_accumulator >> 8);
+     }
+#endif
       
-      counter_x += current_block->steps_x;
-      if (counter_x > 0) {
-	stepperInterface[X_AXIS].step(true);
-        counter_x -= current_block->step_event_count;
-	stepperInterface[X_AXIS].step(false);
-        count_position[X_AXIS]+=count_direction[X_AXIS];   
-      }
+      //Step the dda for each axis
+      for (uint8_t i = 0; i < NUM_AXIS; i ++ )
+      	dda_step(i);
 
-      counter_y += current_block->steps_y;
-      if (counter_y > 0) {
-	stepperInterface[Y_AXIS].step(true);
-        counter_y -= current_block->step_event_count;
-	stepperInterface[Y_AXIS].step(false);
-        count_position[Y_AXIS]+=count_direction[Y_AXIS];
-      }
+#ifdef OVERSAMPLED_DDA
+  oversampledCount = 0;
+#endif
 
-      counter_z += current_block->steps_z;
-      if (counter_z > 0) {
-	stepperInterface[Z_AXIS].step(true);
-        counter_z -= current_block->step_event_count;
-	stepperInterface[Z_AXIS].step(false);
-        count_position[Z_AXIS]+=count_direction[Z_AXIS];
-      }
-
-      #ifndef ADVANCE
-        counter_e += current_block->steps_e;
-        if (counter_e > 0) {
-	  stepperInterface[E_AXIS].step(true);
-          counter_e -= current_block->step_event_count;
-	  stepperInterface[E_AXIS].step(false);
-          count_position[E_AXIS]+=count_direction[E_AXIS];
-        }
-      #endif //!ADVANCE
       step_events_completed += 1;  
       if(step_events_completed >= current_block->step_event_count) break;
     }
-    // Calculare new timer value
-    unsigned short timer;
-    unsigned short step_rate;
+
+    // Calculate new timer value
+    uint16_t timer;
     if (step_events_completed <= (uint32_t)current_block->accelerate_until) {
       
+      // Note that we need to convert acceleration_time from units of
+      // 2 MHz to seconds.  That is done by dividing acceleration_time
+      // by 2000000.  But, that will make it 0 when we use integer
+      // arithmetic.  So, we first multiply block->acceleration_rate by
+      // acceleration_time and then do the divide.  However, it's
+      // convenient to divide by 2^24 ( >> 24 ).  So, block->acceleration_rate
+      // has been prescaled by a factor of 8.388608.
+
       MultiU24X24toH16(acc_step_rate, acceleration_time, current_block->acceleration_rate);
       acc_step_rate += current_block->initial_rate;
       
@@ -372,20 +505,33 @@ void st_interrupt()
 
       // step_rate to timer interval
       timer = calc_timer(acc_step_rate);
+#ifdef OVERSAMPLED_DDA
+      OCR1A = timer >> OVERSAMPLED_DDA;
+#else
       OCR1A = timer;
+#endif
       acceleration_time += timer;
-      #ifdef ADVANCE
-        for(int8_t i=0; i < step_loops; i++) {
-          advance += advance_rate;
-        }
-        //if(advance > current_block->advance) advance = current_block->advance;
-        // Do E steps + advance steps
-        e_steps[current_block->active_extruder] += ((advance >>8) - old_advance);
-        old_advance = advance >>8;  
-        
-      #endif
     } 
     else if (step_events_completed > (uint32_t)current_block->decelerate_after) {   
+#ifdef JKN_ADVANCE
+	if ( advance_state == ADVANCE_STATE_ACCEL ) {
+		advance_state = ADVANCE_STATE_PLATEAU;
+	}
+	if ( advance_state == ADVANCE_STATE_PLATEAU ) {
+		advance_state = ADVANCE_STATE_DECEL;
+		advance_pressure_relax_accumulator = 0;
+	}
+      advance_pressure_relax_accumulator += current_block->advance_pressure_relax;
+#endif
+
+      // Note that we need to convert deceleration_time from units of
+      // 2 MHz to seconds.  That is done by dividing deceleration_time
+      // by 2000000.  But, that will make it 0 when we use integer
+      // arithmetic.  So, we first multiply block->acceleration_rate by
+      // deceleration_time and then do the divide.  However, it's
+      // convenient to divide by 2^24 ( >> 24 ).  So, block->acceleration_rate
+      // has been prescaled by a factor of 8.388608.
+
       MultiU24X24toH16(step_rate, deceleration_time, current_block->acceleration_rate);
       
       if(step_rate > acc_step_rate) { // Check step_rate stays positive
@@ -393,111 +539,184 @@ void st_interrupt()
       }
       else {
         step_rate = acc_step_rate - step_rate; // Decelerate from aceleration end point.
+        // lower limit
+        if(step_rate < current_block->final_rate)
+          step_rate = current_block->final_rate;
       }
-
-      // lower limit
-      if(step_rate < current_block->final_rate)
-        step_rate = current_block->final_rate;
 
       // step_rate to timer interval
       timer = calc_timer(step_rate);
+#ifdef OVERSAMPLED_DDA
+      OCR1A = timer >> OVERSAMPLED_DDA;
+#else
       OCR1A = timer;
+#endif
       deceleration_time += timer;
-      #ifdef ADVANCE
-        for(int8_t i=0; i < step_loops; i++) {
-          advance -= advance_rate;
-        }
-        if(advance < final_advance) advance = final_advance;
-        // Do E steps + advance steps
-        e_steps[current_block->active_extruder] += ((advance >>8) - old_advance);
-        old_advance = advance >>8;  
-      #endif //ADVANCE
     }
     else {
+#ifdef JKN_ADVANCE
+	if ( advance_state == ADVANCE_STATE_ACCEL ) {
+		advance_state = ADVANCE_STATE_PLATEAU;
+	}
+#endif
+#ifdef OVERSAMPLED_DDA
+      OCR1A = OCR1A_nominal >> OVERSAMPLED_DDA;
+#else
       OCR1A = OCR1A_nominal;
+#endif
+      step_loops = step_loops_nominal;
     }
 
     // If current block is finished, reset pointer 
     if (step_events_completed >= current_block->step_event_count) {
+#ifdef JKN_ADVANCE
+      count_position[E_AXIS] = starting_e_position + current_block->steps[E_AXIS];
+      starting_e_position = 0;
+      lastAdvanceDeprime = current_block->advance_lead_deprime;
+#endif
       current_block = NULL;
       plan_discard_current_block();
+      block_deleted = true;
+	
+      //Preprocess the setup for the next block if have have one
+      current_block = plan_get_current_block();
+      if (current_block != NULL) {
+	setup_next_block();
+      } 
+#ifndef CMD_SET_POSITION_CAUSES_DRAIN
+      else {
+	//Buffer is empty, as the position may have since changed due to 
+	//plan_set_position, we update our position here
+  	memcpy((void *)count_position, position, sizeof(count_position)); // count_position[] = position
+     }
+#endif
     }   
   } 
+  return block_deleted;
 }
 
-#ifdef ADVANCE
+#ifdef JKN_ADVANCE
 void st_advance_interrupt()
   {
-    OCR4A = 100 * 16;
-	
+    uint8_t i;
+
+    //Increment the rate counters
+#ifdef JKN_ADVANCE
+    for ( i = 0; i < EXTRUDERS; i ++ )	st_advance_interrupt_rate_counter[i] ++;
+#endif
+
     // Set E direction (Depends on E direction + advance)
-    for(unsigned char i=0; i<4;i++) {
-      if (e_steps[0] != 0) {
+    for ( i = 0; e_steps[0] &&
+		 (st_advance_interrupt_rate_counter[0] >= st_advance_interrupt_rate) &&
+		 (i < advance_interrupt_steps_per_call); i ++ ) {
 	stepperInterface[E_AXIS].step(false);
         if (e_steps[0] < 0) {
       	  stepperInterface[E_AXIS].setDirection(false);
           e_steps[0]++;
-	  stepperInterface[E_AXIS].step(true);
+	  STEP_TRUE(E_AXIS, false);
+          count_position[E_AXIS]++;
         } 
         else if (e_steps[0] > 0) {
       	  stepperInterface[E_AXIS].setDirection(true);
           e_steps[0]--;
-	  stepperInterface[E_AXIS].step(true);
+	  STEP_TRUE(E_AXIS, true);
+          count_position[E_AXIS]--;
         }
-      }
+	st_advance_interrupt_rate_counter[0] = 0;
+    }
  #if EXTRUDERS > 1
-      if (e_steps[1] != 0) {
+    for ( i = 0; e_steps[1] &&
+		 (st_advance_interrupt_rate_counter[?] >= st_advance_interrupt_rate) &&
+		 (i < advance_interrupt_steps_per_call); i ++ ) {
 	//stepperInterface[?].step(false);
         if (e_steps[1] < 0) {
       	  stepperInterface[?].setDirection(false);
           e_steps[1]++;
-	  //stepperInterface[?].step(true);
+//	  STEP_TRUE(?, false);
+//        count_position[?]++;
         } 
         else if (e_steps[1] > 0) {
       	  stepperInterface[?].setDirection(true);
           e_steps[1]--;
-	  //stepperInterface[?].step(true);
+//	  STEP_TRUE(?, true);
+//        count_position[?]--;
         }
-      }
+	st_advance_interrupt_rate_counter[?] = 0;
+    }
  #endif
  #if EXTRUDERS > 2
-      if (e_steps[2] != 0) {
+    for ( i = 0; e_steps[2] &&
+		 (st_advance_interrupt_rate_counter[?] >= st_advance_interrupt_rate) &&
+		 (i < advance_interrupt_steps_per_call); i ++ ) {
 	//stepperInterface[?].step(false);
         if (e_steps[2] < 0) {
       	  //stepperInterface[?].setDirection(false);
           e_steps[2]++;
-	  //stepperInterface[?].step(true);
+//	  STEP_TRUE(?, false);
+//        count_position[?]++;
         } 
         else if (e_steps[2] > 0) {
       	  //stepperInterface[?].setDirection(true);
           e_steps[2]--;
-	  //stepperInterface[?].step(true);
+//	  STEP_TRUE(?, true);
+//        count_position[?]--;
         }
+	st_advance_interrupt_rate_counter[?] = 0;
       }
  #endif
-    }
   }
-#endif // ADVANCE
+#endif // JKN_ADVANCE
 
 void st_init()
 {
+  //Create the dda's
+  dda_create(X_AXIS, false);
+  dda_create(Y_AXIS, false);
+  dda_create(Z_AXIS, false);
+  dda_create(E_AXIS, true);
+
+#ifdef OVERSAMPLED_DDA
+  oversampledCount = 0;
+#endif
+
   //Grab the stepper interfaces
   stepperInterface = Motherboard::getBoard().getStepperAllInterfaces();
 
   Motherboard::getBoard().setupAccelStepperTimer();
 
-  #ifdef ADVANCE
-    e_steps[0] = 0;
-    e_steps[1] = 0;
-    e_steps[2] = 0;
-  #endif //ADVANCE
+  #ifdef JKN_ADVANCE
+    deprimed = true;
+    lastAdvanceDeprime = 0;
+  #endif
+
+#ifdef JKN_ADVANCE
+  //Calculate the smallest number of st_advance_interrupt's between extruder steps based on the the
+  //extruder_only_max_feedrate and an st_advance_interrupt of 10KHz (ADVANCE_INTERRUPT_FREQUENCY).
+  float st_advance_interrupt_ratef = (float)ADVANCE_INTERRUPT_FREQUENCY / (FPTOF(extruder_only_max_feedrate) * axis_steps_per_unit[E_AXIS]);
+
+  //Round up (slower), or if we need more steps than 1 in an interrupt (st_advance_interrupt_ratef < 1), then
+  //we need to process more steps in the loop
+  if	  ( st_advance_interrupt_ratef > 1.0 ) st_advance_interrupt_ratef = ceil(st_advance_interrupt_ratef);
+  else if ( st_advance_interrupt_ratef < 1.0 )st_advance_interrupt_ratef = 0;
+  st_advance_interrupt_rate = (uint32_t)st_advance_interrupt_ratef;
+
+  advance_interrupt_steps_per_call = 0;
+  if ( st_advance_interrupt_rate == 0 )
+	advance_interrupt_steps_per_call = ceil(1.0 / st_advance_interrupt_ratef);	
+  if ( advance_interrupt_steps_per_call < 1 ) advance_interrupt_steps_per_call = 1;
+
+    for ( uint8_t i = 0; i < EXTRUDERS; i ++ ) {
+	e_steps[i] = 0;
+	st_advance_interrupt_rate_counter[i] = st_advance_interrupt_rate;
+    }
+#endif
 }
 
 // Block until all buffered steps are executed
 bool st_empty()
 {
-    if ( blocks_queued() )	return false;
-    return true;
+    if (block_buffer_head == block_buffer_tail) return true;
+    return false;
 }
 
 void st_set_position(const int32_t &x, const int32_t &y, const int32_t &z, const int32_t &e)
@@ -507,6 +726,9 @@ void st_set_position(const int32_t &x, const int32_t &y, const int32_t &z, const
   count_position[Y_AXIS] = y;
   count_position[Z_AXIS] = z;
   count_position[E_AXIS] = e;
+#ifdef JKN_ADVANCE
+  starting_e_position = count_position[E_AXIS]; 
+#endif
   CRITICAL_SECTION_END;
 }
 
@@ -514,6 +736,9 @@ void st_set_e_position(const int32_t &e)
 {
   CRITICAL_SECTION_START;
   count_position[E_AXIS] = e;
+#ifdef JKN_ADVANCE
+  starting_e_position = count_position[E_AXIS]; 
+#endif
   CRITICAL_SECTION_END;
 }
 
@@ -530,7 +755,12 @@ void quickStop()
 {
   DISABLE_STEPPER_DRIVER_INTERRUPT();
   while(blocks_queued())
-    plan_discard_current_block();
+  	plan_discard_current_block();
+  current_block = NULL;
+  plan_set_position((const int32_t)count_position[X_AXIS],
+		    (const int32_t)count_position[Y_AXIS],
+		    (const int32_t)count_position[Z_AXIS],
+		    (const int32_t)count_position[E_AXIS]);
   ENABLE_STEPPER_DRIVER_INTERRUPT();
 }
 

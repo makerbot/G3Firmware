@@ -26,7 +26,7 @@
 // possible time between steps; in practical terms, your time between steps should
 // be at least eight times this large.  Reducing the interval can cause resource
 // starvation; leave this at 64uS or greater unless you know what you're doing.
-#define INTERVAL_IN_MICROSECONDS 64
+#define INTERVAL_IN_MICROSECONDS 128
 
 // The pin that connects to the /PS_ON pin on the PSU header.  This pin switches
 // on the PSU when pulled low.
@@ -151,5 +151,14 @@
 // configurable if we're short on cycles or EEPROM.
 // Define as 1 if debugging packets are honored; 0 if not.
 #define HONOR_DEBUG_PACKETS     1
+
+//Stepper Acceleration
+#define HAS_STEPPER_ACCELERATION        1
+
+//If defined, erase the eeprom area on every boot, useful for diagnostics
+//#define ERASE_EEPROM_ON_EVERY_BOOT
+
+//Defined on Atmega644p, indicates a 4K instead of 8K ram
+#define SMALL_4K_RAM
 
 #endif // BOARDS_RRMBV12_CONFIGURATION_HH_

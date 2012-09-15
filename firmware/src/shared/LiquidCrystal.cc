@@ -1,8 +1,42 @@
 #include "LiquidCrystal.hh"
+#include "Configuration.hh"
+
+#ifdef HAS_INTERFACE_BOARD
 
 #include <stdio.h>
 #include <string.h>
 #include <util/delay.h>
+#include <avr/eeprom.h>
+#include <avr/interrupt.h>
+#include "Eeprom.hh"
+#include "EepromMap.hh"
+#include "EepromDefaults.hh"
+
+
+//Custom display characters (Courtesy of Tonokip)
+
+uint8_t degree[8] =
+{
+	0x0C,	//01100
+	0x12,	//10010
+	0x12,	//10010
+	0x0C,	//01100
+	0x00,	//00000
+	0x00,	//00000
+	0x00,	//00000
+	0x00,	//00000
+};
+
+uint8_t thermometer[8] = {
+	0x04,	//00100
+	0x0A,	//01010
+	0x0A,	//01010
+	0x0A,	//01010
+	0x0A,	//01010
+	0x11,	//10001
+	0x11,	//10001
+	0x0E,	//01110
+};
 
 // When the display powers up, it is configured as follows:
 //
@@ -49,6 +83,33 @@ LiquidCrystal::LiquidCrystal(Pin rs,  Pin enable,
   init(1, rs, Pin(), enable, d0, d1, d2, d3, Pin(), Pin(), Pin(), Pin());
 }
 
+void LiquidCrystal::reloadDisplayType(void) {
+  uint8_t lcdType = eeprom::getEeprom8(eeprom::LCD_TYPE, EEPROM_DEFAULT_LCD_TYPE);
+  switch ( lcdType ) {
+	case LCD_TYPE_16x4:
+		_displayWidth	= 16;
+		_clearDelay	= 2000;
+		break;
+	case LCD_TYPE_20x4:
+		_displayWidth	= 20;
+		_clearDelay	= 15000;
+		break;
+	case LCD_TYPE_24x4:
+		_displayWidth	= 24;
+		_clearDelay	= 15000;
+		break;
+	default:
+		//If we're unrecognized, default to 16x4
+  		eeprom_write_byte((uint8_t*)eeprom::LCD_TYPE, EEPROM_DEFAULT_LCD_TYPE);
+		_displayWidth	= 16;
+		_clearDelay	= 2000;
+		break;
+		
+  }
+
+  begin(_displayWidth, 1);  
+}
+
 void LiquidCrystal::init(uint8_t fourbitmode, Pin rs, Pin rw, Pin enable,
 			 Pin d0, Pin d1, Pin d2, Pin d3,
 			 Pin d4, Pin d5, Pin d6, Pin d7)
@@ -75,8 +136,29 @@ void LiquidCrystal::init(uint8_t fourbitmode, Pin rs, Pin rw, Pin enable,
     _displayfunction = LCD_4BITMODE | LCD_1LINE | LCD_5x8DOTS;
   else 
     _displayfunction = LCD_8BITMODE | LCD_1LINE | LCD_5x8DOTS;
-  
-  begin(16, 1);  
+
+  reloadDisplayType();
+}
+
+void LiquidCrystal::nextLcdType(void) {
+  uint8_t newLcdType;
+  uint8_t lcdType = eeprom::getEeprom8(eeprom::LCD_TYPE, EEPROM_DEFAULT_LCD_TYPE);
+
+  switch ( lcdType ) {
+	case LCD_TYPE_16x4:
+		newLcdType = LCD_TYPE_20x4;
+		break;
+	case LCD_TYPE_20x4:
+		newLcdType = LCD_TYPE_24x4;
+		break;
+	case LCD_TYPE_24x4:
+		newLcdType = LCD_TYPE_16x4;
+		break;
+  }
+
+  cli();
+  eeprom_write_byte((uint8_t*)eeprom::LCD_TYPE,newLcdType);
+  sei();
 }
 
 void LiquidCrystal::begin(uint8_t cols, uint8_t lines, uint8_t dotsize) {
@@ -152,13 +234,16 @@ void LiquidCrystal::begin(uint8_t cols, uint8_t lines, uint8_t dotsize) {
   // set the entry mode
   command(LCD_ENTRYMODESET | _displaymode);
 
+  //Create 2 custom characters
+  createChar(1,degree);
+  createChar(2,thermometer);
 }
 
 /********** high level commands, for the user! */
 void LiquidCrystal::clear()
 {
   command(LCD_CLEARDISPLAY);  // clear display, set cursor position to zero
-  _delay_us(2000);  // this command takes a long time!
+  _delay_us(_clearDelay);  // this command takes a long time!
 }
 
 void LiquidCrystal::home()
@@ -169,7 +254,7 @@ void LiquidCrystal::home()
 
 void LiquidCrystal::setCursor(uint8_t col, uint8_t row)
 {
-  int row_offsets[] = { 0x00, 0x40, 0x10, 0x50 };
+  int row_offsets[] = { 0x00, 0x40, _displayWidth, 0x40 + _displayWidth };
   if ( row > _numlines ) {
     row = _numlines-1;    // we count rows starting w/0
   }
@@ -246,6 +331,7 @@ void LiquidCrystal::createChar(uint8_t location, uint8_t charmap[]) {
   command(LCD_SETCGRAMADDR | (location << 3));
   for (int i=0; i<8; i++) {
     write(charmap[i]);
+    _delay_us(4500); // wait min 4.5ms
   }
 }
 
@@ -430,3 +516,13 @@ void LiquidCrystal::write8bits(uint8_t value) {
   
   pulseEnable();
 }
+
+uint8_t LiquidCrystal::getDisplayWidth() {
+	return _displayWidth;
+}
+
+uint8_t LiquidCrystal::getDisplayHeight() {
+	return 4;
+}
+
+#endif

@@ -4,6 +4,7 @@
 #include "Types.hh"
 #include "ButtonArray.hh"
 #include "LiquidCrystal.hh"
+#include "Configuration.hh"
 
 /// The screen class defines a standard interface for anything that should
 /// be displayed on the LCD.
@@ -100,75 +101,37 @@ protected:
 	void handleSelect(uint8_t index);
 };
 
-class JogMode: public Screen {
-private:
-	enum distance_t {
-	  DISTANCE_0_1MM = 0,
-	  DISTANCE_1MM,
-	  DISTANCE_CONT,
-	};
-
-	UserViewMenu userViewMenu;
-
-	distance_t jogDistance;
-	bool distanceChanged;
-	bool userViewMode;
-	bool userViewModeChanged;
-	ButtonArray::ButtonName lastDirectionButtonPressed;
-
-        void jog(ButtonArray::ButtonName direction);
-
+class JoggerMenu: public Screen {
 public:
+        enum distance_t {
+          DISTANCE_0_1MM = 0,
+          DISTANCE_1MM,
+          DISTANCE_CONT,
+        };
+
 	micros_t getUpdateRate() {return 50L * 1000L;}
 
-	void update(LiquidCrystal& lcd, bool forceRedraw);
+	distance_t jogDistance;
 
-	void reset();
+	ButtonArray::ButtonName lastDirectionButtonPressed;
 
-        void notifyButtonPressed(ButtonArray::ButtonName button);
+	void jog(ButtonArray::ButtonName direction, bool pauseModeJog);
+
+	bool userViewMode;
 };
 
-/// This is an easter egg.
-class SnakeMode: public Screen {
-
-#define MAX_SNAKE_SIZE 20      ///< Maximum length our snake can grow to
-#define APPLES_BEFORE_GROW 4   ///< Number of apples the snake must eat before growing
-#define START_SPEED  60        ///< Starting speed, in screen refresh times per turn
-
-
+class JogMode: public JoggerMenu {
 private:
-	micros_t updateRate;
+	UserViewMenu userViewMenu;
 
-	struct coord_t {
-		int8_t x;
-		int8_t y;
-	};
-
-	enum direction_t {
-	  DIR_NORTH,
-	  DIR_EAST,
-	  DIR_SOUTH,
-	  DIR_WEST
-	};
-
-	int snakeLength;					// Length of our snake; this grows for every x 'apples' eaten
-	coord_t snakeBody[MAX_SNAKE_SIZE];	// Table of each piece of the snakes body
-	bool snakeAlive;					// The state of our snake
-	direction_t snakeDirection;			// The direction the snake is heading
-	coord_t applePosition;				// Location of the apple
-	uint8_t applesEaten;				// Number of apples that have been eaten
-//	int gameSpeed = START_SPEED;		// Speed of the game (in ms per turn)
-
+	bool distanceChanged;
+	bool userViewModeChanged;
 
 public:
-	micros_t getUpdateRate() {return updateRate;}
-
-	// Refresh the display information
 	void update(LiquidCrystal& lcd, bool forceRedraw);
 
 	void reset();
 
-	// Get notified that a button was pressed
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
@@ -210,19 +173,15 @@ protected:
 	void handleSelect(uint8_t index);
 };
 
-
-class PauseMode: public Screen {
+class PauseMode: public JoggerMenu {
 private:
-	ButtonArray::ButtonName lastDirectionButtonPressed;
-
-        void jog(ButtonArray::ButtonName direction);
-
 	uint8_t pauseState;
 
 public:
 	bool autoPause;
-
-	micros_t getUpdateRate() {return 50L * 1000L;}
+	bool noheatPause;
+	uint16_t tool0SetPoint;
+	uint16_t hbpSetPoint;
 
 	void update(LiquidCrystal& lcd, bool forceRedraw);
 
@@ -286,6 +245,7 @@ private:
 		BUILD_TIME_PHASE_ZPOS,
 		BUILD_TIME_PHASE_FILAMENT,
 		BUILD_TIME_PHASE_COPIES_PRINTED,
+		BUILD_TIME_PHASE_ACCEL_STATS,
 		BUILD_TIME_PHASE_LAST	//Not counted, just an end marker
 	};
 
@@ -299,6 +259,9 @@ private:
 	bool	overrideForceRedraw;
 	uint8_t	copiesPrinted;
 	bool	timeLeftDisplayed;
+	bool	toggleHeating;
+	bool	flashingTool;
+	bool	flashingPlatform;
 
 public:
 	micros_t getUpdateRate() {return 500L * 1000L;}
@@ -325,26 +288,16 @@ public:
 };
 
 
-class Tool0TempSetScreen: public Screen {
+class ValueSetScreen: public Screen {
 private:
 	uint8_t value;
 
 public:
-	micros_t getUpdateRate() {return 100L * 1000L;}
+	char *message1;
+	char *units;
+	uint16_t location;
+	uint8_t default_value;
 
-	void update(LiquidCrystal& lcd, bool forceRedraw);
-
-	void reset();
-
-        void notifyButtonPressed(ButtonArray::ButtonName button);
-};
-
-
-class PlatformTempSetScreen: public Screen {
-private:
-	uint8_t value;
-
-public:
 	micros_t getUpdateRate() {return 100L * 1000L;}
 
 	void update(LiquidCrystal& lcd, bool forceRedraw);
@@ -371,8 +324,7 @@ private:
 	uint16_t platformTemp;
 
         /// Static instances of our menus
-        Tool0TempSetScreen tool0TempSetScreen;
-        PlatformTempSetScreen platTempSetScreen;
+        ValueSetScreen heaterTempSetScreen;
 };
 
 class ExtruderTooColdMenu: public Menu {
@@ -384,20 +336,8 @@ protected:
 	void drawItem(uint8_t index, LiquidCrystal& lcd);
 
 	void handleSelect(uint8_t index);
-};
 
-class ExtruderSetRpmScreen: public Screen {
-private:
-	uint8_t rpm;
-
-public:
-	micros_t getUpdateRate() {return 100L * 1000L;}
-
-	void update(LiquidCrystal& lcd, bool forceRedraw);
-
-	void reset();
-
-        void notifyButtonPressed(ButtonArray::ButtonName button);
+	void handleCancel();
 };
 
 class ExtruderMode: public Screen {
@@ -419,11 +359,11 @@ private:
 	bool timeChanged;
 	int16_t lastDirection;
 	ExtruderTooColdMenu extruderTooColdMenu;
-        ExtruderSetRpmScreen extruderSetRpmScreen;
+        ValueSetScreen extruderSetMMSScreen;
 
 	uint8_t updatePhase;
 
-	void extrude(seconds_t steps, bool overrideTempCheck);
+	void extrude(int32_t seconds, bool overrideTempCheck);
 
 public:
 	micros_t getUpdateRate() {return 50L * 1000L;}
@@ -473,9 +413,24 @@ public:
 	void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+class EndStopConfigScreen: public Screen {
+private:
+	uint8_t endstops;
+
+public:
+	micros_t getUpdateRate() {return 100L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
 class HomeAxisMode: public Screen {
 private:
         void home(ButtonArray::ButtonName direction);
+	EndStopConfigScreen endStopConfigScreen;
 
 public:
 	micros_t getUpdateRate() {return 50L * 1000L;}
@@ -487,15 +442,33 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
-class SteppersMenu: public Menu {
+class EnabledDisabledMenu: public Menu {
 public:
-	SteppersMenu();
+	EnabledDisabledMenu();
 
 	void resetState();
+
 protected:
 	void drawItem(uint8_t index, LiquidCrystal& lcd);
 
 	void handleSelect(uint8_t index);
+
+	virtual void enable(bool enabled) {};
+	
+	virtual bool isEnabled() {return false;};
+
+	virtual void setupTitle() {};
+
+	char *msg1, *msg2;
+};
+
+class SteppersMenu: public EnabledDisabledMenu {
+private:
+	void enable(bool enabled);
+	
+	bool isEnabled();
+
+	void setupTitle();
 };
 
 class TestEndStopsMode: public Screen {
@@ -588,15 +561,13 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
-class ExtruderFanMenu: public Menu {
-public:
-	ExtruderFanMenu();
+class ExtruderFanMenu: public EnabledDisabledMenu {
+private:
+	void enable(bool enabled);
+	
+	bool isEnabled();
 
-	void resetState();
-protected:
-	void drawItem(uint8_t index, LiquidCrystal& lcd);
-
-	void handleSelect(uint8_t index);
+	void setupTitle();
 };
 
 class StepsPerMMMode: public Screen {
@@ -666,26 +637,22 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
-class PreheatDuringEstimateMenu: public Menu {
-public:
-	PreheatDuringEstimateMenu();
+class PreheatDuringEstimateMenu: public EnabledDisabledMenu {
+private:
+	void enable(bool enabled);
+	
+	bool isEnabled();
 
-	void resetState();
-protected:
-	void drawItem(uint8_t index, LiquidCrystal& lcd);
-
-	void handleSelect(uint8_t index);
+	void setupTitle();
 };
 
-class OverrideGCodeTempMenu: public Menu {
-public:
-	OverrideGCodeTempMenu();
+class OverrideGCodeTempMenu: public EnabledDisabledMenu {
+private:
+	void enable(bool enabled);
+	
+	bool isEnabled();
 
-	void resetState();
-protected:
-	void drawItem(uint8_t index, LiquidCrystal& lcd);
-
-	void handleSelect(uint8_t index);
+	void setupTitle();
 };
 
 class StepperDriverAcceleratedMenu: public Menu {
@@ -699,10 +666,19 @@ protected:
 	void handleSelect(uint8_t index);
 };
 
+class Extruder5DMenu: public EnabledDisabledMenu {
+private:
+	void enable(bool enabled);
+	
+	bool isEnabled();
+
+	void setupTitle();
+};
+
 class AcceleratedSettingsMode: public Screen {
 private:
 	enum accelerateSettingsState {
-		AS_NONE,
+		AS_NONE = 0,
 		AS_MAX_FEEDRATE_X,
 		AS_MAX_FEEDRATE_Y,
 		AS_MAX_FEEDRATE_Z,
@@ -715,15 +691,25 @@ private:
 		AS_MAX_EXTRUDER_RETRACT,
 		AS_MIN_FEED_RATE,
 		AS_MIN_TRAVEL_FEED_RATE,
-		AS_MAX_XY_JERK,
-		AS_MAX_Z_JERK,
+		AS_MIN_PLANNER_SPEED,
 		AS_ADVANCE_K,
-		AS_FILAMENT_DIAMETER,
+		AS_ADVANCE_K2,
+		AS_NOODLE_DIAMETER,
+		AS_MIN_SEGMENT_TIME,
+		AS_REV_MAX_FEED_RATE,
+		AS_EXTRUDER_DEPRIME,
+		AS_SLOWDOWN_LIMIT,
+		AS_CLOCKWISE_EXTRUDER,
+		AS_MAX_SPEED_CHANGE_X,
+		AS_MAX_SPEED_CHANGE_Y,
+		AS_MAX_SPEED_CHANGE_Z,
+		AS_MAX_SPEED_CHANGE_A,
+		AS_LAST_ENTRY = AS_MAX_SPEED_CHANGE_A
 	};
 
 	enum accelerateSettingsState accelerateSettingsState, lastAccelerateSettingsState;
 
-	uint32_t values[16];
+	uint32_t values[AS_LAST_ENTRY];
 
 public:
 	micros_t getUpdateRate() {return 50L * 1000L;}
@@ -807,6 +793,7 @@ private:
 	OverrideGCodeTempMenu		overrideGCodeTempMenu;
 	ABPCopiesSetScreen		abpCopiesSetScreen;
 	AccelerationMenu		accelerationMenu;
+	Extruder5DMenu			extruder5DMenu;
 public:
 	BuildSettingsMenu();
 
@@ -838,7 +825,7 @@ class ProfileDisplaySettingsMenu: public Menu {
 private:
 	uint8_t profileName[8+1];
 	int32_t homeX, homeY, homeZ;
-	uint8_t hbpTemp, tool0Temp, tool1Temp, extruderRpm;
+	uint8_t hbpTemp, tool0Temp, tool1Temp, extruderMMS;
 public:
 	ProfileDisplaySettingsMenu();
 
@@ -894,6 +881,46 @@ public:
         void notifyButtonPressed(ButtonArray::ButtonName button);
 };
 
+class HomingFeedRatesMode: public Screen {
+private:
+	enum homingFRateState {
+		HFRS_NONE,
+		HFRS_OFFSET_X,
+		HFRS_OFFSET_Y,
+		HFRS_OFFSET_Z,
+	};
+
+	enum homingFRateState homingFeedRateState, lastHomingFeedRateState;
+
+	uint32_t homingFeedRate[3];
+
+public:
+	micros_t getUpdateRate() {return 50L * 1000L;}
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
+
+	void reset();
+
+        void notifyButtonPressed(ButtonArray::ButtonName button);
+};
+
+#ifdef EEPROM_MENU_ENABLE
+
+class EepromMenu: public Menu {
+public:
+        EepromMenu();
+
+        void resetState();
+protected:
+        void drawItem(uint8_t index, LiquidCrystal& lcd);
+
+        void handleSelect(uint8_t index);
+private:
+	uint8_t safetyGuard;
+};
+
+#endif
+
 class MainMenu: public Menu {
 public:
 	MainMenu();
@@ -902,6 +929,8 @@ protected:
 	void drawItem(uint8_t index, LiquidCrystal& lcd);
 
 	void handleSelect(uint8_t index);
+
+	void update(LiquidCrystal& lcd, bool forceRedraw);
 
 private:
         /// Static instances of our menus
@@ -925,9 +954,14 @@ private:
 	TestEndStopsMode testEndStopsMode;
         VersionMode versionMode;
 	MoodLightMode	moodLightMode;
-        SnakeMode snake;
+	HomingFeedRatesMode homingFeedRatesMode;
+#ifdef EEPROM_MENU_ENABLE
+	EepromMenu eepromMenu;
+#endif
 
 	int64_t checkAndGetEepromDefault(const uint16_t location, const int64_t default_value);
+
+	float lcdTypeChangeTimer;
 };
 
 #endif

@@ -24,7 +24,7 @@ InterfaceBoard::InterfaceBoard(ButtonArray& buttons_in,
 void InterfaceBoard::init() {
         buttons.init();
 
-        lcd.begin(LCD_SCREEN_WIDTH, LCD_SCREEN_HEIGHT);
+        lcd.begin(lcd.getDisplayWidth(), lcd.getDisplayHeight());
         lcd.clear();
         lcd.home();
 

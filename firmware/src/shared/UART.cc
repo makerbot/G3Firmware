@@ -61,7 +61,7 @@ volatile uint8_t loopback_bytes = 0;
         UCSR0C = _BV(UCSZ01)|_BV(UCSZ00); \
     }
 
-#elif defined (__AVR_ATmega644P__)
+#elif defined (__AVR_ATmega644P__) || defined (OVERRIDE_UART_TO_38400_BAUD)
 
     #define UBRR_VALUE 25
     #define UBRRA_VALUE 0

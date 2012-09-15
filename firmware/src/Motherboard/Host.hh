@@ -72,6 +72,10 @@ bool isBuildComplete();
 
 //Sets the host state to building (if it's estimating)
 void setHostStateBuildingFromSD();
+
+// Prepares for a soft reset() by saving filament counters and stopping the build
+void prepReset();
+
 }
 
 #endif // HOST_HH_

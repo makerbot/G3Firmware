@@ -28,6 +28,7 @@
 #include "SDCard.hh"
 #include "Eeprom.hh"
 #include "EepromMap.hh"
+#include "EepromDefaults.hh"
 #include "Errors.hh"
 
 
@@ -42,14 +43,18 @@ void reset(bool hard_reset) {
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
 		Motherboard& board = Motherboard::getBoard();
 		sdcard::reset();
-		steppers::abort();
-		steppers::reset();
 		command::reset();
+#ifndef ERASE_EEPROM_ON_EVERY_BOOT
 		eeprom::init();
+#endif
+		sei();
 		board.reset(hard_reset);
 
+		steppers::abort();
+		steppers::reset();
+
 #ifdef HAS_ESTOP
-		const uint8_t estop_conf = eeprom::getEeprom8(eeprom::ESTOP_CONFIGURATION, 0);
+		const uint8_t estop_conf = eeprom::getEeprom8(eeprom::ESTOP_CONFIGURATION, EEPROM_DEFAULT_ESTOP_CONFIGURATION);
 		if (estop_conf == eeprom::ESTOP_CONF_ACTIVE_HIGH) {
 			ESTOP_ENABLE_RISING_INT;
 		} else if (estop_conf == eeprom::ESTOP_CONF_ACTIVE_LOW) {
@@ -64,7 +69,6 @@ void reset(bool hard_reset) {
 		atxLastPowerGood = ATX_POWER_GOOD.getValue();
 #endif
 
-		sei();
 		// If we've just come from a hard reset, wait for 2.5 seconds before
 		// trying to ping an extruder.  This gives the extruder time to boot
 		// before we send it a packet.
@@ -83,6 +87,10 @@ void reset(bool hard_reset) {
 
 int main() {
 
+#ifdef ERASE_EEPROM_ON_EVERY_BOOT
+	eeprom::erase();
+#endif
+
 	Motherboard& board = Motherboard::getBoard();
 	steppers::init(Motherboard::getBoard());
 	reset(true);
@@ -96,6 +104,8 @@ int main() {
 		command::runCommandSlice();
 		// Motherboard slice
 		board.runMotherboardSlice();
+		// Stepper slice
+		steppers::runSteppersSlice();
 
 #ifdef HAS_ATX_POWER_GOOD
 		/// Workaround for hardware issue, where powering on with USB connected
@@ -117,14 +127,12 @@ int main() {
 #ifdef HAS_ESTOP
 ISR(ESTOP_vect, ISR_NOBLOCK) {
 	// Emergency stop triggered; reset everything and kill the interface to RepG
-	INTERFACE_BAR_PIN.setValue(true);
-	INTERFACE_BAR_PIN.setDirection(true);
 	tool::reset();
 	steppers::abort();
 	command::reset();
 	UART::getHostUART().enable(false);
 	Motherboard::getBoard().indicateError(ERR_ESTOP);
-	Motherboard::getBoard().buzz(7, 10, eeprom::getEeprom8(eeprom::BUZZER_REPEATS, 3));
+	Motherboard::getBoard().buzz(7, 10, eeprom::getEeprom8(eeprom::BUZZER_REPEATS, EEPROM_DEFAULT_BUZZER_REPEATS));
   
 }
 #endif

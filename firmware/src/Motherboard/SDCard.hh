@@ -68,6 +68,10 @@ namespace sdcard {
     /// \param[in] packet Packet to write to file.
     void capturePacket(const Packet& packet);
 
+#ifdef EEPROM_MENU_ENABLE
+    /// Writes b to the open file
+    void writeByte(uint8_t b);
+#endif
 
     /// Complete the capture, and flush buffers.  Return the number of bytes
     /// written to the card.

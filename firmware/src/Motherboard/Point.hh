@@ -11,7 +11,7 @@
 /// stepper axes present in the system. Can support 3 or 5 axes.
 class Point {
 private:
-        int32_t coordinates[AXIS_COUNT];        ///< n-dimensional coordinate
+        int32_t coordinates[5];        ///< n-dimensional coordinate
 public:
         /// Default point constructor
         Point();

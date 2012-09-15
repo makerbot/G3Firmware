@@ -25,6 +25,8 @@
 #include "Command.hh"
 #include "Eeprom.hh"
 #include "EepromMap.hh"
+#include "EepromDefaults.hh"
+#include "StepperAccelPlanner.hh"
 
 /// Instantiate static motherboard instance
 Motherboard Motherboard::motherboard(PSU_PIN);
@@ -66,14 +68,33 @@ Motherboard::Motherboard(const Pin& psu_pin) :
                                       Pin(),
                                       eeprom::AXIS_INVERSION);
 #endif
-#if STEPPER_COUNT > 4
-        stepper[4] = StepperInterface(B_DIR_PIN,
-                                      B_STEP_PIN,
-                                      B_ENABLE_PIN,
-                                      Pin(),
-                                      Pin(),
-                                      eeprom::AXIS_INVERSION);
-#endif
+}
+
+void Motherboard::setupFixedStepperTimer() {
+        TCCR1A = 0x00;
+        TCCR1B = 0x09;
+        TCCR1C = 0x00;
+        OCR1A = INTERVAL_IN_MICROSECONDS * 16;
+        TIMSK1 = 0x02; // turn on OCR1A match interrupt
+}
+
+void Motherboard::setupAccelStepperTimer() {
+	TCCR1A = 0x00;
+	TCCR1B = 0x0A; //CTC1 + / 8 = 2Mhz.
+	TCCR1C = 0x00;
+  	OCR1A = 0x2000;	//1KHz
+	TIMSK1 = 0x02; // turn on OCR1A match interrupt
+}
+
+void Motherboard::enableTimerInterrupts(bool enable) {
+	if ( enable ) {
+		TIMSK1 |= (1<<OCIE1A);
+		TIMSK2 |= (1<<OCIE2A);
+	}
+	else {
+		TIMSK1 &= ~(1<<OCIE1A);
+		TIMSK2 &= ~(1<<OCIE2A);
+	}
 }
 
 /// Reset the motherboard to its initial state.
@@ -87,7 +108,7 @@ void Motherboard::reset(bool hard_reset) {
         psu.turnOn(true);
 
 	// Init steppers
-	uint8_t axis_invert = eeprom::getEeprom8(eeprom::AXIS_INVERSION, 0);
+	uint8_t axis_invert = eeprom::getEeprom8(eeprom::AXIS_INVERSION, EEPROM_DEFAULT_AXIS_INVERSION);
 	// Z holding indicates that when the Z axis is not in
 	// motion, the machine should continue to power the stepper
 	// coil to ensure that the Z stage does not shift.
@@ -117,18 +138,17 @@ void Motherboard::reset(bool hard_reset) {
         UART::getSlaveUART().reset();
         UART::getSlaveUART().out.reset();
 
+        // Reset and configure timer 1, the stepper driver
+        // interrupt timer.
+        setupFixedStepperTimer();
 
-	// Reset and configure timer 1, the microsecond and stepper
-	// interrupt timer.
-	TCCR1A = 0x00;
-	TCCR1B = 0x09;
-	TCCR1C = 0x00;
-	OCR1A = INTERVAL_IN_MICROSECONDS * 16;
-	TIMSK1 = 0x02; // turn on OCR1A match interrupt
-	// Reset and configure timer 2, the debug LED flasher timer.
-	TCCR2A = 0x00;
-	TCCR2B = 0x07; // prescaler at 1/1024
-	TIMSK2 = 0x01; // OVF flag on
+	// Reset and configure timer 2, the debug LED flasher timer, Advance timer and microsecond timer
+	// Timer 2 is a 8-bit
+	TCCR2A = 0x02;	// CTC
+	TCCR2B = 0x04;	// prescaler at 1/64
+	OCR2A  = 25;	// Generate interrupts 16MHz / 64 / 25 = 10KHz
+	TIMSK2 = 0x02;	// turn on OCR2A match interrupt
+
 	// Configure the debug pin.
 	DEBUG_PIN.setDirection(true);
 }
@@ -151,17 +171,34 @@ void Motherboard::runMotherboardSlice() {
 void Motherboard::resetCurrentSeconds() {
 }
 
+#if defined(JKN_ADVANCE) && defined(HAS_STEPPER_ACCELERATION)
+
+void Motherboard::doAdvanceInterrupt() {
+	steppers::doAdvanceInterrupt();
+}
+
+#endif
+
 /// Run the motherboard interrupt
-void Motherboard::doInterrupt() {
-	micros += INTERVAL_IN_MICROSECONDS;
+void Motherboard::doStepperInterrupt() {
+	enableTimerInterrupts(false);
+	sei();
+
 	// Do not move steppers if the board is in a paused state
 	if (command::isPaused()) return;
 	steppers::doInterrupt();
+
+	cli();
+	enableTimerInterrupts(true);
+}
+
+void Motherboard::updateMicros() {
+	micros += 100;	//100 = (1.0 / ( 16MHz / 64 / 25 = 10KHz)) * 1000000;
 }
 
 /// Timer one comparator match interrupt
 ISR(TIMER1_COMPA_vect) {
-	Motherboard::getBoard().doInterrupt();
+	Motherboard::getBoard().doStepperInterrupt();
 }
 
 /// Number of times to blink the debug LED on each cycle
@@ -204,8 +241,23 @@ int blink_ovfs_remaining = 0;
 /// Number of blinks performed in the current cycle
 int blinked_so_far = 0;
 
-/// Timer 2 overflow interrupt
-ISR(TIMER2_OVF_vect) {
+int debug_light_interrupt_divisor = 0;
+#define MAX_DEBUG_LIGHT_INTERRUPT_DIVISOR	164	//Timer interrupt frequency / (16MHz / 1026 / 256)
+
+/// Timer 2 comparator match interrupt
+ISR(TIMER2_COMPA_vect) {
+	Motherboard::getBoard().updateMicros();
+
+#if defined(JKN_ADVANCE) && defined(HAS_STEPPER_ACCELERATION)
+	Motherboard::getBoard().doAdvanceInterrupt();
+#endif
+
+	debug_light_interrupt_divisor ++;
+	if ( debug_light_interrupt_divisor < MAX_DEBUG_LIGHT_INTERRUPT_DIVISOR )
+		return;
+
+	debug_light_interrupt_divisor = 0;
+
 	if (blink_ovfs_remaining > 0) {
 		blink_ovfs_remaining--;
 	} else {

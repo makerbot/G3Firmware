@@ -88,24 +88,44 @@ namespace steppers {
     void definePosition(const Point& position);
 
     /// Switch to the regular driver
-    void switchToRegularDriver();
+    /// If lockout = true, acceleration can't be autoswitched back on extrusion until
+    /// switchToAcceleratedDriver has been called
+    void switchToRegularDriver(bool lockout);
 
     ///Switch to the accelerated driver
     void switchToAcceleratedDriver();
 
-//Debugging
-void doLcd();
+    ///Returns true if we're current running accelerated
+    bool isAccelerated(void);
+
+    /// Toggle segment acceleration on or off
+    void setSegmentAccelState(bool state);
+
+#ifdef DEBUG_ZADVANCE
+    void doLcd();
+#endif
+
+    //Run the stepper slice
+    void runSteppersSlice();
 
     /// Handle interrupt.
-    /// \return True if the stepper subsystem is currently in motion.
-    bool doInterrupt();
+    void doInterrupt();
 
-    //Used for the ADVANCE algorithm in Marlin
+    //Used for the JKN_ADVANCE algorithm
     bool doAdvanceInterrupt();
 
-    /// Get the current system position
-    /// \return The current machine position.
+    /// Get position
+    /// When accelerated, this is the target position of the command at the end of the pipeline
     const Point getPosition();
+
+    /// Get current position
+    /// When accelerated, this is the position right now
+    const Point getCurrentPosition();
+
+#ifdef HAS_STEPPER_ACCELERATION
+    /// Drains the acceleration buffer to empty
+    void drainAccelerationBuffer(void);
+#endif
 
     /// Control whether the Z axis should stay enabled during the entire
     /// build (defaults to off). This is useful for machines that have

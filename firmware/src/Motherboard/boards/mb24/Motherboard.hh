@@ -44,6 +44,7 @@ private:
 public:
         /// Get the motherboard instance.
         static Motherboard& getBoard() { return motherboard; }
+        LiquidCrystal lcd;
 
 private:
         /// Collection of stepper controllers that are on this board
@@ -64,7 +65,6 @@ private:
 	bool hasInterfaceBoard;
 
         ButtonArray buttonArray;
-        LiquidCrystal lcd;
         InterfaceBoard interfaceBoard;
 	MoodLightController   moodLightController;
 
@@ -98,6 +98,9 @@ public:
 	//2 types of stepper timers depending on if we're using accelerated or not
 	void setupFixedStepperTimer();
 	void setupAccelStepperTimer();
+
+	//Enable / Disable Timer Interrupts
+	void enableTimerInterrupts(bool enable);
 
 	/// Reset the motherboard to its initial state.
 	/// This only resets the board, and does not send a reset

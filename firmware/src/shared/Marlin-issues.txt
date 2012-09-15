@@ -1,0 +1,114 @@
+1. [Status: Not an issue for Jetty firmware]
+
+   About the commented out cosine based jerk calcs in planner.cpp.  Originally,
+   that code could NOT have worked correctly because the distance used
+   to normalize the vectors in the dot product used the extruder distance.
+   Whereas, the dot product in the cosine code only used the x, y, and z axes.
+   Thus, the normalization of the (x,y,z) vector was incorrect.  Either that,
+   or the extruder axis component should have been included in the vector dot
+   product.  Owing to that error, an incorrect value was computed for the
+   cosine of the angle for every move which included extruder steps!
+
+   Now that Marlin has changed the distance calculation to no longer
+   include the extruder axis in the distance, that cosine jerk code
+   should be retested.
+
+   See commit 6ef8459 to ErikZalm/Marlin for the change to the distance calc,
+
+      https://github.com/ErikZalm/Marlin/commit/6ef8459494cd5ffdc1b2098f81a8346e006c8657
+
+2. [Status: fixed in Jetty firmware in r248 on 28 March 2012.  Was causing
+    z-axis slippage and other unexpected speed increases.]
+
+   It's possible for block->final_rate to be set larger than
+   block->nominal_rate.  This occurs when the next block's entry_speed
+   is larger than the current block's nominal speed.  In that case,
+   planner_recalculate_trapezoids() makes the call
+
+    calculate_trapezoid_for_block(current,
+		current->entry_speed/current->nominal_speed,
+		next->entry_speed/current->nominal_speed);
+
+   Since next->entry_speed > current->nominal_speed, an exit_factor > 1 is
+   passed to calculate_trapezoid_for_block().  This, in turn, causes
+   calculate_trapezoid_for_block() to set the final_rate to a value
+   larger than the nominal_rate.  That then causes any of the max feed
+   rate limits for the block to then be superceded.  For example, if the
+   block was primarily an extruder move with a critical max feed rate, then
+   that feed rate may be exceeded by putting the final_rate > nominal_rate.
+
+   While further passes through the planner might rectify this, it's always
+   possible that st_interrupt() will pick up and process the block before
+   this error is mollified.
+
+   One fix is to have calculate_trapezoid_for_block() always check
+   entry_ and exit_factor and ensure that they do not exceed 1.
+
+3. [Status: indirectly fixed in Jetty Firmware by virtue of fixing Issue
+    2 above.]
+
+   In st_interrupt() there can be a sudden speed jump in cases where
+   block->final_rate > block->nominal_rate.  [See 2. above for cases
+   where this happens.]  This sudden speed jump occurs in the deceleration
+   phase when the following check is performed,
+
+      if(step_rate > acc_step_rate) { // Check step_rate stays positive
+        step_rate = current_block->final_rate;
+      }
+      else {
+        step_rate = acc_step_rate - step_rate; // Decelerate from aceleration end point.
+      }
+
+      // lower limit
+      if(step_rate < current_block->final_rate)
+        step_rate = current_block->final_rate;
+
+      Since acc_step_rate <= nominal_rate and nominal_rate < final_rate,
+      either of those limit checks will simply set step_rate to be final_rate.
+      As a result, as soon as the deceleration phase is entered, the stepper
+      rate immediately jumps to final_rate.
+
+4. [Status: fixed in Jetty firmware in r91 on 9 March 2012.]
+
+   In stepper.cpp, calling calc_timer() has a known side-effect of changing the
+   global variable step_loops.  Consequently, when trapezoid_generator_reset()
+   sets up for the next block, it should call calc_timer() first for the
+   nominal (plateau) rate and then call calc_timer() for the initial_rate
+   (acceleration phase).  Because it calls calc_timer() for the nominal
+   rate AFTER calling it for initial_rate, step_loops has the wrong value
+   when st_interrupt() begins handling the first set of acceleration steps.
+
+   trapezoid_generator_reset() should be changed from
+
+  acc_step_rate = current_block->initial_rate;
+  acceleration_time = calc_timer(acc_step_rate);
+  OCR1A = acceleration_time;
+  OCR1A_nominal = calc_timer(current_block->nominal_rate);
+
+   to
+
+  OCR1A_nominal = calc_timer(current_block->nominal_rate);
+  acc_step_rate = current_block->initial_rate;
+  acceleration_time = calc_timer(acc_step_rate);
+  OCR1A = acceleration_time;
+
+5. [Status: fixed in Jetty firmware in r43 on 1 March 2012.]
+
+   In planner_reverse_pass(), the while loop can run through blocks it
+   shouldn't.  At issue is the fact that block_buffer_tail can change
+   everytime st_interrupt() runs and releases a block.  In the following
+   example, the while loop should stop after index == 4.  However, it
+   won't as the tail gets incremented to 5 before the test which whould
+   have terminated the loop occurs.
+
+main line code: index = 5, tail = 4; index != tail
+main line code: index = prev_index() --> index = 4
+interrupt: increments tail to 5
+main line code: index = 4; tail = 5; index != tail
+… main line code now chugs along, doing index = 3, index = 2, …
+… main line code goes through blocks it shouldn't have
+
+   planner_reverse_pass() needs to save a local copy of block_buffer_tail()
+   before the loop begins.
+
+-- finit --

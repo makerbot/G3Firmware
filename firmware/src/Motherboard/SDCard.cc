@@ -241,6 +241,14 @@ void capturePacket(const Packet& packet)
 	capturedBytes += packet.getLength();
 }
 
+#ifdef EEPROM_MENU_ENABLE
+
+/// Writes b to the open file
+void writeByte(uint8_t b) {
+	fat_write_file(file, (uint8_t *)&b, (uintptr_t)1);
+}
+
+#endif
 
 uint32_t finishCapture()
 {

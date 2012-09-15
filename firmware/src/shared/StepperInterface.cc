@@ -18,6 +18,7 @@
 #include "StepperInterface.hh"
 #include "Eeprom.hh"
 #include "EepromMap.hh"
+#include "EepromDefaults.hh"
 #include "Configuration.hh"
 
 StepperInterface::StepperInterface(const Pin& dir,
@@ -75,7 +76,8 @@ void StepperInterface::init(uint8_t idx) {
 	enable_pin.setValue(true);
 	enable_pin.setDirection(true);
 	// get inversion characteristics
-        uint8_t axes_invert = eeprom::getEeprom8(eeprom_base, 1<<1);
+#ifdef EEPROM_DEFAULT_AXIS_INVERSION
+        uint8_t axes_invert = eeprom::getEeprom8(eeprom_base, EEPROM_DEFAULT_AXIS_INVERSION);
         uint8_t endstops_invert = eeprom::getEeprom8(eeprom_base + 1, 0);
 	bool endstops_present = (endstops_invert & (1<<7)) != 0;
 
@@ -92,4 +94,5 @@ void StepperInterface::init(uint8_t idx) {
                 min_pin.setDirection(false);
                 min_pin.setValue(invert_endstops);
         }
+#endif
 }

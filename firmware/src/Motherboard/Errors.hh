@@ -18,6 +18,8 @@
 #ifndef ERRORS_HH_
 #define ERRORS_HH_
 
+#include "Configuration.hh"
+
 /// Definition of blink codes for error conditions.
 
 // TODO: Add these to the main documentation page.
@@ -31,5 +33,8 @@
 #define ERR_WDT_TIMEOUT                 6
 #define ERR_ESTOP 	                7
 #define ERR_HOST_TRUNCATED_CMD          8
+#ifdef SMALL_4K_RAM
+	#define ERR_NO_FREE_SRAM	9
+#endif
 
 #endif /* ERRORS_HH_ */

@@ -102,7 +102,7 @@ bool StepperAxis::checkEndstop(const bool isHoming) {
 
 void StepperAxis::doInterrupt(const int32_t intervals) {
         counter += delta;
-        if (counter >= 0) {
+        if (counter > 0) {
                 interface->setDirection(direction);
                 counter -= intervals;
                 bool hit_endstop = checkEndstop(false);
@@ -121,7 +121,7 @@ void StepperAxis::doInterrupt(const int32_t intervals) {
 bool StepperAxis::doHoming(const int32_t intervals) {
         if (delta == 0) return false;
         counter += delta;
-        if (counter >= 0) {
+        if (counter > 0) {
                 interface->setDirection(direction);
                 counter -= intervals;
                 bool hit_endstop = checkEndstop(true);

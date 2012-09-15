@@ -196,4 +196,21 @@
 //Stepper Acceleration
 #define HAS_STEPPER_ACCELERATION 	1
 
+//Build estimation for the lcd
+#define HAS_BUILD_ESTIMATION		1
+
+//Pause@ZPos functionality for the LCD
+#define PAUSEATZPOS
+
+//Filament counter
+#define HAS_FILAMENT_COUNTER
+
+//If defined, erase the eeprom area on every boot, useful for diagnostics
+//#define ERASE_EEPROM_ON_EVERY_BOOT
+
+//If defined, enable an additional Utilities menu that allows erasing, saving and loading
+//of eeprom data
+//WARNING: This probably will not fit on a 1280 (mb24).
+//#define EEPROM_MENU_ENABLE
+
 #endif // BOARDS_RRMBV12_CONFIGURATION_HH_

@@ -15,6 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
+#include "Configuration.hh"
 #include "Host.hh"
 #include "Command.hh"
 #include "Tool.hh"
@@ -30,6 +31,8 @@
 #include "Errors.hh"
 #include "Eeprom.hh"
 #include "EepromMap.hh"
+#include "EepromDefaults.hh"
+#include "StepperAccelPlanner.hh"
 
 namespace host {
 
@@ -58,6 +61,18 @@ uint32_t buildSteps;
 HostState currentState;
 
 bool do_host_reset = true;
+
+void prepReset() {
+#ifdef HAS_FILAMENT_COUNTER
+	command::addFilamentUsed();
+#endif
+	if (currentState == HOST_STATE_BUILDING
+	    || currentState == HOST_STATE_BUILDING_FROM_SD
+	    || currentState == HOST_STATE_ESTIMATING_FROM_SD) {
+		stopBuild();
+	}
+	do_host_reset = true; // perform reset on next host slice
+}
 
 void runHostSlice() {
         InPacket& in = UART::getHostUART().in;
@@ -196,8 +211,12 @@ inline void handleGetBufferSize(const InPacket& from_host, OutPacket& to_host) {
 }
 
 inline void handleGetPosition(const InPacket& from_host, OutPacket& to_host) {
+#ifdef HAS_STEPPER_ACCELERATION
+	steppers::drainAccelerationBuffer();
+#endif
+
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
-		const Point p = steppers::getPosition();
+		const Point p = steppers::getCurrentPosition();
 		to_host.append8(RC_OK);
 		to_host.append32(p[0]);
 		to_host.append32(p[1]);
@@ -216,8 +235,12 @@ inline void handleGetPosition(const InPacket& from_host, OutPacket& to_host) {
 }
 
 inline void handleGetPositionExt(const InPacket& from_host, OutPacket& to_host) {
+#ifdef HAS_STEPPER_ACCELERATION
+	steppers::drainAccelerationBuffer();
+#endif
+
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
-		const Point p = steppers::getPosition();
+		const Point p = steppers::getCurrentPosition();
 		to_host.append8(RC_OK);
 		to_host.append32(p[0]);
 		to_host.append32(p[1]);
@@ -293,7 +316,7 @@ inline void handleNextFilename(const InPacket& from_host, OutPacket& to_host) {
 
 void doToolPause(OutPacket& to_host) {
 	Timeout acquire_lock_timeout;
-	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MS);
+	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MICROS);
 	while (!tool::getLock()) {
 		if (acquire_lock_timeout.hasElapsed()) {
 			to_host.append8(RC_DOWNSTREAM_TIMEOUT);
@@ -333,7 +356,7 @@ inline void handleToolQuery(const InPacket& from_host, OutPacket& to_host) {
 		return;
 	}
 	Timeout acquire_lock_timeout;
-	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MS);
+	acquire_lock_timeout.start(HOST_TOOL_RESPONSE_TIMEOUT_MICROS);
 	while (!tool::getLock()) {
 		if (acquire_lock_timeout.hasElapsed()) {
 			to_host.append8(RC_DOWNSTREAM_TIMEOUT);
@@ -374,7 +397,7 @@ inline void handlePause(const InPacket& from_host, OutPacket& to_host) {
 inline void handleIsFinished(const InPacket& from_host, OutPacket& to_host) {
 	to_host.append8(RC_OK);
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
-		bool done = !steppers::isRunning() && command::isEmpty();
+	        bool done = !steppers::isRunning() && command::isEmpty() && !blocks_queued();
 		to_host.append8(done?1:0);
 	}
 }
@@ -382,7 +405,7 @@ inline void handleIsFinished(const InPacket& from_host, OutPacket& to_host) {
 inline void handleReadEeprom(const InPacket& from_host, OutPacket& to_host) {
 	uint16_t offset = from_host.read16(1);
 	uint8_t length = from_host.read8(3);
-	uint8_t data[16];
+	uint8_t data[32];
 	eeprom_read_block(data, (const void*) offset, length);
 	to_host.append8(RC_OK);
 	for (int i = 0; i < length; i++) {
@@ -393,7 +416,7 @@ inline void handleReadEeprom(const InPacket& from_host, OutPacket& to_host) {
 inline void handleWriteEeprom(const InPacket& from_host, OutPacket& to_host) {
 	uint16_t offset = from_host.read16(1);
 	uint8_t length = from_host.read8(3);
-	uint8_t data[16];
+	uint8_t data[32];
 	eeprom_read_block(data, (const void*) offset, length);
 	for (int i = 0; i < length; i++) {
 		data[i] = from_host.read8(i + 4);
@@ -466,14 +489,7 @@ bool processQueryPacket(const InPacket& from_host, OutPacket& to_host) {
 			case HOST_CMD_ABORT: // equivalent at current time
 			case HOST_CMD_RESET:
 				// TODO: This is fishy.
-				command::addFilamentUsed();
-				if (currentState == HOST_STATE_BUILDING
-						|| currentState == HOST_STATE_BUILDING_FROM_SD
-						|| currentState == HOST_STATE_ESTIMATING_FROM_SD) {
-					stopBuild();
-				}
-
-				do_host_reset = true; // indicate reset after response has been sent
+				prepReset();
 				to_host.append8(RC_OK);
 				return true;
 			case HOST_CMD_GET_BUFFER_SIZE:
@@ -537,7 +553,7 @@ char* getMachineName() {
 	// If the machine name hasn't been loaded, load it
 	if (machineName[0] == 0) {
 		for(uint8_t i = 0; i < MAX_MACHINE_NAME_LEN; i++) {
-			machineName[i] = eeprom::getEeprom8(eeprom::MACHINE_NAME+i, 0);
+			machineName[i] = eeprom::getEeprom8(eeprom::MACHINE_NAME+i, EEPROM_DEFAULT_MACHINE_NAME);
 		}
 	}
 

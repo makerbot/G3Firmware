@@ -1,0 +1,78 @@
+//
+// MBI Firmware Defaults
+//
+#define EEPROM_DEFAULT_AXIS_INVERSION			(uint8_t)(1<<1)		// Y axis = 1
+#define EEPROM_DEFAULT_ENDSTOP_INVERSION		(uint8_t)0b00011111	// All endstops inverted
+
+#define EEPROM_DEFAULT_MACHINE_NAME			0			// name is null
+
+// Not strictly MBI defaults, but we but them here as we never want these values to be overwritten
+#define EEPROM_DEFAULT_FILAMENT_USED			0
+#define EEPROM_DEFAULT_FILAMENT_USED_TRIP		0
+
+
+
+
+//
+// Jetty Firmware Defaults
+//
+#define EEPROM_DEFAULT_JOG_MODE_SETTINGS                0
+
+// The next 4 entries, aren't really the defaults, but they're used in EEPROM_DEFAULT_STEPS_PER_MM_?, so we include
+// them here so we don't miss them if we change scaling
+#define STEPS_PER_MM_PADDING     5
+#define STEPS_PER_MM_PRECISION   10
+#define STEPS_PER_MM_LOWER_LIMIT 10000000
+#define STEPS_PER_MM_UPPER_LIMIT 200000000000000
+
+// These defaults are appropriate for a Cupcake with the original stepper driver and
+// a Mk7, Mk6+, or Mk5+Mk6 upgrade
+
+#define EEPROM_DEFAULT_STEPS_PER_MM_X			117674630000	//  11.767463
+#define EEPROM_DEFAULT_STEPS_PER_MM_Y			117674630000	//  11.767463
+#define EEPROM_DEFAULT_STEPS_PER_MM_Z		       3200000000000	// 320.0
+#define EEPROM_DEFAULT_STEPS_PER_MM_A			502354788069	//  50.2354788069
+#define EEPROM_DEFAULT_STEPS_PER_MM_B			502354788069	//  50.2354788069
+
+#define EEPROM_DEFAULT_STEPPER_DRIVER			0x03
+
+#define EEPROM_DEFAULT_ACCEL_MAX_FEEDRATE_X		100
+#define EEPROM_DEFAULT_ACCEL_MAX_FEEDRATE_Y		100
+#define EEPROM_DEFAULT_ACCEL_MAX_FEEDRATE_Z		8
+#define EEPROM_DEFAULT_ACCEL_MAX_FEEDRATE_A		100
+#define EEPROM_DEFAULT_ACCEL_MAX_FEEDRATE_B		100
+
+#define EEPROM_DEFAULT_ACCEL_MAX_ACCELERATION_X		500
+#define EEPROM_DEFAULT_ACCEL_MAX_ACCELERATION_Y		500
+#define EEPROM_DEFAULT_ACCEL_MAX_ACCELERATION_Z		100
+#define EEPROM_DEFAULT_ACCEL_MAX_ACCELERATION_A		60000
+
+#define EEPROM_DEFAULT_ACCEL_MAX_EXTRUDER_NORM		2000
+#define EEPROM_DEFAULT_ACCEL_MAX_EXTRUDER_RETRACT	4000
+
+#define EEPROM_DEFAULT_ACCEL_E_STEPS_PER_MM		44		// Multiplied by 10
+
+#define EEPROM_DEFAULT_ACCEL_MIN_FEED_RATE		0		// Multiplied by 10
+#define EEPROM_DEFAULT_ACCEL_MIN_TRAVEL_FEED_RATE	0		// Multiplied by 10
+
+#define EEPROM_DEFAULT_ACCEL_ADVANCE_K			850		// 0.00850 Multiplied by 100000
+#define EEPROM_DEFAULT_ACCEL_ADVANCE_K2			900		// 0.00900 Multiplied by 100000
+
+#define EEPROM_DEFAULT_ACCEL_MIN_PLANNER_SPEED		2		// mm/s
+
+#define EEPROM_DEFAULT_ACCEL_NOODLE_DIAMETER		58		// 0.58mm Multiplied by 100
+
+#define EEPROM_DEFAULT_ACCEL_MIN_SEGMENT_TIME		200		// 0.0200 Multiplied by 10000
+
+#define EEPROM_DEFAULT_ACCEL_REV_MAX_FEED_RATE		800
+
+#define EEPROM_DEFAULT_ACCEL_EXTRUDER_DEPRIME		40		// 4mm Multiplied by 10
+
+#define EEPROM_DEFAULT_ACCEL_SLOWDOWN_LIMIT		4
+
+#define EEPROM_DEFAULT_ACCEL_CLOCKWISE_EXTRUDER		1
+
+#define EEPROM_DEFAULT_ACCEL_MAX_SPEED_CHANGE_X		300		// mm/s Multiplied by 10
+#define EEPROM_DEFAULT_ACCEL_MAX_SPEED_CHANGE_Y		300		// mm/s Multiplied by 10
+#define EEPROM_DEFAULT_ACCEL_MAX_SPEED_CHANGE_Z		25		// mm/s Multiplied by 10
+#define EEPROM_DEFAULT_ACCEL_MAX_SPEED_CHANGE_A		300		// mm/s Multiplied by 10

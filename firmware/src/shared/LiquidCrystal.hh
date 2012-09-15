@@ -61,7 +61,9 @@ public:
   void init(uint8_t fourbitmode, Pin rs, Pin rw, Pin enable,
 	    Pin d0, Pin d1, Pin d2, Pin d3,
 	    Pin d4, Pin d5, Pin d6, Pin d7);
-    
+
+  void reloadDisplayType(void);
+
   void begin(uint8_t cols, uint8_t rows, uint8_t charsize = LCD_5x8DOTS);
 
   void clear();
@@ -97,6 +99,10 @@ public:
 
   void command(uint8_t);
 
+  uint8_t getDisplayWidth();
+  uint8_t getDisplayHeight();
+  void	  nextLcdType();
+
 private:
   void send(uint8_t, bool);
   void write4bits(uint8_t);
@@ -115,6 +121,9 @@ private:
   uint8_t _initialized;
 
   uint8_t _numlines,_currline;
+
+  uint8_t _displayWidth;
+  uint16_t _clearDelay;
 };
 
 #endif // LIQUID_CRYSTAL_HH
