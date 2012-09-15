@@ -16,10 +16,15 @@
 
   You should have received a copy of the GNU General Public License
   along with Grbl.  If not, see <http://www.gnu.org/licenses/>.
-*/
 
-/* The timer calculations of this module informed by the 'RepRap cartesian firmware' by Zack Smith
-   and Philipp Tiefenbacher. */
+  The timer calculations of this module informed by the 'RepRap cartesian firmware' by Zack Smith
+  and Philipp Tiefenbacher.
+
+  This module has been heavily modified from the original Marlin (https://github.com/ErikZalm).
+  JKN Advance, YAJ (Yet Another Jerk), Advance Pressure Relax and modifications originate from
+  Jetty Firmware (https://github.com/jetty840/G3Firmware).  These modifications and features are
+  copyrighted and authored by Dan Newman and Jetty under GPL.  Copyright (c) 2012.
+*/
 
 #include "Configuration.hh"
 
