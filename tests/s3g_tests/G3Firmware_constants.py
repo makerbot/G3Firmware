@@ -58,6 +58,7 @@ New point to move to.  Need a decent distance, otherwise the accelerated planner
 minimum speeds will cut in
 """
 constants['new_ext_point'] = [500, 500, -10, 0, 0]
+steps_per_mm = [47.069852, 47.069852, 200.0, 50.235478806907409, 50.235478806907409]
 
 # 1 for dual extruder, 0 for single extruder
 constants['dual_extruder'] = 0

@@ -26,6 +26,7 @@ unsupported_functions = [
     'reset_to_factory',                                                    # 152
     'build_start_notification',                                            # 153
     'build_end_notification',                                              # 154
+    'queue_point_new_ext',                                                 # 155
 
 # Tool Query Commands
 

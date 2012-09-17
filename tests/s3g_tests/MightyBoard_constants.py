@@ -49,7 +49,8 @@ constants['min_test_mask'] = 0x30  # bits to check when at min end stops (zmax |
 """
 New point to move to
 """
-constants['new_ext_point'] = [-50, -50, 100, 0, 0]
+constants['new_ext_point'] = [-500, -500, 100, 0, 0]
+steps_per_mm = [94.139704, 94.139704, 400.0, 96.275201870333662468889989185642, 96.275201870333662468889989185642]
 
 # 1 for dual extruder, 0 for single extruder
 constants['dual_extruder'] = 1

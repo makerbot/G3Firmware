@@ -11,6 +11,7 @@ import os, sys
 import logging
 import tempfile
 import inspect
+import math
 
 lib_path = os.path.abspath('./s3g')
 sys.path.append(lib_path)
@@ -388,6 +389,28 @@ class s3gFunctionTests(unittest.TestCase):
     position = [50, 51, 52, 53, 54 * constants['dual_extruder']]
     self.r.set_extended_position(position)
     self.assertEqual(position, self.r.get_extended_position()[0])
+
+  def test_QueuePointNewExt(self):
+    self.r.find_axes_maximums(constants['endstops_max'], 250, 60)
+    time.sleep(5)
+    self.r.find_axes_minimums(constants['endstops_min'], 250, 60)
+    time.sleep(5)
+    self.r.recall_home_positions(['x', 'y', 'z', 'a', 'b'])
+    self.r.set_extended_position([0, 0, 0, 0, 0])
+    newPosition = constants['new_ext_point']
+    # Distance in millimeters
+    distance = math.sqrt(pow(newPosition[0]/steps_per_mm[0],2) + pow(newPosition[1]/steps_per_mm[1],2) + pow(newPosition[2]/steps_per_mm[2],2))
+    duration = 1.0
+    #  Feed rate in units of mm/s
+    feedRate = distance / duration
+    if feedRate > 150.0:
+      feedRate = 150.0
+    # steps per second along the axis with the most steps
+    dda_rate = int(float(max([abs(newPosition[i]) for i in range(0,len(newPosition))])) / duration)
+    if dda_rate < 1:
+      dda_rate = 1
+    self.r.queue_point_new_ext(newPosition, dda_rate, [], distance, feedRate); 
+    time.sleep(int(duration + 1.0))
 
   def test_QueueExtendedPoint(self):
     self.r.find_axes_maximums(constants['endstops_max'], 500, 100)

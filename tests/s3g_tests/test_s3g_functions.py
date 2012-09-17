@@ -96,6 +96,7 @@ s3g_function_calls = {
     'reset_to_factory' : [ (), 'time.sleep(5)' ],                                   # 152
     'build_start_notification' : [ ('aTest'), '%s.build_end_notification()' ],      # 153
     'build_end_notification' : (),                                                  # 154
+    'queue_point_new_ext' : ([0, 0, 0, 0, 0], 1, ['X', 'Y', 'Z', 'A', 'B'], 0.1, 30.0), # 155
 
 # Tool Query Commands
 
