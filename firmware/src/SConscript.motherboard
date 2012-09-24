@@ -139,7 +139,8 @@ flags=[
 	'-mmcu='+mcu,
 	'-g',
 	'-Os',
-	'-w',
+	'-Wall',
+	'-Winline',
 	'-fno-exceptions',
 	'-ffunction-sections',
 	'-fdata-sections',
@@ -155,7 +156,7 @@ if (os.environ.has_key('BUILD_NAME')):
 if (os.environ.has_key('AVR_TOOLS_PATH')):
 	avr_tools_path = os.environ['AVR_TOOLS_PATH']
 elif (os.environ.has_key('AVR32_HOME')):
-	avr_tools_path = os.environ['AVR32_HOME'] + '\\bin'
+	avr_tools_path = os.environ['AVR32_HOME'] + '/bin'
 else:
 	lines = os.popen('/usr/bin/which avr-gcc').readlines()
 	if(len(lines) > 0):
@@ -183,7 +184,7 @@ hex_name = target_name + '.hex'
 elf_name = target_name + '.elf'
 map_name = target_name + '.map'
 
-env.Append(BUILDERS={'Elf':Builder(action=avr_tools_path+"/avr-gcc -mmcu="+mcu+" -Os -Wl,--gc-sections -Wl,-Map,"+map_name+" -o $TARGET $SOURCES")})
+env.Append(BUILDERS={'Elf':Builder(action=avr_tools_path+"/avr-gcc -mmcu="+mcu+" -Os -Wl,--gc-sections -Wl,-Map,"+map_name+" -o $TARGET $SOURCES -lm")})
 env.Append(BUILDERS={'Hex':Builder(action=avr_tools_path+"/avr-objcopy -O ihex -R .eeprom $SOURCES $TARGET")})
 env.Elf(elf_name, objs) 
 env.Hex(hex_name, elf_name)
