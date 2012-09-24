@@ -655,7 +655,8 @@ void calculate_trapezoid_for_block(block_t *block, FPTYPE entry_factor, FPTYPE e
 #endif
 	}
 #ifdef SIMULATOR
-        if ( (advance_lead_entry < 0) || (advance_lead_exit < 0) || (advance_pressure_relax < 0) ) {
+	// Owing to roundoff errors, lead_entry and lead_exit can hit -1 and that's not abnormal
+        if ( (advance_lead_entry < -1) || (advance_lead_exit < -1) || (advance_pressure_relax < 0) ) {
 	     char buf[1024];
 	     snprintf(buf, sizeof(buf),
 		      "*** calculate_trapezoid_for_block(): advance_lead_entry=%d, advance_lead_exit=%d, "
