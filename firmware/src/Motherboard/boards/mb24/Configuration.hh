@@ -18,6 +18,7 @@
 #ifndef BOARDS_MB24_CONFIGURATION_HH_
 #define BOARDS_MB24_CONFIGURATION_HH_
 
+#ifndef SIMULATOR
 
 /// This file details the pin assignments and features of the
 /// Makerbot Motherboard v2.x
@@ -78,12 +79,14 @@
 #define ESTOP_ENABLE_FALLING_INT { EICRB = 0x02; EIMSK |= 0x10; }
 #define ESTOP_vect INT4_vect
 
+#endif
 
 // --- Axis configuration ---
 // Define the number of stepper axes supported by the board.  The axes are
 // denoted by X, Y, Z, A and B.
 #define STEPPER_COUNT           5
 
+#ifndef SIMULATOR
 
 // --- Stepper and endstop configuration ---
 // Pins should be defined for each axis present on the board.  They are denoted
@@ -212,5 +215,7 @@
 //of eeprom data
 //WARNING: This probably will not fit on a 1280 (mb24).
 //#define EEPROM_MENU_ENABLE
+
+#endif // #ifndef SIMULATOR
 
 #endif // BOARDS_RRMBV12_CONFIGURATION_HH_
