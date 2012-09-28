@@ -308,7 +308,7 @@ int appendUint8(char *buf, uint8_t buflen, uint8_t val)
 void SplashScreen::update(LiquidCrystal& lcd, bool forceRedraw) {
 	const static PROGMEM prog_uchar splash1[] = " Jetty Firmware ";
 	const static PROGMEM prog_uchar splash2[] = "  ------------- ";
-	const static PROGMEM prog_uchar splash3[] = "Thing 15380 3.4z";
+	const static PROGMEM prog_uchar splash3[] = " Thing 15380 3.5";
 	const static PROGMEM prog_uchar splash4[] = " Revision: ____ "; 
 
 	if (forceRedraw) {
