@@ -1,7 +1,7 @@
 //
 // MBI Firmware Defaults
 //
-#define EEPROM_DEFAULT_AXIS_INVERSION			(uint8_t)(1<<1)		// Y axis = 1
+#define EEPROM_DEFAULT_AXIS_INVERSION			(uint8_t)((1<<1) | (1<<7))	// Y axis = 1, ZHold Off
 #define EEPROM_DEFAULT_ENDSTOP_INVERSION		(uint8_t)0b00011111	// All endstops inverted
 
 #define EEPROM_DEFAULT_MACHINE_NAME			0			// name is null
