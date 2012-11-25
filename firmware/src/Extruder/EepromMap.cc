@@ -21,7 +21,7 @@
 
 namespace eeprom {
 
-void setDefaults() {
+void setDefaults(bool dummy) {
         // Initialize eeprom map
         // Default: Heaters 0 and 1 enabled, thermistor on both.
         uint8_t features = eeprom::HEATER_0_PRESENT |

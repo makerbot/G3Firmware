@@ -121,7 +121,7 @@ const static uint16_t THERM_TABLE_0             = 0x00f0;
 /// Thermistor table 1
 const static uint16_t THERM_TABLE_1   			= 0x0170;
 
-void setDefaults();
+void setDefaults(bool dummy);
 
 } // namespace eeprom
 
